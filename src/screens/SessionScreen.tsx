@@ -276,6 +276,7 @@ export function SessionScreen() {
           Started {formatDateTime(session?.startedAt)}
           {session?.routineId ? ' · From routine' : ''}
         </p>
+        <p className="muted">Weight first logging: enter weight, reps optional.</p>
       </header>
 
       {message ? <p className="success-banner">{message}</p> : null}
@@ -378,16 +379,16 @@ export function SessionScreen() {
 
           <div className="button-row">
             <button type="button" className="button button--primary" onClick={() => void handleAddSet()}>
-              Add set
+              Add weight entry
             </button>
             <button type="button" className="button" onClick={() => void handleCopyPreviousSet()}>
-              Copy previous set
+              Copy last entry
             </button>
           </div>
 
           <div className="stack">
             {currentSets.length === 0 ? (
-              <p>No sets yet.</p>
+              <p>No entries yet. Tap "Add weight entry" to start.</p>
             ) : (
               currentSets.map((setEntry, index) => (
                 <article key={setEntry.id} className="set-row">
@@ -415,7 +416,7 @@ export function SessionScreen() {
                     </label>
 
                     <label className="stack stack--tight">
-                      <span>Reps</span>
+                      <span>Reps (optional)</span>
                       <input
                         type="number"
                         min="0"

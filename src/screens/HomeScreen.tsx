@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
+  ensureCoreRoutines,
   getActiveSession,
   listExercises,
   listRoutines,
   startSession,
 } from '../lib/db'
 import { formatDateTime } from '../lib/format'
+import { readPreferences } from '../lib/preferences'
 import type { Exercise, Routine, SessionRecord } from '../types'
 
 export function HomeScreen() {
@@ -20,6 +22,9 @@ export function HomeScreen() {
   const loadData = useCallback(async () => {
     setIsLoading(true)
     try {
+      const preferences = readPreferences()
+      await ensureCoreRoutines(preferences.defaultUnit)
+
       const [session, loadedRoutines, exercises] = await Promise.all([
         getActiveSession(),
         listRoutines(),
@@ -60,6 +65,16 @@ export function HomeScreen() {
     [exerciseMap, routines],
   )
 
+  const quickRoutineCards = useMemo(() => {
+    const routineByName = new Map(
+      routineCards.map((routine) => [routine.name.toLowerCase(), routine]),
+    )
+
+    return ['push', 'pull', 'legs']
+      .map((name) => routineByName.get(name))
+      .filter((routine): routine is (typeof routineCards)[number] => Boolean(routine))
+  }, [routineCards])
+
   async function handleStartSession(routineId?: string): Promise<void> {
     if (activeSession) {
       navigate(`/session/${activeSession.id}`)
@@ -94,21 +109,29 @@ export function HomeScreen() {
           </>
         ) : (
           <>
-            <p>No active session.</p>
-            <button
-              type="button"
-              className="button button--primary"
-              onClick={() => void handleStartSession()}
-            >
-              Quick start blank session
-            </button>
+            <p>Pick your day and start logging.</p>
+            <div className="button-row">
+              {quickRoutineCards.map((routine) => (
+                <button
+                  key={routine.id}
+                  type="button"
+                  className="button button--primary"
+                  onClick={() => void handleStartSession(routine.id)}
+                >
+                  {routine.name}
+                </button>
+              ))}
+            </div>
+            {quickRoutineCards.length < 3 ? (
+              <p className="muted">Loading your Push / Pull / Legs setup...</p>
+            ) : null}
           </>
         )}
       </div>
 
       <div className="panel">
         <div className="row row--between">
-          <h2>Routines</h2>
+          <h2>3-day split</h2>
           <Link className="text-link" to="/routines">
             Manage
           </Link>
@@ -116,11 +139,11 @@ export function HomeScreen() {
 
         {isLoading ? <p>Loading routines...</p> : null}
 
-        {routineCards.length === 0 && !isLoading ? (
-          <p>Create your first routine to speed up starts.</p>
+        {quickRoutineCards.length === 0 && !isLoading ? (
+          <p>Push, Pull, and Legs routines will appear here.</p>
         ) : null}
 
-        {routineCards.map((routine) => (
+        {quickRoutineCards.map((routine) => (
           <article key={routine.id} className="list-card">
             <h3>{routine.name}</h3>
             <p>
