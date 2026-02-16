@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
+  addSetEntry,
   addSetWithPrefill,
   createExercise,
   db,
   ensureCoreRoutines,
   endSession,
+  getSetInputPrefillFromLastSession,
   listExercises,
   listRoutines,
   getLastCompletedSessionForExercise,
   listExerciseHistory,
   markSetComplete,
+  removeExerciseFromSession,
+  listSessionSetEntries,
   startSession,
   updateSetEntry,
 } from './db'
@@ -70,5 +74,38 @@ describe('IndexedDB integration', () => {
     ])
     expect(exercises.length).toBeGreaterThan(0)
     expect(routines.every((routine) => routine.exerciseIds.length > 0)).toBe(true)
+  })
+
+  it('can prefill inline set input and remove an exercise from the session list', async () => {
+    const exercise = await createExercise({
+      name: 'Incline Press',
+      unitDefault: 'lb',
+    })
+
+    const firstSession = await startSession()
+    await addSetEntry(firstSession.id, exercise.id, {
+      weight: 115,
+      reps: 8,
+      completed: true,
+    })
+    await endSession(firstSession.id)
+
+    const secondSession = await startSession()
+    await addSetEntry(secondSession.id, exercise.id, {
+      weight: 120,
+      reps: 7,
+      completed: true,
+    })
+
+    const prefill = await getSetInputPrefillFromLastSession(exercise.id, 1)
+    expect(prefill).toEqual({
+      weight: 115,
+      reps: 8,
+    })
+
+    await removeExerciseFromSession(secondSession.id, exercise.id)
+
+    const remaining = await listSessionSetEntries(secondSession.id)
+    expect(remaining).toHaveLength(0)
   })
 })

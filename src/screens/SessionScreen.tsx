@@ -1,66 +1,119 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { ChangeEvent, FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
-  addSetWithPrefill,
-  copyPreviousSet,
+  addSetEntry,
   createExercise,
   endSession,
   getSession,
   getRoutine,
+  getSetInputPrefillFromLastSession,
+  listExerciseHistory,
   listExercises,
   listSessionSetEntries,
-  markSetComplete,
-  updateSetEntry,
+  removeExerciseFromSession,
 } from '../lib/db'
-import { formatDateTime, formatDuration, formatNumber } from '../lib/format'
-import {
-  buildProgressionSuggestion,
-  isExerciseComplete,
-  type ProgressionSuggestion,
-} from '../lib/progression'
+import { formatDateTime, formatNumber } from '../lib/format'
 import { readPreferences } from '../lib/preferences'
+import { calculateEstimatedOneRepMax } from '../lib/progression'
 import type { Exercise, SessionRecord, SetEntry, Unit } from '../types'
+
+interface SetDraft {
+  weight: string
+  reps: string
+}
+
+interface ExerciseHistoryModal {
+  exercise: Exercise
+  rows: Array<{
+    sessionId: string
+    endedAt: string
+    bestSet: string
+  }>
+}
 
 export function SessionScreen() {
   const params = useParams<{ sessionId: string }>()
   const navigate = useNavigate()
   const sessionId = params.sessionId ?? ''
 
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const exerciseCardRefs = useRef<Record<string, HTMLElement | null>>({})
+  const weightInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
   const [session, setSession] = useState<SessionRecord>()
   const [exerciseOrder, setExerciseOrder] = useState<string[]>([])
   const [exerciseMap, setExerciseMap] = useState<Record<string, Exercise>>({})
-  const [selectedExerciseId, setSelectedExerciseId] = useState<string>('')
   const [setsByExercise, setSetsByExercise] = useState<Record<string, SetEntry[]>>({})
-  const [restTimerEnabled, setRestTimerEnabled] = useState(true)
-  const [restSeconds, setRestSeconds] = useState(90)
-  const [restRemaining, setRestRemaining] = useState(0)
-  const [quickExerciseName, setQuickExerciseName] = useState('')
-  const [quickExerciseUnit, setQuickExerciseUnit] = useState<Unit>('lb')
-  const [existingExerciseToAdd, setExistingExerciseToAdd] = useState('')
-  const [message, setMessage] = useState('')
+  const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [draftsByExercise, setDraftsByExercise] = useState<Record<string, SetDraft>>({})
+  const [defaultUnit, setDefaultUnit] = useState<Unit>('lb')
+  const [historyModal, setHistoryModal] = useState<ExerciseHistoryModal | null>(null)
   const [error, setError] = useState('')
 
-  const currentExercise = selectedExerciseId ? exerciseMap[selectedExerciseId] : undefined
-  const currentSets = useMemo(
-    () => (selectedExerciseId ? (setsByExercise[selectedExerciseId] ?? []) : []),
-    [selectedExerciseId, setsByExercise],
+  const availableExercises = useMemo(
+    () => Object.values(exerciseMap).sort((a, b) => a.name.localeCompare(b.name)),
+    [exerciseMap],
   )
-  const currentSuggestion = useMemo<ProgressionSuggestion | null>(() => {
-    if (!currentExercise) {
-      return null
+
+  const queryText = query.trim()
+  const queryLower = queryText.toLowerCase()
+  const sessionExerciseIds = useMemo(() => new Set(exerciseOrder), [exerciseOrder])
+
+  const matchingExercises = useMemo(() => {
+    if (!queryText) {
+      return []
     }
 
-    return buildProgressionSuggestion(currentExercise.progressionSettings, currentSets)
-  }, [currentExercise, currentSets])
+    return availableExercises.filter((exercise) =>
+      exercise.name.toLowerCase().includes(queryLower),
+    )
+  }, [availableExercises, queryLower, queryText])
 
-  const isCurrentExerciseComplete = useMemo(() => {
-    if (!currentExercise) {
-      return false
+  const exactMatch = useMemo(
+    () =>
+      availableExercises.find(
+        (exercise) => exercise.name.toLowerCase() === queryLower && queryLower.length > 0,
+      ),
+    [availableExercises, queryLower],
+  )
+
+  const searchSuggestions = useMemo(() => {
+    if (!queryText) {
+      return []
     }
 
-    return isExerciseComplete(currentExercise.progressionSettings, currentSets)
-  }, [currentExercise, currentSets])
+    const suggestions: Array<
+      | { kind: 'create'; label: string }
+      | { kind: 'existing'; exercise: Exercise; label: string }
+    > = []
+
+    if (!exactMatch) {
+      suggestions.push({
+        kind: 'create',
+        label: `Create "${queryText}" and add`,
+      })
+    }
+
+    for (const exercise of matchingExercises) {
+      if (sessionExerciseIds.has(exercise.id)) {
+        continue
+      }
+
+      suggestions.push({
+        kind: 'existing',
+        exercise,
+        label: exercise.name,
+      })
+
+      if (suggestions.length >= 6) {
+        break
+      }
+    }
+
+    return suggestions
+  }, [exactMatch, matchingExercises, queryText, sessionExerciseIds])
 
   const loadSessionData = useCallback(async () => {
     if (!sessionId) {
@@ -94,22 +147,15 @@ export function SessionScreen() {
       }
     }
 
+    const mostRecentExerciseId = getMostRecentlyUsedExerciseId(allEntries, mergedOrder)
+    const preferences = readPreferences()
+
     setSession(loadedSession)
     setExerciseMap(Object.fromEntries(allExercises.map((exercise) => [exercise.id, exercise])))
     setSetsByExercise(groupedSets)
     setExerciseOrder(mergedOrder)
-
-    if (mergedOrder.length > 0) {
-      setSelectedExerciseId((previous) =>
-        previous && mergedOrder.includes(previous) ? previous : mergedOrder[0],
-      )
-      setExistingExerciseToAdd(mergedOrder[0])
-    }
-
-    const preferences = readPreferences()
-    setQuickExerciseUnit(preferences.defaultUnit)
-    setRestTimerEnabled(preferences.restTimerEnabled)
-    setRestSeconds(preferences.restSeconds)
+    setExpandedExerciseId(mostRecentExerciseId)
+    setDefaultUnit(preferences.defaultUnit)
   }, [navigate, sessionId])
 
   useEffect(() => {
@@ -119,127 +165,275 @@ export function SessionScreen() {
   }, [loadSessionData])
 
   useEffect(() => {
-    if (restRemaining <= 0) {
-      return undefined
+    if (!session) {
+      return
     }
 
-    const timer = window.setInterval(() => {
-      setRestRemaining((current) => (current <= 1 ? 0 : current - 1))
-    }, 1000)
-
-    return () => window.clearInterval(timer)
-  }, [restRemaining])
+    searchInputRef.current?.focus()
+  }, [session])
 
   async function refreshSets(exerciseId: string): Promise<void> {
     const entries = await listSessionSetEntries(sessionId)
-    const grouped = groupSetsByExercise(entries)
-    setSetsByExercise(grouped)
+    setSetsByExercise(groupSetsByExercise(entries))
 
     if (!exerciseOrder.includes(exerciseId)) {
       setExerciseOrder((current) => [...current, exerciseId])
     }
   }
 
-  async function handleAddSet(): Promise<void> {
-    if (!session || !selectedExerciseId) {
-      return
-    }
-
-    await addSetWithPrefill(session.id, selectedExerciseId)
-    await refreshSets(selectedExerciseId)
-  }
-
-  async function handleCopyPreviousSet(): Promise<void> {
-    if (!session || !selectedExerciseId) {
-      return
-    }
-
-    const copied = await copyPreviousSet(session.id, selectedExerciseId)
-    if (!copied) {
-      setError('Add a set first before copying.')
-      return
-    }
-
-    setError('')
-    await refreshSets(selectedExerciseId)
-  }
-
-  async function handleUpdateSetField(
-    setId: string,
-    field: 'weight' | 'reps' | 'isWarmup',
-    value: number | boolean,
-  ): Promise<void> {
-    if (!selectedExerciseId) {
-      return
-    }
-
-    const patch =
-      field === 'isWarmup'
-        ? ({ isWarmup: value as boolean } satisfies Partial<SetEntry>)
-        : ({ [field]: Number(value) } satisfies Partial<SetEntry>)
-
-    setSetsByExercise((current) => ({
-      ...current,
-      [selectedExerciseId]: (current[selectedExerciseId] ?? []).map((entry) =>
-        entry.id === setId ? { ...entry, ...patch } : entry,
-      ),
-    }))
-
-    await updateSetEntry(setId, patch)
-  }
-
-  async function handleToggleComplete(setEntry: SetEntry): Promise<void> {
-    if (!selectedExerciseId) {
-      return
-    }
-
-    const willComplete = !setEntry.completedAt
-    await markSetComplete(setEntry.id, willComplete)
-
-    if (willComplete && restTimerEnabled && restSeconds > 0) {
-      setRestRemaining(restSeconds)
-    }
-
-    await refreshSets(selectedExerciseId)
-  }
-
-  async function handleAddExistingExercise(): Promise<void> {
-    if (!existingExerciseToAdd) {
-      return
-    }
-
-    setExerciseOrder((current) => {
-      if (current.includes(existingExerciseToAdd)) {
-        return current
+  const prefillDraftFromLastSession = useCallback(
+    async (exerciseId: string): Promise<void> => {
+      const existing = draftsByExercise[exerciseId]
+      if (existing && (existing.weight.length > 0 || existing.reps.length > 0)) {
+        return
       }
-      return [...current, existingExerciseToAdd]
-    })
-    setSelectedExerciseId(existingExerciseToAdd)
-  }
 
-  async function handleCreateExercise(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault()
+      const nextSetIndex = setsByExercise[exerciseId]?.length ?? 0
+      const prefill = await getSetInputPrefillFromLastSession(exerciseId, nextSetIndex)
+      if (!prefill) {
+        return
+      }
 
-    const name = quickExerciseName.trim()
-    if (!name) {
-      setError('Exercise name is required.')
+      setDraftsByExercise((current) => {
+        const currentDraft = current[exerciseId]
+        if (currentDraft && (currentDraft.weight.length > 0 || currentDraft.reps.length > 0)) {
+          return current
+        }
+
+        return {
+          ...current,
+          [exerciseId]: {
+            weight: formatNumber(prefill.weight),
+            reps: prefill.reps > 0 ? String(prefill.reps) : '',
+          },
+        }
+      })
+    },
+    [draftsByExercise, setsByExercise],
+  )
+
+  useEffect(() => {
+    if (!expandedExerciseId) {
       return
     }
 
-    const exercise = await createExercise({
-      name,
-      unitDefault: quickExerciseUnit,
-    })
+    void prefillDraftFromLastSession(expandedExerciseId)
+  }, [expandedExerciseId, prefillDraftFromLastSession])
 
+  useEffect(() => {
+    if (!historyModal) {
+      return
+    }
+
+    function handleEscape(event: KeyboardEvent): void {
+      if (event.key === 'Escape') {
+        setHistoryModal(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [historyModal])
+
+  function scrollExerciseIntoView(exerciseId: string): void {
+    requestAnimationFrame(() => {
+      exerciseCardRefs.current[exerciseId]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+    })
+  }
+
+  function focusWeightInput(exerciseId: string): void {
+    requestAnimationFrame(() => {
+      weightInputRefs.current[exerciseId]?.focus()
+    })
+  }
+
+  async function addExerciseToSession(exercise: Exercise): Promise<void> {
     setExerciseMap((current) => ({
       ...current,
       [exercise.id]: exercise,
     }))
-    setExerciseOrder((current) => [...current, exercise.id])
-    setSelectedExerciseId(exercise.id)
-    setQuickExerciseName('')
+
+    setExerciseOrder((current) =>
+      current.includes(exercise.id) ? current : [...current, exercise.id],
+    )
+
+    setExpandedExerciseId(exercise.id)
+    setQuery('')
     setError('')
-    setMessage(`Exercise "${exercise.name}" added.`)
+
+    scrollExerciseIntoView(exercise.id)
+    await prefillDraftFromLastSession(exercise.id)
+    focusWeightInput(exercise.id)
+    searchInputRef.current?.focus()
+  }
+
+  async function handleAddExerciseFromQuery(): Promise<void> {
+    if (!queryText) {
+      return
+    }
+
+    const existingMatch =
+      exactMatch ??
+      matchingExercises.find(
+        (exercise) => exercise.name.toLowerCase().startsWith(queryLower),
+      ) ??
+      matchingExercises[0]
+
+    if (existingMatch) {
+      await addExerciseToSession(existingMatch)
+      return
+    }
+
+    const createdExercise = await createExercise({
+      name: queryText,
+      unitDefault: defaultUnit,
+    })
+
+    await addExerciseToSession(createdExercise)
+  }
+
+  async function handleAddSet(exerciseId: string): Promise<void> {
+    if (!session) {
+      return
+    }
+
+    const draft = draftsByExercise[exerciseId] ?? { weight: '', reps: '' }
+    const weight = Number(draft.weight)
+
+    if (!Number.isFinite(weight) || weight <= 0) {
+      setError('Weight is required.')
+      focusWeightInput(exerciseId)
+      return
+    }
+
+    const repsValue = draft.reps.trim().length === 0 ? 0 : Number(draft.reps)
+    if (!Number.isFinite(repsValue) || repsValue < 0) {
+      setError('Reps must be a number or blank.')
+      return
+    }
+
+    await addSetEntry(session.id, exerciseId, {
+      weight,
+      reps: repsValue,
+      completed: true,
+    })
+
+    await refreshSets(exerciseId)
+
+    setDraftsByExercise((current) => ({
+      ...current,
+      [exerciseId]: {
+        weight: '',
+        reps: '',
+      },
+    }))
+
+    setExpandedExerciseId(exerciseId)
+    setError('')
+    focusWeightInput(exerciseId)
+  }
+
+  async function handleRemoveExercise(exerciseId: string): Promise<void> {
+    if (!session) {
+      return
+    }
+
+    await removeExerciseFromSession(session.id, exerciseId)
+
+    setExerciseOrder((current) => current.filter((id) => id !== exerciseId))
+    setSetsByExercise((current) => {
+      const next = { ...current }
+      delete next[exerciseId]
+      return next
+    })
+    setDraftsByExercise((current) => {
+      const next = { ...current }
+      delete next[exerciseId]
+      return next
+    })
+
+    if (expandedExerciseId === exerciseId) {
+      const remainingExerciseId = exerciseOrder.find((id) => id !== exerciseId)
+      setExpandedExerciseId(remainingExerciseId ?? null)
+    }
+  }
+
+  function handleCopyLastSet(exerciseId: string): void {
+    const sets = setsByExercise[exerciseId] ?? []
+    const lastSet = sets.at(-1)
+    if (!lastSet) {
+      return
+    }
+
+    setDraftsByExercise((current) => ({
+      ...current,
+      [exerciseId]: {
+        weight: formatNumber(lastSet.weight),
+        reps: lastSet.reps > 0 ? String(lastSet.reps) : '',
+      },
+    }))
+
+    focusWeightInput(exerciseId)
+  }
+
+  function toggleExercise(exerciseId: string): void {
+    const willExpand = expandedExerciseId !== exerciseId
+    setExpandedExerciseId((current) => (current === exerciseId ? null : exerciseId))
+
+    if (willExpand) {
+      void prefillDraftFromLastSession(exerciseId)
+      focusWeightInput(exerciseId)
+    }
+  }
+
+  function handleSetInputChange(
+    exerciseId: string,
+    field: keyof SetDraft,
+    value: string,
+  ): void {
+    setDraftsByExercise((current) => ({
+      ...current,
+      [exerciseId]: {
+        weight: current[exerciseId]?.weight ?? '',
+        reps: current[exerciseId]?.reps ?? '',
+        [field]: value,
+      },
+    }))
+  }
+
+  function handleSetInputKeyDown(
+    event: ReactKeyboardEvent<HTMLInputElement>,
+    exerciseId: string,
+  ): void {
+    if (event.key !== 'Enter') {
+      return
+    }
+
+    event.preventDefault()
+    void handleAddSet(exerciseId)
+  }
+
+  async function handleOpenHistory(exercise: Exercise): Promise<void> {
+    const sessions = await listExerciseHistory(exercise.id, 10)
+
+    const rows = sessions.map(({ session: itemSession, sets }) => {
+      const bestSet = pickBestSet(sets)
+      return {
+        sessionId: itemSession.id,
+        endedAt: itemSession.endedAt ?? itemSession.startedAt,
+        bestSet: bestSet
+          ? `${formatNumber(bestSet.weight)} x ${bestSet.reps}`
+          : '-',
+      }
+    })
+
+    setHistoryModal({
+      exercise,
+      rows,
+    })
   }
 
   async function handleEndSession(): Promise<void> {
@@ -251,271 +445,234 @@ export function SessionScreen() {
     navigate('/')
   }
 
-  function handleNumericChange(
-    event: ChangeEvent<HTMLInputElement>,
-    setId: string,
-    field: 'weight' | 'reps',
-  ): void {
-    const value = Number(event.target.value)
-    if (!Number.isFinite(value)) {
-      return
-    }
-
-    void handleUpdateSetField(setId, field, value)
-  }
-
-  const availableExercises = Object.values(exerciseMap).sort((a, b) =>
-    a.name.localeCompare(b.name),
-  )
-
   return (
-    <section className="page">
-      <header className="page-header">
-        <h1>Session</h1>
-        <p>
-          Started {formatDateTime(session?.startedAt)}
-          {session?.routineId ? ' · From routine' : ''}
-        </p>
-        <p className="muted">Weight first logging: enter weight, reps optional.</p>
-      </header>
-
-      {message ? <p className="success-banner">{message}</p> : null}
-      {error ? <p className="error-banner">{error}</p> : null}
-
-      {restTimerEnabled && restRemaining > 0 ? (
-        <div className="rest-timer" role="status" aria-live="polite">
-          Rest: {formatDuration(restRemaining)}
+    <section className="page session-page">
+      <header className="page-header session-header">
+        <div>
+          <h1>Session</h1>
+          <p>
+            Started {formatDateTime(session?.startedAt)}
+            {session?.routineId ? ' · From routine' : ''}
+          </p>
         </div>
-      ) : null}
-
-      <div className="panel">
-        <div className="row row--between">
-          <h2>Exercise</h2>
-          {currentExercise ? (
-            <Link className="text-link" to={`/exercise/${currentExercise.id}`}>
-              History
-            </Link>
-          ) : null}
-        </div>
-
-        {exerciseOrder.length === 0 ? (
-          <p>Add an exercise to begin logging.</p>
-        ) : (
-          <div className="exercise-tabs" role="tablist" aria-label="Session exercises">
-            {exerciseOrder.map((exerciseId) => {
-              const exercise = exerciseMap[exerciseId]
-              if (!exercise) {
-                return null
-              }
-
-              const isActive = selectedExerciseId === exerciseId
-              return (
-                <button
-                  key={exercise.id}
-                  type="button"
-                  className={isActive ? 'chip chip--active' : 'chip'}
-                  onClick={() => setSelectedExerciseId(exerciseId)}
-                  role="tab"
-                  aria-selected={isActive}
-                >
-                  {exercise.name}
-                </button>
-              )
-            })}
-          </div>
-        )}
-        {currentExercise ? (
-          <>
-            <p className="muted">Now logging: {currentExercise.name}</p>
-            <p className="muted">Unit: {currentExercise.progressionSettings.unit}</p>
-          </>
-        ) : null}
-
-        {currentExercise ? (
-          <div className="button-row">
-            <button
-              type="button"
-              className="button button--primary"
-              onClick={() => void handleAddSet()}
-            >
-              Add weight entry
-            </button>
-            <button
-              type="button"
-              className="button"
-              onClick={() => void handleCopyPreviousSet()}
-            >
-              Copy last entry
-            </button>
-          </div>
-        ) : null}
-
-        {currentExercise ? (
-          <>
-            <div className="stack">
-              {currentSets.length === 0 ? (
-                <p>No entries yet. Tap "Add weight entry" to start.</p>
-              ) : (
-                currentSets.map((setEntry, index) => (
-                  <article key={setEntry.id} className="set-row">
-                    <div className="row row--between row--center">
-                      <h3>Set {index + 1}</h3>
-                      <button
-                        type="button"
-                        className={
-                          setEntry.completedAt
-                            ? 'button button--small button--success'
-                            : 'button button--small'
-                        }
-                        onClick={() => void handleToggleComplete(setEntry)}
-                      >
-                        {setEntry.completedAt ? 'Completed' : 'Mark complete'}
-                      </button>
-                    </div>
-
-                    <div className="input-grid">
-                      <label className="stack stack--tight">
-                        <span>Weight</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.5"
-                          value={setEntry.weight}
-                          onChange={(event) =>
-                            handleNumericChange(event, setEntry.id, 'weight')
-                          }
-                        />
-                      </label>
-
-                      <label className="stack stack--tight">
-                        <span>Reps (optional)</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={setEntry.reps}
-                          onChange={(event) =>
-                            handleNumericChange(event, setEntry.id, 'reps')
-                          }
-                        />
-                      </label>
-                    </div>
-
-                    <label className="checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={setEntry.isWarmup}
-                        onChange={(event) =>
-                          void handleUpdateSetField(
-                            setEntry.id,
-                            'isWarmup',
-                            event.target.checked,
-                          )
-                        }
-                      />
-                      Warm-up set
-                    </label>
-                  </article>
-                ))
-              )}
-            </div>
-
-            {isCurrentExerciseComplete && currentSuggestion ? (
-              <div className="suggestion-card" aria-live="polite">
-                <h3>Progression suggestion</h3>
-                <p>{currentSuggestion.message}</p>
-                <p className="muted">
-                  Suggested reps:{' '}
-                  {currentSuggestion.nextReps.map((rep) => formatNumber(rep)).join(', ')}
-                </p>
-                <p className="muted">You can ignore this anytime.</p>
-              </div>
-            ) : null}
-          </>
-        ) : null}
-
-        <details className="details-panel">
-          <summary>More options</summary>
-          <div className="stack">
-            <label className="stack stack--tight">
-              <span>Add existing exercise</span>
-              <select
-                value={existingExerciseToAdd}
-                onChange={(event) => setExistingExerciseToAdd(event.target.value)}
-              >
-                <option value="">Select exercise</option>
-                {availableExercises.map((exercise) => (
-                  <option key={exercise.id} value={exercise.id}>
-                    {exercise.name}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="button"
-                onClick={() => void handleAddExistingExercise()}
-              >
-                Add to this session
-              </button>
-            </label>
-
-            <form className="stack" onSubmit={(event) => void handleCreateExercise(event)}>
-              <label className="stack stack--tight">
-                <span>Create exercise</span>
-                <input
-                  value={quickExerciseName}
-                  onChange={(event) => setQuickExerciseName(event.target.value)}
-                  placeholder="Romanian deadlift"
-                />
-              </label>
-
-              <label className="stack stack--tight">
-                <span>Unit</span>
-                <select
-                  value={quickExerciseUnit}
-                  onChange={(event) => setQuickExerciseUnit(event.target.value as Unit)}
-                >
-                  <option value="lb">lb</option>
-                  <option value="kg">kg</option>
-                </select>
-              </label>
-
-              <button type="submit" className="button">
-                Create and add
-              </button>
-            </form>
-
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={restTimerEnabled}
-                onChange={(event) => setRestTimerEnabled(event.target.checked)}
-              />
-              Enable rest timer
-            </label>
-
-            <label className="stack stack--tight">
-              <span>Rest timer seconds</span>
-              <input
-                type="number"
-                min="0"
-                value={restSeconds}
-                onChange={(event) =>
-                  setRestSeconds(Math.max(0, Number(event.target.value) || 0))
-                }
-              />
-            </label>
-          </div>
-        </details>
-
-        <button
-          type="button"
-          className="button button--danger"
-          onClick={() => void handleEndSession()}
-        >
+        <button type="button" className="text-link" onClick={() => void handleEndSession()}>
           End session
         </button>
+      </header>
+
+      {error ? <p className="error-banner">{error}</p> : null}
+
+      <div className="panel panel--compact">
+        <h2>Add exercise</h2>
+        <div className="add-row">
+          <input
+            ref={searchInputRef}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search exercises..."
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                void handleAddExerciseFromQuery()
+              }
+            }}
+          />
+          <button type="button" className="button button--small" onClick={() => void handleAddExerciseFromQuery()}>
+            Add
+          </button>
+        </div>
+
+        {searchSuggestions.length > 0 ? (
+          <div className="suggestions-list">
+            {searchSuggestions.map((suggestion) =>
+              suggestion.kind === 'create' ? (
+                <button
+                  key={`create-${queryLower}`}
+                  type="button"
+                  className="suggestion-button"
+                  onClick={() => void handleAddExerciseFromQuery()}
+                >
+                  {suggestion.label}
+                </button>
+              ) : (
+                <button
+                  key={suggestion.exercise.id}
+                  type="button"
+                  className="suggestion-button"
+                  onClick={() => void addExerciseToSession(suggestion.exercise)}
+                >
+                  {suggestion.label}
+                </button>
+              ),
+            )}
+          </div>
+        ) : null}
       </div>
+
+      <div className="session-exercise-list">
+        {exerciseOrder.map((exerciseId) => {
+          const exercise = exerciseMap[exerciseId]
+          if (!exercise) {
+            return null
+          }
+
+          const sets = setsByExercise[exerciseId] ?? []
+          const nextSetNumber = sets.length + 1
+          const isExpanded = expandedExerciseId === exerciseId
+          const draft = draftsByExercise[exerciseId] ?? { weight: '', reps: '' }
+
+          return (
+            <article
+              key={exercise.id}
+              className="exercise-card"
+              ref={(node) => {
+                exerciseCardRefs.current[exercise.id] = node
+              }}
+            >
+              <div className="exercise-card__header">
+                <button
+                  type="button"
+                  className="exercise-card__title"
+                  onClick={() => toggleExercise(exercise.id)}
+                >
+                  {exercise.name}
+                  <span className="exercise-card__unit">
+                    {exercise.progressionSettings.unit}
+                  </span>
+                </button>
+
+                <div className="exercise-card__actions">
+                  <button
+                    type="button"
+                    className="icon-link"
+                    onClick={() => void handleOpenHistory(exercise)}
+                  >
+                    History
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-link icon-link--danger"
+                    onClick={() => void handleRemoveExercise(exercise.id)}
+                    aria-label={`Remove ${exercise.name}`}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {isExpanded ? (
+                <div className="exercise-card__body">
+                  <div className="set-table" role="table" aria-label={`${exercise.name} sets`}>
+                    <div className="set-table__head" role="row">
+                      <span>Set</span>
+                      <span>Wt</span>
+                      <span>Reps</span>
+                      <span className="set-table__actions"> </span>
+                    </div>
+
+                    {sets.map((setEntry) => (
+                      <div key={setEntry.id} className="set-table__row" role="row">
+                        <span>{setEntry.index + 1}</span>
+                        <span>{formatNumber(setEntry.weight)}</span>
+                        <span>{setEntry.reps > 0 ? setEntry.reps : ''}</span>
+                        <span className="set-table__actions"> </span>
+                      </div>
+                    ))}
+
+                    <div className="set-table__row set-table__row--input" role="row">
+                      <span>{nextSetNumber}</span>
+                      <input
+                        ref={(node) => {
+                          weightInputRefs.current[exercise.id] = node
+                        }}
+                        inputMode="decimal"
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={draft.weight}
+                        onChange={(event) =>
+                          handleSetInputChange(exercise.id, 'weight', event.target.value)
+                        }
+                        onKeyDown={(event) => handleSetInputKeyDown(event, exercise.id)}
+                        aria-label={`${exercise.name} weight`}
+                      />
+                      <input
+                        inputMode="numeric"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={draft.reps}
+                        onChange={(event) =>
+                          handleSetInputChange(exercise.id, 'reps', event.target.value)
+                        }
+                        onKeyDown={(event) => handleSetInputKeyDown(event, exercise.id)}
+                        aria-label={`${exercise.name} reps`}
+                      />
+                      <div className="set-table__actions">
+                        <button
+                          type="button"
+                          className="icon-link"
+                          onClick={() => handleCopyLastSet(exercise.id)}
+                          aria-label={`Copy last set for ${exercise.name}`}
+                        >
+                          ⧉
+                        </button>
+                        <button
+                          type="button"
+                          className="button button--small"
+                          onClick={() => void handleAddSet(exercise.id)}
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </article>
+          )
+        })}
+      </div>
+
+      {historyModal ? (
+        <div className="modal-backdrop" onClick={() => setHistoryModal(null)}>
+          <section
+            className="history-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${historyModal.exercise.name} history`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="history-modal__header">
+              <h2>{historyModal.exercise.name}</h2>
+              <button
+                type="button"
+                className="icon-link"
+                onClick={() => setHistoryModal(null)}
+                aria-label="Close history"
+              >
+                ✕
+              </button>
+            </header>
+
+            <div className="history-modal__table" role="table" aria-label="Recent history">
+              <div className="set-table__head" role="row">
+                <span>Date</span>
+                <span>Best set</span>
+              </div>
+              {historyModal.rows.map((row) => (
+                <div key={row.sessionId} className="history-modal__row" role="row">
+                  <span>{formatDateTime(row.endedAt)}</span>
+                  <span>
+                    {row.bestSet}
+                    {row.bestSet !== '-' ? ` ${historyModal.exercise.progressionSettings.unit}` : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   )
 }
@@ -535,4 +692,47 @@ function groupSetsByExercise(entries: SetEntry[]): Record<string, SetEntry[]> {
   }
 
   return grouped
+}
+
+function getMostRecentlyUsedExerciseId(
+  entries: SetEntry[],
+  fallbackOrder: string[],
+): string | null {
+  if (entries.length === 0) {
+    return fallbackOrder[0] ?? null
+  }
+
+  const withCompletedAt = entries
+    .filter((entry) => Boolean(entry.completedAt))
+    .sort((a, b) => (a.completedAt ?? '').localeCompare(b.completedAt ?? ''))
+
+  if (withCompletedAt.length > 0) {
+    return withCompletedAt.at(-1)?.exerciseId ?? fallbackOrder[0] ?? null
+  }
+
+  const setCounts = new Map<string, number>()
+  for (const entry of entries) {
+    setCounts.set(entry.exerciseId, (setCounts.get(entry.exerciseId) ?? 0) + 1)
+  }
+
+  return (
+    [...fallbackOrder].reverse().find((exerciseId) => setCounts.has(exerciseId)) ??
+    entries[entries.length - 1].exerciseId
+  )
+}
+
+function pickBestSet(sets: SetEntry[]): SetEntry | null {
+  const workSets = sets.filter((set) => !set.isWarmup)
+  let best: SetEntry | null = null
+  let bestScore = 0
+
+  for (const set of workSets) {
+    const score = calculateEstimatedOneRepMax(set.weight, set.reps)
+    if (!best || score > bestScore) {
+      best = set
+      bestScore = score
+    }
+  }
+
+  return best
 }

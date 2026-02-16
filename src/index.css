@@ -267,6 +267,211 @@ select {
   background: #fff;
 }
 
+.panel--compact {
+  padding: 0.7rem;
+}
+
+.session-page {
+  gap: 0.7rem;
+}
+
+.session-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.session-header .text-link {
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+
+.add-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+}
+
+.suggestions-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.suggestion-button {
+  border: 1px solid var(--border);
+  background: #ffffff;
+  border-radius: 0.6rem;
+  min-height: 2.15rem;
+  text-align: left;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.88rem;
+  color: #334155;
+  cursor: pointer;
+}
+
+.session-exercise-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.exercise-card {
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #ffffff;
+}
+
+.exercise-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  padding: 0.45rem 0.55rem;
+}
+
+.exercise-card__title {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.exercise-card__unit {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.05rem 0.35rem;
+}
+
+.exercise-card__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.exercise-card__body {
+  padding: 0 0.45rem 0.45rem;
+}
+
+.icon-link {
+  border: none;
+  background: transparent;
+  color: var(--accent-strong);
+  font-size: 0.82rem;
+  font-weight: 700;
+  min-height: 1.85rem;
+  padding: 0.2rem 0.35rem;
+  cursor: pointer;
+}
+
+.icon-link--danger {
+  color: var(--danger);
+}
+
+.set-table {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.set-table__head,
+.set-table__row {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.set-table__head {
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.set-table__row {
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: #ffffff;
+  padding: 0.22rem 0.35rem;
+  font-size: 0.86rem;
+  min-height: 2rem;
+}
+
+.set-table__row--input {
+  background: #f8fafc;
+}
+
+.set-table__row input {
+  min-height: 1.8rem;
+  border-radius: 0.45rem;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.86rem;
+}
+
+.set-table__actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.1rem;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.42);
+  display: grid;
+  place-items: end center;
+  padding: 0.8rem;
+  z-index: 20;
+}
+
+.history-modal {
+  width: min(100%, 720px);
+  max-height: min(70vh, 600px);
+  overflow: auto;
+  border-radius: 0.85rem;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  padding: 0.6rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.history-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.history-modal__header h2 {
+  font-size: 1.05rem;
+}
+
+.history-modal__table {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.history-modal__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.45rem;
+  font-size: 0.84rem;
+}
+
 .input-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
