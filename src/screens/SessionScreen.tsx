@@ -290,7 +290,7 @@ export function SessionScreen() {
 
       <div className="panel">
         <div className="row row--between">
-          <h2>Exercises</h2>
+          <h2>Exercise</h2>
           {currentExercise ? (
             <Link className="text-link" to={`/exercise/${currentExercise.id}`}>
               History
@@ -324,163 +324,195 @@ export function SessionScreen() {
             })}
           </div>
         )}
-
-        <label className="stack stack--tight">
-          <span>Add existing exercise</span>
-          <select
-            value={existingExerciseToAdd}
-            onChange={(event) => setExistingExerciseToAdd(event.target.value)}
-          >
-            <option value="">Select exercise</option>
-            {availableExercises.map((exercise) => (
-              <option key={exercise.id} value={exercise.id}>
-                {exercise.name}
-              </option>
-            ))}
-          </select>
-          <button type="button" className="button" onClick={() => void handleAddExistingExercise()}>
-            Add exercise to this session
-          </button>
-        </label>
-
-        <form className="stack" onSubmit={(event) => void handleCreateExercise(event)}>
-          <label className="stack stack--tight">
-            <span>Quick create exercise</span>
-            <input
-              value={quickExerciseName}
-              onChange={(event) => setQuickExerciseName(event.target.value)}
-              placeholder="Romanian deadlift"
-            />
-          </label>
-
-          <label className="stack stack--tight">
-            <span>Unit</span>
-            <select
-              value={quickExerciseUnit}
-              onChange={(event) => setQuickExerciseUnit(event.target.value as Unit)}
-            >
-              <option value="lb">lb</option>
-              <option value="kg">kg</option>
-            </select>
-          </label>
-
-          <button type="submit" className="button">
-            Create and add
-          </button>
-        </form>
-      </div>
-
-      {currentExercise ? (
-        <div className="panel">
-          <div className="row row--between">
-            <h2>{currentExercise.name}</h2>
+        {currentExercise ? (
+          <>
+            <p className="muted">Now logging: {currentExercise.name}</p>
             <p className="muted">Unit: {currentExercise.progressionSettings.unit}</p>
-          </div>
+          </>
+        ) : null}
 
+        {currentExercise ? (
           <div className="button-row">
-            <button type="button" className="button button--primary" onClick={() => void handleAddSet()}>
+            <button
+              type="button"
+              className="button button--primary"
+              onClick={() => void handleAddSet()}
+            >
               Add weight entry
             </button>
-            <button type="button" className="button" onClick={() => void handleCopyPreviousSet()}>
+            <button
+              type="button"
+              className="button"
+              onClick={() => void handleCopyPreviousSet()}
+            >
               Copy last entry
             </button>
           </div>
+        ) : null}
 
-          <div className="stack">
-            {currentSets.length === 0 ? (
-              <p>No entries yet. Tap "Add weight entry" to start.</p>
-            ) : (
-              currentSets.map((setEntry, index) => (
-                <article key={setEntry.id} className="set-row">
-                  <div className="row row--between row--center">
-                    <h3>Set {index + 1}</h3>
-                    <button
-                      type="button"
-                      className={setEntry.completedAt ? 'button button--small button--success' : 'button button--small'}
-                      onClick={() => void handleToggleComplete(setEntry)}
-                    >
-                      {setEntry.completedAt ? 'Completed' : 'Mark complete'}
-                    </button>
-                  </div>
+        {currentExercise ? (
+          <>
+            <div className="stack">
+              {currentSets.length === 0 ? (
+                <p>No entries yet. Tap "Add weight entry" to start.</p>
+              ) : (
+                currentSets.map((setEntry, index) => (
+                  <article key={setEntry.id} className="set-row">
+                    <div className="row row--between row--center">
+                      <h3>Set {index + 1}</h3>
+                      <button
+                        type="button"
+                        className={
+                          setEntry.completedAt
+                            ? 'button button--small button--success'
+                            : 'button button--small'
+                        }
+                        onClick={() => void handleToggleComplete(setEntry)}
+                      >
+                        {setEntry.completedAt ? 'Completed' : 'Mark complete'}
+                      </button>
+                    </div>
 
-                  <div className="input-grid">
-                    <label className="stack stack--tight">
-                      <span>Weight</span>
+                    <div className="input-grid">
+                      <label className="stack stack--tight">
+                        <span>Weight</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          value={setEntry.weight}
+                          onChange={(event) =>
+                            handleNumericChange(event, setEntry.id, 'weight')
+                          }
+                        />
+                      </label>
+
+                      <label className="stack stack--tight">
+                        <span>Reps (optional)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={setEntry.reps}
+                          onChange={(event) =>
+                            handleNumericChange(event, setEntry.id, 'reps')
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <label className="checkbox-row">
                       <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={setEntry.weight}
-                        onChange={(event) => handleNumericChange(event, setEntry.id, 'weight')}
+                        type="checkbox"
+                        checked={setEntry.isWarmup}
+                        onChange={(event) =>
+                          void handleUpdateSetField(
+                            setEntry.id,
+                            'isWarmup',
+                            event.target.checked,
+                          )
+                        }
                       />
+                      Warm-up set
                     </label>
-
-                    <label className="stack stack--tight">
-                      <span>Reps (optional)</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={setEntry.reps}
-                        onChange={(event) => handleNumericChange(event, setEntry.id, 'reps')}
-                      />
-                    </label>
-                  </div>
-
-                  <label className="checkbox-row">
-                    <input
-                      type="checkbox"
-                      checked={setEntry.isWarmup}
-                      onChange={(event) =>
-                        void handleUpdateSetField(
-                          setEntry.id,
-                          'isWarmup',
-                          event.target.checked,
-                        )
-                      }
-                    />
-                    Warm-up set
-                  </label>
-                </article>
-              ))
-            )}
-          </div>
-
-          {isCurrentExerciseComplete && currentSuggestion ? (
-            <div className="suggestion-card" aria-live="polite">
-              <h3>Progression suggestion</h3>
-              <p>{currentSuggestion.message}</p>
-              <p className="muted">
-                Suggested reps: {currentSuggestion.nextReps.map((rep) => formatNumber(rep)).join(', ')}
-              </p>
-              <p className="muted">You can ignore this anytime.</p>
+                  </article>
+                ))
+              )}
             </div>
-          ) : null}
-        </div>
-      ) : null}
 
-      <div className="panel">
-        <h2>Session actions</h2>
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={restTimerEnabled}
-            onChange={(event) => setRestTimerEnabled(event.target.checked)}
-          />
-          Enable rest timer
-        </label>
+            {isCurrentExerciseComplete && currentSuggestion ? (
+              <div className="suggestion-card" aria-live="polite">
+                <h3>Progression suggestion</h3>
+                <p>{currentSuggestion.message}</p>
+                <p className="muted">
+                  Suggested reps:{' '}
+                  {currentSuggestion.nextReps.map((rep) => formatNumber(rep)).join(', ')}
+                </p>
+                <p className="muted">You can ignore this anytime.</p>
+              </div>
+            ) : null}
+          </>
+        ) : null}
 
-        <label className="stack stack--tight">
-          <span>Rest timer seconds</span>
-          <input
-            type="number"
-            min="0"
-            value={restSeconds}
-            onChange={(event) => setRestSeconds(Math.max(0, Number(event.target.value) || 0))}
-          />
-        </label>
+        <details className="details-panel">
+          <summary>More options</summary>
+          <div className="stack">
+            <label className="stack stack--tight">
+              <span>Add existing exercise</span>
+              <select
+                value={existingExerciseToAdd}
+                onChange={(event) => setExistingExerciseToAdd(event.target.value)}
+              >
+                <option value="">Select exercise</option>
+                {availableExercises.map((exercise) => (
+                  <option key={exercise.id} value={exercise.id}>
+                    {exercise.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="button"
+                onClick={() => void handleAddExistingExercise()}
+              >
+                Add to this session
+              </button>
+            </label>
 
-        <button type="button" className="button button--danger" onClick={() => void handleEndSession()}>
+            <form className="stack" onSubmit={(event) => void handleCreateExercise(event)}>
+              <label className="stack stack--tight">
+                <span>Create exercise</span>
+                <input
+                  value={quickExerciseName}
+                  onChange={(event) => setQuickExerciseName(event.target.value)}
+                  placeholder="Romanian deadlift"
+                />
+              </label>
+
+              <label className="stack stack--tight">
+                <span>Unit</span>
+                <select
+                  value={quickExerciseUnit}
+                  onChange={(event) => setQuickExerciseUnit(event.target.value as Unit)}
+                >
+                  <option value="lb">lb</option>
+                  <option value="kg">kg</option>
+                </select>
+              </label>
+
+              <button type="submit" className="button">
+                Create and add
+              </button>
+            </form>
+
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={restTimerEnabled}
+                onChange={(event) => setRestTimerEnabled(event.target.checked)}
+              />
+              Enable rest timer
+            </label>
+
+            <label className="stack stack--tight">
+              <span>Rest timer seconds</span>
+              <input
+                type="number"
+                min="0"
+                value={restSeconds}
+                onChange={(event) =>
+                  setRestSeconds(Math.max(0, Number(event.target.value) || 0))
+                }
+              />
+            </label>
+          </div>
+        </details>
+
+        <button
+          type="button"
+          className="button button--danger"
+          onClick={() => void handleEndSession()}
+        >
           End session
         </button>
       </div>
