@@ -1,0 +1,18 @@
+{
+  "name": "Workout Tracker",
+  "short_name": "Workout",
+  "description": "Offline-first workout tracker with fast set logging and progression guidance.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0369a1",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
