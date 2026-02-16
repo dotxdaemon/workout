@@ -1,37 +1,39 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent } from 'react'
+import { Link } from 'react-router-dom'
 import {
+  addSetEntry,
   createExercise,
-  createRoutine,
-  deleteRoutine,
-  getActiveSession,
+  ensureCoreRoutines,
+  getOrCreateTrackerSession,
+  getSetInputPrefillFromLastSession,
   listExercises,
   listRoutines,
-  startSession,
+  listSessionSetEntries,
   updateRoutine,
 } from '../lib/db'
+import { formatNumber } from '../lib/format'
 import { readPreferences } from '../lib/preferences'
-import type { Exercise, Routine, Unit } from '../types'
+import type { Exercise, Routine, SetEntry, Unit } from '../types'
 
-interface RoutineEditorState {
-  id?: string
-  name: string
-  exerciseIds: string[]
+interface ExerciseDraft {
+  weight: string
+  reps: string
 }
 
-const initialEditorState: RoutineEditorState = {
-  name: '',
-  exerciseIds: [],
-}
+const routineDayOrder = ['push', 'pull', 'legs']
 
 export function RoutinesScreen() {
-  const navigate = useNavigate()
+  const weightInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  const [trackerSessionId, setTrackerSessionId] = useState('')
   const [routines, setRoutines] = useState<Routine[]>([])
   const [exercises, setExercises] = useState<Exercise[]>([])
-  const [editor, setEditor] = useState<RoutineEditorState>(initialEditorState)
-  const [newExerciseName, setNewExerciseName] = useState('')
-  const [newExerciseUnit, setNewExerciseUnit] = useState<Unit>('lb')
+  const [setsByExercise, setSetsByExercise] = useState<Record<string, SetEntry[]>>({})
+  const [selectedRoutineId, setSelectedRoutineId] = useState('')
+  const [draftsByExercise, setDraftsByExercise] = useState<Record<string, ExerciseDraft>>({})
+  const [addExerciseQuery, setAddExerciseQuery] = useState('')
+  const [defaultUnit, setDefaultUnit] = useState<Unit>('lb')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -40,17 +42,116 @@ export function RoutinesScreen() {
     [exercises],
   )
 
+  const dayRoutines = useMemo(() => {
+    const routineByName = new Map(
+      routines.map((routine) => [routine.name.toLowerCase(), routine]),
+    )
+
+    const ordered = routineDayOrder
+      .map((name) => routineByName.get(name))
+      .filter((routine): routine is Routine => Boolean(routine))
+
+    const extra = routines.filter(
+      (routine) => !routineDayOrder.includes(routine.name.toLowerCase()),
+    )
+
+    return [...ordered, ...extra]
+  }, [routines])
+
+  const selectedRoutine = useMemo(
+    () => dayRoutines.find((routine) => routine.id === selectedRoutineId) ?? dayRoutines[0],
+    [dayRoutines, selectedRoutineId],
+  )
+
+  const selectedExerciseIds = useMemo(
+    () => selectedRoutine?.exerciseIds ?? [],
+    [selectedRoutine],
+  )
+  const selectedExerciseIdSet = useMemo(
+    () => new Set(selectedExerciseIds),
+    [selectedExerciseIds],
+  )
+
+  const addQuery = addExerciseQuery.trim()
+  const addQueryLower = addQuery.toLowerCase()
+
+  const addOptions = useMemo(() => {
+    if (!addQuery) {
+      return []
+    }
+
+    const exactMatch = exercises.find(
+      (exercise) => exercise.name.toLowerCase() === addQueryLower,
+    )
+    const filtered = exercises
+      .filter((exercise) => {
+        if (selectedExerciseIdSet.has(exercise.id)) {
+          return false
+        }
+
+        return exercise.name.toLowerCase().includes(addQueryLower)
+      })
+      .slice(0, 6)
+
+    const options: Array<
+      | { kind: 'create'; label: string }
+      | { kind: 'existing'; exercise: Exercise; label: string }
+    > = []
+
+    if (!exactMatch) {
+      options.push({
+        kind: 'create',
+        label: `Create "${addQuery}" and add`,
+      })
+    }
+
+    for (const exercise of filtered) {
+      options.push({
+        kind: 'existing',
+        exercise,
+        label: exercise.name,
+      })
+    }
+
+    return options
+  }, [addQuery, addQueryLower, exercises, selectedExerciseIdSet])
+
   const loadData = useCallback(async () => {
-    const [loadedRoutines, loadedExercises] = await Promise.all([
+    const preferences = readPreferences()
+    await ensureCoreRoutines(preferences.defaultUnit)
+
+    const trackerSession = await getOrCreateTrackerSession()
+
+    const [loadedRoutines, loadedExercises, sessionSets] = await Promise.all([
       listRoutines(),
       listExercises(),
+      listSessionSetEntries(trackerSession.id),
     ])
 
+    setTrackerSessionId(trackerSession.id)
     setRoutines(loadedRoutines)
     setExercises(loadedExercises)
+    setSetsByExercise(groupSetsByExercise(sessionSets))
+    setDefaultUnit(preferences.defaultUnit)
+    setError('')
 
-    const preferences = readPreferences()
-    setNewExerciseUnit(preferences.defaultUnit)
+    setSelectedRoutineId((current) => {
+      if (current && loadedRoutines.some((routine) => routine.id === current)) {
+        return current
+      }
+
+      const byName = new Map(
+        loadedRoutines.map((routine) => [routine.name.toLowerCase(), routine.id]),
+      )
+
+      return (
+        byName.get('push') ??
+        byName.get('pull') ??
+        byName.get('legs') ??
+        loadedRoutines[0]?.id ??
+        ''
+      )
+    })
   }, [])
 
   useEffect(() => {
@@ -59,303 +160,427 @@ export function RoutinesScreen() {
     })
   }, [loadData])
 
-  function resetEditor(): void {
-    setEditor(initialEditorState)
+  const prefillRoutineDrafts = useCallback(
+    async (exerciseIds: string[]): Promise<void> => {
+      for (const exerciseId of exerciseIds) {
+        const sessionSets = setsByExercise[exerciseId] ?? []
+        const latestSet = sessionSets.at(-1)
+
+        setDraftsByExercise((current) => {
+          const existing = current[exerciseId]
+          if (existing && (existing.weight.length > 0 || existing.reps.length > 0)) {
+            return current
+          }
+
+          if (!latestSet) {
+            return current
+          }
+
+          return {
+            ...current,
+            [exerciseId]: {
+              weight: formatNumber(latestSet.weight),
+              reps: latestSet.reps > 0 ? String(latestSet.reps) : '',
+            },
+          }
+        })
+
+        if (latestSet) {
+          continue
+        }
+
+        const prefill = await getSetInputPrefillFromLastSession(exerciseId, 0)
+        if (!prefill) {
+          continue
+        }
+
+        setDraftsByExercise((current) => {
+          const existing = current[exerciseId]
+          if (existing && (existing.weight.length > 0 || existing.reps.length > 0)) {
+            return current
+          }
+
+          return {
+            ...current,
+            [exerciseId]: {
+              weight: formatNumber(prefill.weight),
+              reps: prefill.reps > 0 ? String(prefill.reps) : '',
+            },
+          }
+        })
+      }
+    },
+    [setsByExercise],
+  )
+
+  useEffect(() => {
+    if (!selectedRoutine) {
+      return
+    }
+
+    void prefillRoutineDrafts(selectedRoutine.exerciseIds)
+  }, [prefillRoutineDrafts, selectedRoutine])
+
+  async function saveRoutineExerciseIds(
+    routine: Routine,
+    nextExerciseIds: string[],
+  ): Promise<void> {
+    await updateRoutine(routine.id, {
+      exerciseIds: nextExerciseIds,
+    })
+
+    setRoutines((current) =>
+      current.map((item) =>
+        item.id === routine.id ? { ...item, exerciseIds: nextExerciseIds } : item,
+      ),
+    )
   }
 
-  function handleEditRoutine(routine: Routine): void {
-    setEditor({
-      id: routine.id,
-      name: routine.name,
-      exerciseIds: [...routine.exerciseIds],
+  async function handleAddExerciseFromQuery(existingExercise?: Exercise): Promise<void> {
+    if (!selectedRoutine) {
+      return
+    }
+
+    let exerciseToAdd = existingExercise
+
+    if (!exerciseToAdd && addQuery) {
+      const exact = exercises.find((exercise) => exercise.name.toLowerCase() === addQueryLower)
+      const firstMatch = exercises.find(
+        (exercise) =>
+          !selectedExerciseIdSet.has(exercise.id) &&
+          exercise.name.toLowerCase().includes(addQueryLower),
+      )
+      exerciseToAdd = exact ?? firstMatch
+    }
+
+    if (!exerciseToAdd && addQuery) {
+      exerciseToAdd = await createExercise({
+        name: addQuery,
+        unitDefault: defaultUnit,
+      })
+      setExercises((current) => [...current, exerciseToAdd as Exercise])
+    }
+
+    if (!exerciseToAdd) {
+      return
+    }
+
+    if (selectedExerciseIdSet.has(exerciseToAdd.id)) {
+      setAddExerciseQuery('')
+      return
+    }
+
+    const nextExerciseIds = [...selectedRoutine.exerciseIds, exerciseToAdd.id]
+    await saveRoutineExerciseIds(selectedRoutine, nextExerciseIds)
+
+    setAddExerciseQuery('')
+    setMessage(`${exerciseToAdd.name} added to ${selectedRoutine.name}.`)
+
+    await prefillRoutineDrafts([exerciseToAdd.id])
+    requestAnimationFrame(() => {
+      weightInputRefs.current[exerciseToAdd.id]?.focus()
     })
   }
 
-  function appendExerciseToEditor(exerciseId: string): void {
-    setEditor((current) => {
-      if (current.exerciseIds.includes(exerciseId)) {
-        return current
-      }
+  async function handleLogSet(exerciseId: string): Promise<void> {
+    if (!trackerSessionId) {
+      return
+    }
 
-      return {
-        ...current,
-        exerciseIds: [...current.exerciseIds, exerciseId],
-      }
+    const draft = draftsByExercise[exerciseId] ?? { weight: '', reps: '' }
+    const weight = Number(draft.weight)
+    if (!Number.isFinite(weight) || weight <= 0) {
+      setError('Weight is required.')
+      weightInputRefs.current[exerciseId]?.focus()
+      return
+    }
+
+    const repsValue = draft.reps.trim().length === 0 ? 0 : Number(draft.reps)
+    if (!Number.isFinite(repsValue) || repsValue < 0) {
+      setError('Reps must be a number or blank.')
+      return
+    }
+
+    const entry = await addSetEntry(trackerSessionId, exerciseId, {
+      weight,
+      reps: repsValue,
+      completed: true,
     })
-  }
 
-  function removeEditorExercise(index: number): void {
-    setEditor((current) => ({
+    setSetsByExercise((current) => ({
       ...current,
-      exerciseIds: current.exerciseIds.filter((_, exerciseIndex) => exerciseIndex !== index),
+      [exerciseId]: [...(current[exerciseId] ?? []), entry],
+    }))
+
+    setDraftsByExercise((current) => ({
+      ...current,
+      [exerciseId]: {
+        weight: formatNumber(weight),
+        reps: repsValue > 0 ? String(repsValue) : '',
+      },
+    }))
+
+    setError('')
+    requestAnimationFrame(() => {
+      weightInputRefs.current[exerciseId]?.focus()
+    })
+  }
+
+  function handleDraftChange(
+    exerciseId: string,
+    field: keyof ExerciseDraft,
+    value: string,
+  ): void {
+    setDraftsByExercise((current) => ({
+      ...current,
+      [exerciseId]: {
+        weight: current[exerciseId]?.weight ?? '',
+        reps: current[exerciseId]?.reps ?? '',
+        [field]: value,
+      },
     }))
   }
 
-  function moveEditorExercise(index: number, direction: -1 | 1): void {
-    setEditor((current) => {
-      const nextIndex = index + direction
-      if (nextIndex < 0 || nextIndex >= current.exerciseIds.length) {
-        return current
-      }
+  function handleDraftKeyDown(
+    event: KeyboardEvent<HTMLInputElement>,
+    exerciseId: string,
+  ): void {
+    if (event.key !== 'Enter') {
+      return
+    }
 
-      const nextExerciseIds = [...current.exerciseIds]
-      ;[nextExerciseIds[index], nextExerciseIds[nextIndex]] = [
-        nextExerciseIds[nextIndex],
-        nextExerciseIds[index],
-      ]
-
-      return {
-        ...current,
-        exerciseIds: nextExerciseIds,
-      }
-    })
-  }
-
-  async function handleCreateExercise(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
-
-    const name = newExerciseName.trim()
-    if (!name) {
-      setError('Exercise name is required.')
-      return
-    }
-
-    const exercise = await createExercise({
-      name,
-      unitDefault: newExerciseUnit,
-    })
-
-    setMessage(`Exercise "${exercise.name}" created.`)
-    setError('')
-    setNewExerciseName('')
-    appendExerciseToEditor(exercise.id)
-    await loadData()
+    void handleLogSet(exerciseId)
   }
 
-  async function handleSaveRoutine(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault()
-
-    const name = editor.name.trim()
-    if (!name) {
-      setError('Routine name is required.')
+  async function handleRemoveExercise(exerciseId: string): Promise<void> {
+    if (!selectedRoutine) {
       return
     }
 
-    if (editor.exerciseIds.length === 0) {
-      setError('Add at least one exercise to the routine.')
-      return
-    }
-
-    if (editor.id) {
-      await updateRoutine(editor.id, {
-        name,
-        exerciseIds: editor.exerciseIds,
-      })
-      setMessage('Routine updated.')
-    } else {
-      await createRoutine(name, editor.exerciseIds)
-      setMessage('Routine created.')
-    }
-
-    setError('')
-    resetEditor()
-    await loadData()
+    const nextExerciseIds = selectedRoutine.exerciseIds.filter((id) => id !== exerciseId)
+    await saveRoutineExerciseIds(selectedRoutine, nextExerciseIds)
   }
 
-  async function handleDeleteRoutine(routineId: string): Promise<void> {
-    if (!window.confirm('Delete this routine?')) {
+  async function handleMoveExercise(
+    exerciseId: string,
+    direction: -1 | 1,
+  ): Promise<void> {
+    if (!selectedRoutine) {
       return
     }
 
-    await deleteRoutine(routineId)
-    if (editor.id === routineId) {
-      resetEditor()
-    }
-
-    setMessage('Routine deleted.')
-    setError('')
-    await loadData()
-  }
-
-  async function handleStartRoutine(routineId: string): Promise<void> {
-    const activeSession = await getActiveSession()
-    if (activeSession) {
-      navigate(`/session/${activeSession.id}`)
+    const index = selectedRoutine.exerciseIds.indexOf(exerciseId)
+    if (index < 0) {
       return
     }
 
-    const session = await startSession(routineId)
-    navigate(`/session/${session.id}`)
+    const nextIndex = index + direction
+    if (nextIndex < 0 || nextIndex >= selectedRoutine.exerciseIds.length) {
+      return
+    }
+
+    const nextExerciseIds = [...selectedRoutine.exerciseIds]
+    ;[nextExerciseIds[index], nextExerciseIds[nextIndex]] = [
+      nextExerciseIds[nextIndex],
+      nextExerciseIds[index],
+    ]
+
+    await saveRoutineExerciseIds(selectedRoutine, nextExerciseIds)
   }
 
   return (
     <section className="page">
       <header className="page-header">
         <h1>Routines</h1>
-        <p>Create routines and keep your exercise order stable.</p>
+        <p>Tap Push, Pull, or Legs to log what you hit.</p>
       </header>
 
       {message ? <p className="success-banner">{message}</p> : null}
       {error ? <p className="error-banner">{error}</p> : null}
 
-      <div className="panel">
-        <h2>{editor.id ? 'Edit routine' : 'Create routine'}</h2>
-        <form className="stack" onSubmit={(event) => void handleSaveRoutine(event)}>
-          <label className="stack stack--tight">
-            <span>Routine name</span>
-            <input
-              value={editor.name}
-              onChange={(event) =>
-                setEditor((current) => ({ ...current, name: event.target.value }))
-              }
-              placeholder="Upper day"
-            />
-          </label>
-
-          <div className="stack stack--tight">
-            <span>Exercise order</span>
-            {editor.exerciseIds.length === 0 ? (
-              <p className="muted">Add exercises from the list below.</p>
-            ) : (
-              <div className="stack">
-                {editor.exerciseIds.map((exerciseId, index) => (
-                  <article key={`${exerciseId}-${index}`} className="list-card">
-                    <h3>{exerciseMap[exerciseId]?.name ?? 'Unknown exercise'}</h3>
-                    <div className="button-row">
-                      <button
-                        type="button"
-                        className="button button--small"
-                        onClick={() => moveEditorExercise(index, -1)}
-                      >
-                        Up
-                      </button>
-                      <button
-                        type="button"
-                        className="button button--small"
-                        onClick={() => moveEditorExercise(index, 1)}
-                      >
-                        Down
-                      </button>
-                      <button
-                        type="button"
-                        className="button button--small button--danger"
-                        onClick={() => removeEditorExercise(index)}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="button-row">
-            <button type="submit" className="button button--primary">
-              {editor.id ? 'Save routine' : 'Create routine'}
-            </button>
-            {editor.id ? (
-              <button type="button" className="button" onClick={resetEditor}>
-                Cancel
-              </button>
-            ) : null}
-          </div>
-        </form>
-      </div>
-
-      <div className="panel">
-        <h2>Exercises library</h2>
-
-        <form className="stack" onSubmit={(event) => void handleCreateExercise(event)}>
-          <label className="stack stack--tight">
-            <span>Exercise name</span>
-            <input
-              value={newExerciseName}
-              onChange={(event) => setNewExerciseName(event.target.value)}
-              placeholder="Barbell bench press"
-            />
-          </label>
-
-          <label className="stack stack--tight">
-            <span>Default unit</span>
-            <select
-              value={newExerciseUnit}
-              onChange={(event) => setNewExerciseUnit(event.target.value as Unit)}
-            >
-              <option value="lb">lb</option>
-              <option value="kg">kg</option>
-            </select>
-          </label>
-
-          <button type="submit" className="button">
-            Create exercise
-          </button>
-        </form>
-
-        <div className="stack">
-          {exercises.map((exercise) => (
-            <article key={exercise.id} className="list-card">
-              <div className="row row--between">
-                <h3>{exercise.name}</h3>
-                <Link to={`/exercise/${exercise.id}`} className="text-link">
-                  History
-                </Link>
-              </div>
-              <p className="muted">Default unit: {exercise.unitDefault}</p>
+      <div className="panel panel--compact">
+        <div className="day-picker">
+          {dayRoutines.map((routine) => {
+            const isActive = selectedRoutine?.id === routine.id
+            return (
               <button
+                key={routine.id}
                 type="button"
-                className="button"
-                onClick={() => appendExerciseToEditor(exercise.id)}
+                className={isActive ? 'day-button day-button--active' : 'day-button'}
+                onClick={() => setSelectedRoutineId(routine.id)}
               >
-                Add to routine editor
+                <span>{routine.name}</span>
+                <small>{routine.exerciseIds.length} exercises</small>
               </button>
-            </article>
-          ))}
+            )
+          })}
         </div>
       </div>
 
-      <div className="panel">
-        <h2>Existing routines</h2>
-        {routines.length === 0 ? (
-          <p>No routines created yet.</p>
-        ) : (
-          <div className="stack">
-            {routines.map((routine) => (
-              <article key={routine.id} className="list-card">
-                <h3>{routine.name}</h3>
-                <p className="muted">
-                  {routine.exerciseIds
-                    .map((exerciseId) => exerciseMap[exerciseId]?.name ?? 'Unknown')
-                    .join(' • ')}
-                </p>
-                <div className="button-row">
+      <div className="panel panel--compact">
+        <h2>{selectedRoutine?.name ?? 'Routine'}</h2>
+
+        <div className="add-row">
+          <input
+            value={addExerciseQuery}
+            onChange={(event) => setAddExerciseQuery(event.target.value)}
+            placeholder="Add exercise to this day..."
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                void handleAddExerciseFromQuery()
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="button button--small"
+            onClick={() => void handleAddExerciseFromQuery()}
+          >
+            Add
+          </button>
+        </div>
+
+        {addOptions.length > 0 ? (
+          <div className="suggestions-list">
+            {addOptions.map((option) =>
+              option.kind === 'create' ? (
+                <button
+                  key={`create-${addQueryLower}`}
+                  type="button"
+                  className="suggestion-button"
+                  onClick={() => void handleAddExerciseFromQuery()}
+                >
+                  {option.label}
+                </button>
+              ) : (
+                <button
+                  key={option.exercise.id}
+                  type="button"
+                  className="suggestion-button"
+                  onClick={() => void handleAddExerciseFromQuery(option.exercise)}
+                >
+                  {option.label}
+                </button>
+              ),
+            )}
+          </div>
+        ) : null}
+
+        <div className="routine-exercise-list">
+          {selectedExerciseIds.map((exerciseId) => {
+            const exercise = exerciseMap[exerciseId]
+            if (!exercise) {
+              return null
+            }
+
+            const sets = setsByExercise[exerciseId] ?? []
+            const latestSet = sets.at(-1)
+            const draft = draftsByExercise[exerciseId] ?? { weight: '', reps: '' }
+
+            return (
+              <article key={exercise.id} className="list-card routine-exercise-row">
+                <div className="row row--between row--center">
+                  <div>
+                    <div className="row row--center">
+                      <h3>{exercise.name}</h3>
+                      <span className="tiny-unit">{exercise.progressionSettings.unit}</span>
+                    </div>
+                    <p className="muted">
+                      Last hit:{' '}
+                      {latestSet
+                        ? `${formatNumber(latestSet.weight)} x ${latestSet.reps}`
+                        : '-'}
+                    </p>
+                  </div>
+
+                  <div className="exercise-card__actions">
+                    <Link className="icon-link" to={`/exercise/${exercise.id}`}>
+                      History
+                    </Link>
+                    <button
+                      type="button"
+                      className="icon-link"
+                      onClick={() => void handleMoveExercise(exercise.id, -1)}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-link"
+                      onClick={() => void handleMoveExercise(exercise.id, 1)}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-link icon-link--danger"
+                      onClick={() => void handleRemoveExercise(exercise.id)}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+
+                <div className="routine-log-row">
+                  <input
+                    ref={(node) => {
+                      weightInputRefs.current[exercise.id] = node
+                    }}
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.5"
+                    placeholder="Wt"
+                    value={draft.weight}
+                    onChange={(event) =>
+                      handleDraftChange(exercise.id, 'weight', event.target.value)
+                    }
+                    onKeyDown={(event) => handleDraftKeyDown(event, exercise.id)}
+                  />
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    step="1"
+                    placeholder="Reps"
+                    value={draft.reps}
+                    onChange={(event) =>
+                      handleDraftChange(exercise.id, 'reps', event.target.value)
+                    }
+                    onKeyDown={(event) => handleDraftKeyDown(event, exercise.id)}
+                  />
                   <button
                     type="button"
-                    className="button button--primary"
-                    onClick={() => void handleStartRoutine(routine.id)}
+                    className="button button--small button--primary"
+                    onClick={() => void handleLogSet(exercise.id)}
                   >
-                    Start
-                  </button>
-                  <button
-                    type="button"
-                    className="button"
-                    onClick={() => handleEditRoutine(routine)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="button button--danger"
-                    onClick={() => void handleDeleteRoutine(routine.id)}
-                  >
-                    Delete
+                    Save
                   </button>
                 </div>
               </article>
-            ))}
-          </div>
-        )}
+            )
+          })}
+        </div>
       </div>
     </section>
   )
+}
+
+function groupSetsByExercise(entries: SetEntry[]): Record<string, SetEntry[]> {
+  const grouped: Record<string, SetEntry[]> = {}
+
+  for (const entry of entries) {
+    if (!grouped[entry.exerciseId]) {
+      grouped[entry.exerciseId] = []
+    }
+    grouped[entry.exerciseId].push(entry)
+  }
+
+  for (const exerciseId of Object.keys(grouped)) {
+    grouped[exerciseId].sort((left, right) => left.index - right.index)
+  }
+
+  return grouped
 }
