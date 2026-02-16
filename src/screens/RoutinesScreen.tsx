@@ -14,6 +14,7 @@ import {
 } from '../lib/db'
 import { formatNumber } from '../lib/format'
 import { readPreferences } from '../lib/preferences'
+import { readSelectedRoutineId, writeSelectedRoutineId } from '../lib/routineSelection'
 import type { Exercise, Routine, SetEntry, Unit } from '../types'
 
 interface ExerciseDraft {
@@ -21,7 +22,7 @@ interface ExerciseDraft {
   reps: string
 }
 
-const routineDayOrder = ['push', 'pull', 'legs']
+const routineDayOrder = ['pull', 'push', 'legs']
 
 export function RoutinesScreen() {
   const weightInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
@@ -135,9 +136,18 @@ export function RoutinesScreen() {
     setDefaultUnit(preferences.defaultUnit)
     setError('')
 
+    const storedRoutineId = readSelectedRoutineId()
+
     setSelectedRoutineId((current) => {
       if (current && loadedRoutines.some((routine) => routine.id === current)) {
         return current
+      }
+
+      if (
+        storedRoutineId &&
+        loadedRoutines.some((routine) => routine.id === storedRoutineId)
+      ) {
+        return storedRoutineId
       }
 
       const byName = new Map(
@@ -159,6 +169,14 @@ export function RoutinesScreen() {
       setError('Could not load routines.')
     })
   }, [loadData])
+
+  useEffect(() => {
+    if (!selectedRoutineId) {
+      return
+    }
+
+    writeSelectedRoutineId(selectedRoutineId)
+  }, [selectedRoutineId])
 
   const prefillRoutineDrafts = useCallback(
     async (exerciseIds: string[]): Promise<void> => {
