@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
 import {
   addSetEntry,
   createExercise,
-  endSession,
-  getSession,
-  getRoutine,
+  ensureCoreRoutines,
+  getOrCreateTrackerSession,
   getSetInputPrefillFromLastSession,
   listExerciseHistory,
   listExercises,
@@ -16,7 +14,7 @@ import {
 import { formatDateTime, formatNumber } from '../lib/format'
 import { readPreferences } from '../lib/preferences'
 import { calculateEstimatedOneRepMax } from '../lib/progression'
-import type { Exercise, SessionRecord, SetEntry, Unit } from '../types'
+import type { Exercise, SetEntry, Unit } from '../types'
 
 interface SetDraft {
   weight: string
@@ -33,15 +31,11 @@ interface ExerciseHistoryModal {
 }
 
 export function SessionScreen() {
-  const params = useParams<{ sessionId: string }>()
-  const navigate = useNavigate()
-  const sessionId = params.sessionId ?? ''
-
   const searchInputRef = useRef<HTMLInputElement>(null)
   const exerciseCardRefs = useRef<Record<string, HTMLElement | null>>({})
   const weightInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
-  const [session, setSession] = useState<SessionRecord>()
+  const [trackerSessionId, setTrackerSessionId] = useState('')
   const [exerciseOrder, setExerciseOrder] = useState<string[]>([])
   const [exerciseMap, setExerciseMap] = useState<Record<string, Exercise>>({})
   const [setsByExercise, setSetsByExercise] = useState<Record<string, SetEntry[]>>({})
@@ -116,64 +110,48 @@ export function SessionScreen() {
   }, [exactMatch, matchingExercises, queryText, sessionExerciseIds])
 
   const loadSessionData = useCallback(async () => {
-    if (!sessionId) {
-      navigate('/')
-      return
-    }
-
-    const loadedSession = await getSession(sessionId)
-    if (!loadedSession) {
-      navigate('/')
-      return
-    }
+    const preferences = readPreferences()
+    await ensureCoreRoutines(preferences.defaultUnit)
+    const trackerSession = await getOrCreateTrackerSession()
 
     const [allExercises, allEntries] = await Promise.all([
       listExercises(),
-      listSessionSetEntries(sessionId),
+      listSessionSetEntries(trackerSession.id),
     ])
 
-    const routine = loadedSession.routineId
-      ? await getRoutine(loadedSession.routineId)
-      : undefined
-
     const groupedSets = groupSetsByExercise(allEntries)
-    const routineExerciseIds = routine?.exerciseIds ?? []
-    const entryExerciseIds = Array.from(new Set(allEntries.map((entry) => entry.exerciseId)))
-    const mergedOrder = [...routineExerciseIds]
-
-    for (const exerciseId of entryExerciseIds) {
-      if (!mergedOrder.includes(exerciseId)) {
-        mergedOrder.push(exerciseId)
-      }
-    }
+    const mergedOrder = Array.from(new Set(allEntries.map((entry) => entry.exerciseId)))
 
     const mostRecentExerciseId = getMostRecentlyUsedExerciseId(allEntries, mergedOrder)
-    const preferences = readPreferences()
 
-    setSession(loadedSession)
+    setTrackerSessionId(trackerSession.id)
     setExerciseMap(Object.fromEntries(allExercises.map((exercise) => [exercise.id, exercise])))
     setSetsByExercise(groupedSets)
     setExerciseOrder(mergedOrder)
     setExpandedExerciseId(mostRecentExerciseId)
     setDefaultUnit(preferences.defaultUnit)
-  }, [navigate, sessionId])
+  }, [])
 
   useEffect(() => {
     void loadSessionData().catch(() => {
-      setError('Unable to load session.')
+      setError('Unable to load tracker.')
     })
   }, [loadSessionData])
 
   useEffect(() => {
-    if (!session) {
+    if (!trackerSessionId) {
       return
     }
 
     searchInputRef.current?.focus()
-  }, [session])
+  }, [trackerSessionId])
 
   async function refreshSets(exerciseId: string): Promise<void> {
-    const entries = await listSessionSetEntries(sessionId)
+    if (!trackerSessionId) {
+      return
+    }
+
+    const entries = await listSessionSetEntries(trackerSessionId)
     setSetsByExercise(groupSetsByExercise(entries))
 
     if (!exerciseOrder.includes(exerciseId)) {
@@ -296,7 +274,7 @@ export function SessionScreen() {
   }
 
   async function handleAddSet(exerciseId: string): Promise<void> {
-    if (!session) {
+    if (!trackerSessionId) {
       return
     }
 
@@ -315,7 +293,7 @@ export function SessionScreen() {
       return
     }
 
-    await addSetEntry(session.id, exerciseId, {
+    await addSetEntry(trackerSessionId, exerciseId, {
       weight,
       reps: repsValue,
       completed: true,
@@ -337,11 +315,11 @@ export function SessionScreen() {
   }
 
   async function handleRemoveExercise(exerciseId: string): Promise<void> {
-    if (!session) {
+    if (!trackerSessionId) {
       return
     }
 
-    await removeExerciseFromSession(session.id, exerciseId)
+    await removeExerciseFromSession(trackerSessionId, exerciseId)
 
     setExerciseOrder((current) => current.filter((id) => id !== exerciseId))
     setSetsByExercise((current) => {
@@ -436,28 +414,13 @@ export function SessionScreen() {
     })
   }
 
-  async function handleEndSession(): Promise<void> {
-    if (!session) {
-      return
-    }
-
-    await endSession(session.id)
-    navigate('/')
-  }
-
   return (
     <section className="page session-page">
       <header className="page-header session-header">
         <div>
-          <h1>Session</h1>
-          <p>
-            Started {formatDateTime(session?.startedAt)}
-            {session?.routineId ? ' · From routine' : ''}
-          </p>
+          <h1>Tracker</h1>
+          <p>Log exercises and weight.</p>
         </div>
-        <button type="button" className="text-link" onClick={() => void handleEndSession()}>
-          End session
-        </button>
       </header>
 
       {error ? <p className="error-banner">{error}</p> : null}

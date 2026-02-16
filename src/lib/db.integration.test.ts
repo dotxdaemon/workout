@@ -6,6 +6,8 @@ import {
   db,
   ensureCoreRoutines,
   endSession,
+  getOrCreateTrackerSession,
+  getSession,
   getSetInputPrefillFromLastSession,
   listExercises,
   listRoutines,
@@ -107,5 +109,22 @@ describe('IndexedDB integration', () => {
 
     const remaining = await listSessionSetEntries(secondSession.id)
     expect(remaining).toHaveLength(0)
+  })
+
+  it('creates a hidden tracker session and rolls to a new day automatically', async () => {
+    const first = await getOrCreateTrackerSession()
+    const second = await getOrCreateTrackerSession()
+
+    expect(second.id).toBe(first.id)
+
+    await db.sessions.update(first.id, {
+      startedAt: '2000-01-01T00:00:00.000Z',
+    })
+
+    const rotated = await getOrCreateTrackerSession()
+    expect(rotated.id).not.toBe(first.id)
+
+    const old = await getSession(first.id)
+    expect(old?.endedAt).toBeDefined()
   })
 })

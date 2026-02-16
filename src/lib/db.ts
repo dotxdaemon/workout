@@ -197,6 +197,24 @@ export async function getActiveSession(): Promise<SessionRecord | undefined> {
   return sessions.at(-1)
 }
 
+export async function getOrCreateTrackerSession(): Promise<SessionRecord> {
+  const sessions = await db.sessions
+    .filter((session) => !session.endedAt)
+    .sortBy('startedAt')
+
+  const activeSession = sessions.at(-1)
+  if (!activeSession) {
+    return startSession()
+  }
+
+  if (isSameLocalDate(new Date(activeSession.startedAt), new Date())) {
+    return activeSession
+  }
+
+  await endSession(activeSession.id)
+  return startSession()
+}
+
 export async function listSessionSetEntries(sessionId: string): Promise<SetEntry[]> {
   const entries = await db.setEntries.where('sessionId').equals(sessionId).toArray()
   return entries.sort((a, b) => {
@@ -463,4 +481,12 @@ function createId(): string {
   }
 
   return `id-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`
+}
+
+function isSameLocalDate(left: Date, right: Date): boolean {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  )
 }
