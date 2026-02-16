@@ -28,6 +28,39 @@ class WorkoutDatabase extends Dexie {
 
 export const db = new WorkoutDatabase()
 
+const coreRoutineTemplates: Array<{ name: string; exerciseNames: string[] }> = [
+  {
+    name: 'Push',
+    exerciseNames: [
+      'Barbell Bench Press',
+      'Overhead Press',
+      'Incline Dumbbell Press',
+      'Lateral Raise',
+      'Triceps Pushdown',
+    ],
+  },
+  {
+    name: 'Pull',
+    exerciseNames: [
+      'Barbell Row',
+      'Lat Pulldown',
+      'Seated Cable Row',
+      'Face Pull',
+      'Dumbbell Curl',
+    ],
+  },
+  {
+    name: 'Legs',
+    exerciseNames: [
+      'Back Squat',
+      'Romanian Deadlift',
+      'Leg Press',
+      'Leg Curl',
+      'Calf Raise',
+    ],
+  },
+]
+
 export function defaultProgressionSettings(unit: Unit): ProgressionSettings {
   return {
     repMin: 6,
@@ -40,6 +73,42 @@ export function defaultProgressionSettings(unit: Unit): ProgressionSettings {
 
 export async function listExercises(): Promise<Exercise[]> {
   return db.exercises.orderBy('name').toArray()
+}
+
+export async function ensureCoreRoutines(unitDefault: Unit): Promise<void> {
+  const existingExercises = await db.exercises.toArray()
+  const existingRoutines = await db.routines.toArray()
+
+  const exerciseByName = new Map(
+    existingExercises.map((exercise) => [exercise.name.toLowerCase(), exercise]),
+  )
+  const routineByName = new Map(
+    existingRoutines.map((routine) => [routine.name.toLowerCase(), routine]),
+  )
+
+  for (const template of coreRoutineTemplates) {
+    const exerciseIds: string[] = []
+
+    for (const exerciseName of template.exerciseNames) {
+      const key = exerciseName.toLowerCase()
+      let exercise = exerciseByName.get(key)
+
+      if (!exercise) {
+        exercise = await createExercise({
+          name: exerciseName,
+          unitDefault,
+        })
+        exerciseByName.set(key, exercise)
+      }
+
+      exerciseIds.push(exercise.id)
+    }
+
+    if (!routineByName.has(template.name.toLowerCase())) {
+      const routine = await createRoutine(template.name, exerciseIds)
+      routineByName.set(template.name.toLowerCase(), routine)
+    }
+  }
 }
 
 export async function getExercise(id: string): Promise<Exercise | undefined> {

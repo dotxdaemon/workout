@@ -3,7 +3,10 @@ import {
   addSetWithPrefill,
   createExercise,
   db,
+  ensureCoreRoutines,
   endSession,
+  listExercises,
+  listRoutines,
   getLastCompletedSessionForExercise,
   listExerciseHistory,
   markSetComplete,
@@ -52,5 +55,20 @@ describe('IndexedDB integration', () => {
     const lastCompleted = await getLastCompletedSessionForExercise(exercise.id)
     expect(lastCompleted?.session.id).toBe(firstSession.id)
     expect(lastCompleted?.sets).toHaveLength(1)
+  })
+
+  it('seeds push, pull, and legs routines for easy day selection', async () => {
+    await ensureCoreRoutines('lb')
+
+    const routines = await listRoutines()
+    const exercises = await listExercises()
+
+    expect(routines.map((routine) => routine.name).sort()).toEqual([
+      'Legs',
+      'Pull',
+      'Push',
+    ])
+    expect(exercises.length).toBeGreaterThan(0)
+    expect(routines.every((routine) => routine.exerciseIds.length > 0)).toBe(true)
   })
 })
