@@ -219,6 +219,50 @@ export async function listSessionExerciseEntries(
   return entries.sort((a, b) => a.index - b.index)
 }
 
+interface AddSetEntryInput {
+  weight: number
+  reps: number
+  isWarmup?: boolean
+  completed?: boolean
+}
+
+export async function addSetEntry(
+  sessionId: string,
+  exerciseId: string,
+  input: AddSetEntryInput,
+): Promise<SetEntry> {
+  const existingEntries = await listSessionExerciseEntries(sessionId, exerciseId)
+  const entry: SetEntry = {
+    id: createId(),
+    sessionId,
+    exerciseId,
+    index: existingEntries.length,
+    weight: input.weight,
+    reps: input.reps,
+    isWarmup: input.isWarmup ?? false,
+    completedAt: input.completed ? new Date().toISOString() : undefined,
+  }
+
+  await db.setEntries.add(entry)
+  return entry
+}
+
+export async function removeExerciseFromSession(
+  sessionId: string,
+  exerciseId: string,
+): Promise<void> {
+  const entries = await db.setEntries
+    .where('[sessionId+exerciseId]')
+    .equals([sessionId, exerciseId])
+    .toArray()
+
+  if (entries.length === 0) {
+    return
+  }
+
+  await db.setEntries.bulkDelete(entries.map((entry) => entry.id))
+}
+
 export async function listSessionExerciseIds(sessionId: string): Promise<string[]> {
   const entries = await db.setEntries.where('sessionId').equals(sessionId).toArray()
   const ordered = entries.sort((a, b) => a.index - b.index)
@@ -237,15 +281,15 @@ export async function addSetWithPrefill(
 ): Promise<SetEntry> {
   const existingEntries = await listSessionExerciseEntries(sessionId, exerciseId)
   const nextIndex = existingEntries.length
-  const prefill = await getPrefillFromLastSession(exerciseId, nextIndex)
+  const prefill = await getSetInputPrefillFromLastSession(exerciseId, nextIndex)
 
   const entry: SetEntry = {
     id: createId(),
     sessionId,
     exerciseId,
     index: nextIndex,
-    weight: prefill.weight,
-    reps: prefill.reps,
+    weight: prefill?.weight ?? 0,
+    reps: prefill?.reps ?? 0,
     isWarmup: false,
   }
 
@@ -392,24 +436,18 @@ export async function importFullExportData(data: WorkoutExport['data']): Promise
   })
 }
 
-async function getPrefillFromLastSession(
+export async function getSetInputPrefillFromLastSession(
   exerciseId: string,
   nextIndex: number,
-): Promise<{ weight: number; reps: number }> {
+): Promise<{ weight: number; reps: number } | null> {
   const history = await getLastCompletedSessionForExercise(exerciseId)
   if (!history) {
-    return {
-      weight: 0,
-      reps: 0,
-    }
+    return null
   }
 
   const workSets = history.sets.filter((set) => !set.isWarmup)
   if (workSets.length === 0) {
-    return {
-      weight: 0,
-      reps: 0,
-    }
+    return null
   }
 
   const sourceSet = workSets[nextIndex] ?? workSets.at(-1) ?? workSets[0]
