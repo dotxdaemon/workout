@@ -1,3 +1,5 @@
+// ABOUTME: Builds and validates backup payloads for workout data export and import.
+// ABOUTME: Ensures imported data is structurally valid before replacing local storage.
 import {
   importFullExportData,
   readFullExportData,
@@ -156,6 +158,11 @@ function validatePreferences(value: unknown): AppPreferences {
     preferences.defaultUnit === 'kg' || preferences.defaultUnit === 'lb'
       ? preferences.defaultUnit
       : defaultPreferences.defaultUnit
+  const defaultWeightIncrement =
+    typeof preferences.defaultWeightIncrement === 'number' &&
+    Number.isFinite(preferences.defaultWeightIncrement)
+      ? Math.max(0.1, preferences.defaultWeightIncrement)
+      : defaultPreferences.defaultWeightIncrement
   const restTimerEnabled =
     typeof preferences.restTimerEnabled === 'boolean'
       ? preferences.restTimerEnabled
@@ -167,6 +174,7 @@ function validatePreferences(value: unknown): AppPreferences {
 
   return {
     defaultUnit,
+    defaultWeightIncrement,
     restTimerEnabled,
     restSeconds,
   }

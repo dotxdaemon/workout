@@ -1,5 +1,8 @@
+// ABOUTME: Integration tests for IndexedDB persistence and exercise/session workflows.
+// ABOUTME: Validates session rotation, routine seeding, and set template persistence behavior.
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
+  applySessionExerciseTemplate,
   addSetEntry,
   addSetWithPrefill,
   createExercise,
@@ -15,6 +18,7 @@ import {
   listExerciseHistory,
   markSetComplete,
   removeExerciseFromSession,
+  saveSessionExerciseSet,
   listSessionSetEntries,
   startSession,
   updateSetEntry,
@@ -126,5 +130,42 @@ describe('IndexedDB integration', () => {
 
     const old = await getSession(first.id)
     expect(old?.endedAt).toBeDefined()
+  })
+
+  it('autosaves set edits and can replace an exercise with a session template', async () => {
+    const exercise = await createExercise({
+      name: 'Flat Bench Press',
+      unitDefault: 'lb',
+    })
+
+    const session = await startSession()
+    await saveSessionExerciseSet(session.id, exercise.id, 0, {
+      weight: 185,
+      reps: 8,
+    })
+    await saveSessionExerciseSet(session.id, exercise.id, 0, {
+      weight: 185,
+      reps: 9,
+    })
+
+    let entries = await listSessionSetEntries(session.id)
+    expect(entries).toHaveLength(1)
+    expect(entries[0].reps).toBe(9)
+
+    await applySessionExerciseTemplate(session.id, exercise.id, [
+      { weight: 190, reps: 6 },
+      { weight: 190, reps: 6 },
+      { weight: 190, reps: 6 },
+    ])
+
+    entries = await listSessionSetEntries(session.id)
+      .then((rows) => rows.filter((row) => row.exerciseId === exercise.id))
+    expect(entries.map((entry) => entry.index)).toEqual([0, 1, 2])
+    expect(entries.map((entry) => [entry.weight, entry.reps])).toEqual([
+      [190, 6],
+      [190, 6],
+      [190, 6],
+    ])
+    expect(entries.every((entry) => !entry.completedAt)).toBe(true)
   })
 })

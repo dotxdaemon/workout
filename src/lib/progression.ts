@@ -1,3 +1,5 @@
+// ABOUTME: Computes workout progression suggestions from completed working sets.
+// ABOUTME: Applies double progression by adding reps first, then increasing load.
 import type { ProgressionSettings, SetEntry } from '../types'
 
 export interface ProgressionSuggestion {
@@ -65,14 +67,23 @@ export function buildProgressionSuggestion(
     }
   }
 
-  const lowestRep = Math.min(...completedWorkSets.map((set) => set.reps))
-  const nextReps = completedWorkSets.map((set) =>
-    set.reps === lowestRep ? Math.min(set.reps + 1, settings.repMax) : set.reps,
+  const nextReps = completedWorkSets.map((set) => set.reps)
+  const firstSetBelowMaxIndex = completedWorkSets.findIndex(
+    (set) => set.reps < settings.repMax,
   )
+  if (firstSetBelowMaxIndex >= 0) {
+    nextReps[firstSetBelowMaxIndex] = Math.min(
+      completedWorkSets[firstSetBelowMaxIndex].reps + 1,
+      settings.repMax,
+    )
+  }
 
   return {
     kind: 'add_reps',
-    message: `Keep ${formatNumber(workingWeight)} ${settings.unit} and add +1 rep to the lowest set(s).`,
+    message:
+      firstSetBelowMaxIndex >= 0
+        ? `Keep ${formatNumber(workingWeight)} ${settings.unit} and add +1 rep to set ${firstSetBelowMaxIndex + 1}.`
+        : `Keep ${formatNumber(workingWeight)} ${settings.unit} and match last reps again.`,
     suggestedWeight: workingWeight,
     nextReps,
   }

@@ -1,3 +1,5 @@
+// ABOUTME: Tests double-progression logic and completion checks for exercise work sets.
+// ABOUTME: Verifies weight/rep suggestions are deterministic from stored set entries.
 import { describe, expect, it } from 'vitest'
 import { buildProgressionSuggestion, isExerciseComplete } from './progression'
 import type { ProgressionSettings } from '../types'
@@ -23,16 +25,16 @@ describe('buildProgressionSuggestion', () => {
     expect(suggestion?.nextReps).toEqual([6, 6, 6])
   })
 
-  it('suggests adding reps to the lowest-rep work set when repMax is not reached', () => {
+  it('suggests adding reps to the first set that has not reached repMax', () => {
     const suggestion = buildProgressionSuggestion(settings, [
-      { weight: 135, reps: 10, isWarmup: false, completedAt: '2026-02-16T00:00:00.000Z' },
+      { weight: 135, reps: 9, isWarmup: false, completedAt: '2026-02-16T00:00:00.000Z' },
       { weight: 135, reps: 8, isWarmup: false, completedAt: '2026-02-16T00:01:00.000Z' },
       { weight: 135, reps: 9, isWarmup: false, completedAt: '2026-02-16T00:02:00.000Z' },
     ])
 
     expect(suggestion?.kind).toBe('add_reps')
     expect(suggestion?.suggestedWeight).toBe(135)
-    expect(suggestion?.nextReps).toEqual([10, 9, 9])
+    expect(suggestion?.nextReps).toEqual([10, 8, 9])
   })
 
   it('returns collect_more_sets when completed work sets are below target', () => {

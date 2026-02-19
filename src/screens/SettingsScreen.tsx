@@ -1,3 +1,5 @@
+// ABOUTME: Renders app-level settings for defaults and data backup/restore operations.
+// ABOUTME: Provides JSON/CSV export and JSON import with validation feedback.
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { buildCsvExport, buildJsonExport, applyJsonImport, triggerDownload } from '../lib/exportImport'
@@ -75,7 +77,7 @@ export function SettingsScreen() {
     <section className="page">
       <header className="page-header">
         <h1>Settings</h1>
-        <p>Defaults, rest timer, and data export/import.</p>
+        <p>Defaults and backup.</p>
       </header>
 
       {message ? <p className="success-banner">{message}</p> : null}
@@ -99,30 +101,18 @@ export function SettingsScreen() {
           </select>
         </label>
 
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={preferences.restTimerEnabled}
-            onChange={(event) =>
-              setPreferences((current) => ({
-                ...current,
-                restTimerEnabled: event.target.checked,
-              }))
-            }
-          />
-          Enable rest timer by default
-        </label>
-
         <label className="stack stack--tight">
-          <span>Default rest timer (seconds)</span>
+          <span>Default weight increment</span>
           <input
             type="number"
-            min="0"
-            value={preferences.restSeconds}
+            min="0.1"
+            step="0.1"
+            inputMode="decimal"
+            value={preferences.defaultWeightIncrement}
             onChange={(event) =>
               setPreferences((current) => ({
                 ...current,
-                restSeconds: Math.max(0, Number(event.target.value) || 0),
+                defaultWeightIncrement: Math.max(0.1, Number(event.target.value) || 0.1),
               }))
             }
           />

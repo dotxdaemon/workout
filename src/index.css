@@ -1,3 +1,5 @@
+/* ABOUTME: Defines global and component-level styles for the mobile workout tracker screens. */
+/* ABOUTME: Prioritizes scanability, tap targets, and clear hierarchy for fast workout logging. */
 :root {
   font-family: 'Avenir Next', 'Segoe UI', 'Helvetica Neue', sans-serif;
   line-height: 1.35;
@@ -595,6 +597,223 @@ select {
 .nav-link--active {
   background: #e0f2fe;
   color: var(--accent-strong);
+}
+
+.saved-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.25rem;
+  min-height: 1.8rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: transparent;
+  font-size: 0.8rem;
+  font-weight: 700;
+  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
+}
+
+.saved-pill--visible {
+  background: #dcfce7;
+  border-color: #bbf7d0;
+  color: #14532d;
+}
+
+.mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.mode-toggle__button {
+  min-height: 2.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: #ffffff;
+  font-size: 0.93rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.mode-toggle__button--active {
+  border-color: var(--accent);
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
+.today-list {
+  display: grid;
+  gap: 0.6rem;
+  padding-bottom: 9.5rem;
+}
+
+.today-card {
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: #ffffff;
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.7rem;
+}
+
+.today-card--expanded {
+  border-color: #99f6e4;
+  background: #f8fffe;
+}
+
+.today-card h3 {
+  font-size: 1.05rem;
+}
+
+.today-card__top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+}
+
+.today-card__quick {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.today-card__expanded {
+  display: grid;
+  gap: 0.7rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.65rem;
+}
+
+.icon-circle {
+  min-width: 2.45rem;
+  min-height: 2.45rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.stepper-field {
+  display: grid;
+  gap: 0.28rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.stepper-control {
+  display: grid;
+  grid-template-columns: 2.15rem minmax(0, 1fr) 2.15rem;
+  border: 1px solid var(--border);
+  border-radius: 0.72rem;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.stepper-control input {
+  border: none;
+  min-height: 2.5rem;
+  border-radius: 0;
+  text-align: center;
+  font-weight: 700;
+  padding: 0.2rem 0.35rem;
+}
+
+.stepper-button {
+  border: none;
+  background: #f8fafc;
+  color: #0f172a;
+  font-weight: 800;
+  font-size: 1.05rem;
+  min-height: 2.5rem;
+}
+
+.set-editor-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.set-editor-row {
+  display: grid;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  padding: 0.45rem;
+  background: #ffffff;
+}
+
+.set-editor-row__label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.notes-input {
+  resize: vertical;
+  min-height: 3.9rem;
+  border-radius: 0.7rem;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.finish-workout-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--viewport-bottom-offset, 0px) + 4.35rem + env(safe-area-inset-bottom));
+  width: min(100%, 720px);
+  margin: 0 auto;
+  padding: 0.45rem 0.9rem;
+  z-index: 21;
+}
+
+.finish-workout-button {
+  width: 100%;
+  min-height: 3.05rem;
+  font-size: 1rem;
+}
+
+.edit-exercise-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.edit-exercise-row {
+  gap: 0.7rem;
+}
+
+.drag-handle {
+  display: inline-flex;
+  min-width: 1.6rem;
+  min-height: 1.6rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.45rem;
+  border: 1px solid var(--border);
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
+.history-entry {
+  border: 1px solid var(--border);
+  background: #ffffff;
+  border-radius: 0.7rem;
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.86rem;
+  color: inherit;
+}
+
+.history-entry__action {
+  color: var(--accent-strong);
+  font-weight: 700;
 }
 
 @media (min-width: 720px) {
