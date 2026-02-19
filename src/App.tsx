@@ -1,8 +1,9 @@
+// ABOUTME: Sets up app routing and viewport-safe layout for the mobile workout tracker.
+// ABOUTME: Defines bottom navigation for routines and settings screens.
 import { useEffect } from 'react'
-import { BrowserRouter, NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { HashRouter, NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { calculateViewportBottomOffset } from './lib/viewport'
 import { RoutinesScreen } from './screens/RoutinesScreen'
-import { ExerciseScreen } from './screens/ExerciseScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 
 function App() {
@@ -36,14 +37,12 @@ function App() {
   }, [])
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <div className="app-shell">
         <div className="screen-area">
           <Routes>
             <Route path="/" element={<RoutinesScreen />} />
             <Route path="/routines" element={<RoutinesScreen />} />
-            <Route path="/session/:sessionId" element={<Navigate to="/routines" replace />} />
-            <Route path="/exercise/:exerciseId" element={<ExerciseScreen />} />
             <Route path="/settings" element={<SettingsScreen />} />
             <Route path="*" element={<Navigate to="/routines" replace />} />
           </Routes>
@@ -64,7 +63,7 @@ function App() {
           </NavLink>
         </nav>
       </div>
-    </BrowserRouter>
+    </HashRouter>
   )
 }
 

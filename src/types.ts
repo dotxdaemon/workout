@@ -1,3 +1,5 @@
+// ABOUTME: Declares the shared domain types for exercises, routines, sessions, and exports.
+// ABOUTME: Keeps persistence and UI layers aligned on a single data contract.
 export type Unit = 'lb' | 'kg'
 
 export interface ProgressionSettings {
@@ -43,6 +45,7 @@ export interface SetEntry {
 
 export interface AppPreferences {
   defaultUnit: Unit
+  defaultWeightIncrement: number
   restTimerEnabled: boolean
   restSeconds: number
 }

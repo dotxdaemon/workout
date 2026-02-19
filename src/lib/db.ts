@@ -1,3 +1,5 @@
+// ABOUTME: Defines IndexedDB schema and data-access functions for workout tracking state.
+// ABOUTME: Provides routine, session, and set persistence helpers used by the mobile UI.
 import Dexie, { type Table } from 'dexie'
 import type {
   Exercise,
@@ -185,6 +187,15 @@ export async function endSession(sessionId: string): Promise<void> {
   })
 }
 
+export async function assignRoutineToSession(
+  sessionId: string,
+  routineId: string,
+): Promise<void> {
+  await db.sessions.update(sessionId, {
+    routineId,
+  })
+}
+
 export async function getSession(id: string): Promise<SessionRecord | undefined> {
   return db.sessions.get(id)
 }
@@ -263,6 +274,78 @@ export async function addSetEntry(
 
   await db.setEntries.add(entry)
   return entry
+}
+
+interface SessionSetInput {
+  weight: number
+  reps: number
+}
+
+export async function saveSessionExerciseSet(
+  sessionId: string,
+  exerciseId: string,
+  setIndex: number,
+  set: SessionSetInput,
+): Promise<SetEntry> {
+  const entries = await listSessionExerciseEntries(sessionId, exerciseId)
+  const existing = entries.find((entry) => entry.index === setIndex)
+
+  if (existing) {
+    await db.setEntries.update(existing.id, {
+      weight: set.weight,
+      reps: set.reps,
+      completedAt: undefined,
+    })
+
+    return {
+      ...existing,
+      weight: set.weight,
+      reps: set.reps,
+      completedAt: undefined,
+    }
+  }
+
+  for (let index = entries.length; index < setIndex; index += 1) {
+    await addSetEntry(sessionId, exerciseId, {
+      weight: 0,
+      reps: 0,
+      completed: false,
+    })
+  }
+
+  return addSetEntry(sessionId, exerciseId, {
+    weight: set.weight,
+    reps: set.reps,
+    completed: false,
+  })
+}
+
+export async function applySessionExerciseTemplate(
+  sessionId: string,
+  exerciseId: string,
+  sets: SessionSetInput[],
+): Promise<void> {
+  const existing = await listSessionExerciseEntries(sessionId, exerciseId)
+  if (existing.length > 0) {
+    await db.setEntries.bulkDelete(existing.map((entry) => entry.id))
+  }
+
+  if (sets.length === 0) {
+    return
+  }
+
+  const templateEntries: SetEntry[] = sets.map((set, index) => ({
+    id: createId(),
+    sessionId,
+    exerciseId,
+    index,
+    weight: set.weight,
+    reps: set.reps,
+    isWarmup: false,
+    completedAt: undefined,
+  }))
+
+  await db.setEntries.bulkAdd(templateEntries)
 }
 
 export async function removeExerciseFromSession(
