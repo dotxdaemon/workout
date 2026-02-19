@@ -216,3 +216,71 @@ When user reports a bug is still broken, follow this strict protocol:
 - Acceptance checklist PASS/FAIL
 - Verification command results
 - PR link
+
+Do not use binary files. if there are any existing uncommitted or untracked changes in the repo before you begin, ignore and continue. Return a screenshot showing that your changes were successful. If you cannot, then run and re-run until the code is valid.
+
+Run these and do not claim done unless all pass:
+- npm test
+- npm run lint
+- npm run typecheck
+
+Loop rules:
+- If a command fails, fix the cause, then rerun the same command.
+- Keep changes minimal. No refactors unless required to pass verification.
+- In the final message, list the exact commands you ran.
+
+Hard finish line:
+- All verification commands in AGENTS.md pass with exit code 0.
+
+Process:
+- Run the verification commands first to get a baseline.
+- Iterate: change code → rerun the failing command(s) → repeat.
+- Do not stop early. Do not say “done” until verification passes.
+- Final response must include: what changed, and the exact commands run.
+
+DO NOT add text or add content of your own unless I specify WHAT to add. Show a screenshot of the resulting changes. Do not complete until the tests are done, the prompt has been re-read and re-tested, and the screenshot shows cleanly.
+
+## Hard Guardrails: Homepage/UI Tasks
+
+1) Deploy Path First (mandatory)
+- Before editing, detect which directory is actually deployed (Vercel rewrites + GitHub Pages workflow artifact path).
+- Treat that deployed directory as source of truth.
+- If root and deployed dir differ (example: `blog-main/`), apply and verify changes in the deployed dir.
+
+2) No Images Unless Explicitly Requested
+- Do not add `<img>` tags, image-based placeholders, or image fallback logic unless Sean explicitly asks.
+- This includes hidden image elements and JS image wiring.
+- For listening widgets, use text + SVG/CSS only by default.
+
+3) Forbidden-Pattern Gate (must pass before completion)
+- Run a grep gate for banned image hooks in touched UI files:
+  - `dashboard-track-artwork`
+  - `artworkUrl` image rendering paths
+  - newly added `<img` in homepage/listening sections
+- If any match remains, task is FAIL.
+
+4) Completion Gate (mandatory)
+- Run all required verification commands:
+  - `npm test`
+  - `npm run lint`
+  - `npm run typecheck`
+- Re-run until all pass.
+- Do not claim completion without passing verification and forbidden-pattern gate.
+
+5) Validation Must Match What Users See
+- Visual checks and computed-style checks must target the deployed URL/path, not only root equivalents.
+- If there are multiple variants (`/` and `/blog-main`), verify the deployed one first.
+
+6) Artifact Hygiene
+- Do not leave screenshot/debug artifact files in repo working tree unless Sean explicitly asked for them to be committed.
+
+## Visual Verification Guardrails
+
+- For any UI or style change, include before/after screenshots at the same viewport and a short visual diff summary of what changed and where.
+- For each claimed visual change, report selector-level computed values before and after when applicable (example: `body::before z-index: -2 -> 0`).
+- Define 3 to 5 explicit user-visible acceptance criteria and mark each criterion PASS or FAIL with evidence.
+- Do not mark work complete when only tests pass; completion requires automated checks and visual verification evidence.
+- For visual bug fixes, include root cause, minimal fix, and at least one regression assertion that would have caught the issue.
+- Use a failure-first flow for UI bugs: show one failing check before code changes, then show it passing after.
+- Keep UI fixes minimal and scoped; avoid unrelated style refactors and explain every touched selector and file.
+- End with a confidence section listing: what is known for sure, what is inferred, and what could still be wrong.
