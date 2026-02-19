@@ -173,3 +173,46 @@ You must follow this debugging framework for any technical issue:
 - Document architectural decisions and their outcomes for future reference.
 - Track patterns in user feedback to improve collaboration over time.
 - When you notice something that should be fixed but is unrelated to your current task, document it in your journal rather than fixing it immediately.
+
+## Bugfix acceptance gate
+
+When user reports a bug is still broken, follow this strict protocol:
+
+1) Reproduce first
+- Reproduce the exact issue from user screenshot/steps before editing.
+- Write the reproduction steps explicitly.
+
+2) Root cause statement
+- State one concrete root cause in one sentence before implementing.
+- If uncertain, say “I don’t understand X” and ask one clarifying question.
+
+3) TDD gate
+- Add a failing test for the core behavior (or a minimal reproducible script if UI-only).
+- Confirm it fails before code changes.
+- Implement the smallest fix.
+- Confirm test passes.
+
+4) Mobile UI acceptance gate (required for mobile issues)
+- Validate on iPhone-sized viewport (390x844 or user-provided size).
+- For sheets/modals: verify open, internal scroll, swipe-down close, and backdrop close.
+- Verify bottom nav cannot overlap/interfere while modal is open.
+- Verify input focus does not cause zoom/layout jump.
+
+5) No premature PR links
+- Do not provide a new PR link until all acceptance checks pass.
+- If user asks for a new PR link early, respond with current failing check and continue fixing.
+
+6) Required verification before “done”
+- Run: npm test
+- Run: npm run lint
+- Run: npm run typecheck
+- Include exact commands run and exit status.
+- Include a fresh screenshot proving the specific bug is fixed.
+
+7) Reporting format
+- Root cause
+- Files changed
+- What was removed/neutralized
+- Acceptance checklist PASS/FAIL
+- Verification command results
+- PR link
