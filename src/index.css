@@ -427,7 +427,7 @@ textarea {
   min-height: 1.8rem;
   border-radius: 0.45rem;
   padding: 0.1rem 0.45rem;
-  font-size: 0.86rem;
+  font-size: 16px;
 }
 
 .set-table__actions {
@@ -474,7 +474,7 @@ textarea {
   align-items: flex-end;
   justify-content: center;
   padding: 0.8rem;
-  z-index: 20;
+  z-index: 60;
   overflow: hidden;
   overscroll-behavior: none;
 }
@@ -488,9 +488,15 @@ textarea {
   background: #ffffff;
   padding: 0.6rem;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 0.45rem;
   touch-action: pan-y;
+  transition: transform 150ms ease;
+  will-change: transform;
+}
+
+.history-modal--dragging {
+  transition: none;
 }
 
 .history-modal__header {
@@ -503,6 +509,14 @@ textarea {
   z-index: 1;
   background: #ffffff;
   padding-bottom: 0.2rem;
+}
+
+.history-modal__grabber {
+  width: 2.5rem;
+  height: 0.24rem;
+  border-radius: 999px;
+  background: #cbd5e1;
+  justify-self: center;
 }
 
 .history-modal__header h2 {
@@ -781,7 +795,7 @@ textarea {
   border: 1px solid var(--border);
   background: #ffffff;
   padding: 0.5rem 0.65rem;
-  font-size: 0.95rem;
+  font-size: 16px;
   font-family: inherit;
 }
 

@@ -1,7 +1,7 @@
 // ABOUTME: Renders the routines tab with fast daily logging and separate routine editing mode.
 // ABOUTME: Records saved sets and history while keeping admin controls out of the today flow.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { MouseEvent } from 'react'
+import type { MouseEvent, TouchEvent } from 'react'
 import {
   addSetEntry,
   applySessionExerciseTemplate,
@@ -20,6 +20,11 @@ import {
   updateRoutine,
 } from '../lib/db'
 import { formatDateTime, formatNumber } from '../lib/format'
+import {
+  getHistorySheetDragOffset,
+  shouldAllowHistorySheetDrag,
+  shouldCloseHistorySheetAfterDrag,
+} from '../lib/historySheet'
 import { readPreferences } from '../lib/preferences'
 import { buildProgressionSuggestion } from '../lib/progression'
 import { readSelectedRoutineId, writeSelectedRoutineId } from '../lib/routineSelection'
@@ -59,6 +64,11 @@ const routineDayOrder = ['pull', 'push', 'legs']
 export function RoutinesScreen() {
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const historyRequestRef = useRef(0)
+  const historySheetListRef = useRef<HTMLDivElement | null>(null)
+  const historySheetDragStartYRef = useRef<number | null>(null)
+  const historySheetStartScrollTopRef = useRef(0)
+  const historySheetDragOffsetRef = useRef(0)
+  const historySheetDraggingRef = useRef(false)
 
   const [trackerSessionId, setTrackerSessionId] = useState('')
   const [routines, setRoutines] = useState<Routine[]>([])
@@ -71,6 +81,8 @@ export function RoutinesScreen() {
   const [draftsByExercise, setDraftsByExercise] = useState<Record<string, SetDraft[]>>({})
   const [notesByExercise, setNotesByExercise] = useState<Record<string, string>>({})
   const [historySheet, setHistorySheet] = useState<HistorySheetState | null>(null)
+  const [historySheetDragOffset, setHistorySheetDragOffset] = useState(0)
+  const [historySheetDragging, setHistorySheetDragging] = useState(false)
   const [savedVisible, setSavedVisible] = useState(false)
   const [defaultUnit, setDefaultUnit] = useState<Unit>('lb')
   const [defaultWeightIncrement, setDefaultWeightIncrement] = useState(5)
@@ -273,10 +285,6 @@ export function RoutinesScreen() {
   }, [exerciseMap, mode, selectedRoutine])
 
   useEffect(() => {
-    window.scrollTo(0, 0)
-  }, [mode])
-
-  useEffect(() => {
     if (!historySheet) {
       return
     }
@@ -421,6 +429,7 @@ export function RoutinesScreen() {
       rows: cachedRows,
       isLoading: true,
     })
+    resetHistorySheetDrag()
 
     const requestId = historyRequestRef.current + 1
     historyRequestRef.current = requestId
@@ -466,7 +475,75 @@ export function RoutinesScreen() {
 
   function closeHistorySheet(): void {
     historyRequestRef.current += 1
+    resetHistorySheetDrag()
     setHistorySheet(null)
+  }
+
+  function resetHistorySheetDrag(): void {
+    historySheetDragStartYRef.current = null
+    historySheetStartScrollTopRef.current = 0
+    historySheetDragOffsetRef.current = 0
+    historySheetDraggingRef.current = false
+    setHistorySheetDragOffset(0)
+    setHistorySheetDragging(false)
+  }
+
+  function handleHistorySheetTouchStart(event: TouchEvent<HTMLElement>): void {
+    const touch = event.touches[0]
+    if (!touch) {
+      return
+    }
+
+    historySheetDragStartYRef.current = touch.clientY
+
+    const listElement = historySheetListRef.current
+    const targetNode = event.target as Node | null
+    const startedInList = Boolean(listElement && targetNode && listElement.contains(targetNode))
+    historySheetStartScrollTopRef.current = startedInList ? (listElement?.scrollTop ?? 0) : 0
+  }
+
+  function handleHistorySheetTouchMove(event: TouchEvent<HTMLElement>): void {
+    const touch = event.touches[0]
+    const startY = historySheetDragStartYRef.current
+
+    if (!touch || startY == null) {
+      return
+    }
+
+    const dragOffset = getHistorySheetDragOffset(startY, touch.clientY)
+
+    if (!shouldAllowHistorySheetDrag(historySheetStartScrollTopRef.current, dragOffset)) {
+      return
+    }
+
+    if (event.cancelable) {
+      event.preventDefault()
+    }
+
+    historySheetDragOffsetRef.current = dragOffset
+    historySheetDraggingRef.current = true
+    setHistorySheetDragOffset(dragOffset)
+    setHistorySheetDragging(true)
+  }
+
+  function handleHistorySheetTouchEnd(): void {
+    historySheetDragStartYRef.current = null
+
+    if (!historySheetDraggingRef.current) {
+      historySheetDragOffsetRef.current = 0
+      setHistorySheetDragOffset(0)
+      return
+    }
+
+    if (shouldCloseHistorySheetAfterDrag(historySheetDragOffsetRef.current)) {
+      closeHistorySheet()
+      return
+    }
+
+    historySheetDragOffsetRef.current = 0
+    historySheetDraggingRef.current = false
+    setHistorySheetDragOffset(0)
+    setHistorySheetDragging(false)
   }
 
   async function handleSaveQuickEntry(exerciseId: string): Promise<void> {
@@ -1091,12 +1168,18 @@ export function RoutinesScreen() {
       {historySheet ? (
         <div className="modal-backdrop" onClick={closeHistorySheet}>
           <section
-            className="history-modal"
+            className={historySheetDragging ? 'history-modal history-modal--dragging' : 'history-modal'}
             role="dialog"
             aria-modal="true"
             aria-label={`${historySheet.exerciseName} history`}
             onClick={(event) => event.stopPropagation()}
+            onTouchStart={handleHistorySheetTouchStart}
+            onTouchMove={handleHistorySheetTouchMove}
+            onTouchEnd={handleHistorySheetTouchEnd}
+            onTouchCancel={handleHistorySheetTouchEnd}
+            style={{ transform: `translateY(${historySheetDragOffset}px)` }}
           >
+            <span className="history-modal__grabber" aria-hidden="true" />
             <header className="history-modal__header">
               <h2>{historySheet.exerciseName}</h2>
               <button
@@ -1109,7 +1192,7 @@ export function RoutinesScreen() {
               </button>
             </header>
 
-            <div className="history-modal__table">
+            <div className="history-modal__table" ref={historySheetListRef}>
               {historySheet.rows.length === 0 ? (
                 historySheet.isLoading ? (
                   <p className="muted">Loading history...</p>
