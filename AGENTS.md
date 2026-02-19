@@ -127,8 +127,8 @@ If you catch yourself writing "new", "old", "legacy", "wrapper", "unified", or i
 
 ## Issue tracking
 
-- You must use your TodoWrite tool to keep track of what you're doing.
-- You must never discard tasks from your TodoWrite list without Sean's explicit approval.
+- You must use whatever form you require to keep track of what you're doing.
+- You must never discard tasks from your task list without Sean's explicit approval.
 
 ## Systematic debugging process
 
