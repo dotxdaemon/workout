@@ -54,7 +54,7 @@ a {
 }
 
 .screen-area {
-  padding: 1rem 0.9rem 5.75rem;
+  padding: 1rem 0.9rem 1rem;
 }
 
 .page {
@@ -510,7 +510,7 @@ select {
 
 .input-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.55rem;
 }
 
@@ -566,12 +566,9 @@ select {
 }
 
 .bottom-nav {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: var(--viewport-bottom-offset, 0px);
-  width: min(100%, 720px);
-  margin: 0 auto;
+  position: sticky;
+  bottom: 0;
+  width: 100%;
   background: rgba(255, 255, 255, 0.96);
   border-top: 1px solid var(--border);
   display: grid;
@@ -645,7 +642,7 @@ select {
 .today-list {
   display: grid;
   gap: 0.6rem;
-  padding-bottom: 9.5rem;
+  padding-bottom: 0.5rem;
 }
 
 .today-card {
@@ -670,6 +667,12 @@ select {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.55rem;
+}
+
+.today-card__icon-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .today-card__quick {
@@ -761,23 +764,6 @@ select {
   font-family: inherit;
 }
 
-.finish-workout-bar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: calc(var(--viewport-bottom-offset, 0px) + 4.35rem + env(safe-area-inset-bottom));
-  width: min(100%, 720px);
-  margin: 0 auto;
-  padding: 0.45rem 0.9rem;
-  z-index: 21;
-}
-
-.finish-workout-button {
-  width: 100%;
-  min-height: 3.05rem;
-  font-size: 1rem;
-}
-
 .edit-exercise-list {
   display: grid;
   gap: 0.55rem;
@@ -785,6 +771,22 @@ select {
 
 .edit-exercise-row {
   gap: 0.7rem;
+}
+
+.edit-exercise-row__title {
+  min-width: 0;
+}
+
+.edit-exercise-row__title h3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edit-exercise-row__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
 }
 
 .drag-handle {
@@ -827,5 +829,11 @@ select {
 
   .day-picker {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 560px) {
+  .input-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

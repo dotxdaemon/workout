@@ -487,13 +487,30 @@ export async function listExerciseHistory(
   const sessions = await db.sessions.bulkGet(Array.from(entryMap.keys()))
 
   return sessions
-    .filter((session): session is SessionRecord => Boolean(session?.endedAt))
-    .sort((a, b) => (b.endedAt ?? '').localeCompare(a.endedAt ?? ''))
+    .filter((session): session is SessionRecord => Boolean(session))
+    .sort((left, right) => {
+      const leftTimestamp = getSessionSortTimestamp(left, entryMap.get(left.id) ?? [])
+      const rightTimestamp = getSessionSortTimestamp(right, entryMap.get(right.id) ?? [])
+      return rightTimestamp.localeCompare(leftTimestamp)
+    })
     .slice(0, limit)
     .map((session) => ({
       session,
       sets: (entryMap.get(session.id) ?? []).sort((a, b) => a.index - b.index),
     }))
+}
+
+function getSessionSortTimestamp(session: SessionRecord, sets: SetEntry[]): string {
+  const completedTimes = sets
+    .map((set) => set.completedAt)
+    .filter((value): value is string => Boolean(value))
+
+  if (completedTimes.length > 0) {
+    completedTimes.sort((a, b) => b.localeCompare(a))
+    return completedTimes[0]
+  }
+
+  return session.endedAt ?? session.startedAt
 }
 
 export async function readFullExportData(): Promise<WorkoutExport['data']> {

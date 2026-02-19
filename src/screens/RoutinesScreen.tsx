@@ -1,14 +1,14 @@
 // ABOUTME: Renders the routines tab with fast daily logging and separate routine editing mode.
-// ABOUTME: Persists set changes immediately while keeping admin controls out of the today flow.
+// ABOUTME: Records saved sets and history while keeping admin controls out of the today flow.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import {
+  addSetEntry,
   applySessionExerciseTemplate,
   assignRoutineToSession,
   createExercise,
   createRoutine,
   deleteRoutine,
-  endSession,
   ensureCoreRoutines,
   getOrCreateTrackerSession,
   listExerciseHistory,
@@ -16,7 +16,6 @@ import {
   listRoutines,
   listSessionExerciseEntries,
   listSessionSetEntries,
-  saveSessionExerciseSet,
   updateExercise,
   updateRoutine,
 } from '../lib/db'
@@ -58,7 +57,6 @@ const routineDayOrder = ['pull', 'push', 'legs']
 
 export function RoutinesScreen() {
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const draggingExerciseIdRef = useRef('')
 
   const [trackerSessionId, setTrackerSessionId] = useState('')
   const [routines, setRoutines] = useState<Routine[]>([])
@@ -285,47 +283,12 @@ export function RoutinesScreen() {
     }, 900)
   }
 
-  async function persistSetChange(
-    exerciseId: string,
-    setIndex: number,
-    draft: SetDraft,
-  ): Promise<void> {
-    if (!trackerSessionId) {
-      return
-    }
-
-    const weight = parseWeight(draft.weight)
-    const reps = parseReps(draft.reps)
-
-    try {
-      const savedEntry = await saveSessionExerciseSet(trackerSessionId, exerciseId, setIndex, {
-        weight,
-        reps,
-      })
-
-      setSetsByExercise((current) => {
-        const entries = [...(current[exerciseId] ?? [])]
-        const existingIndex = entries.findIndex((entry) => entry.index === setIndex)
-
-        if (existingIndex >= 0) {
-          entries[existingIndex] = savedEntry
-        } else {
-          entries.push(savedEntry)
-        }
-
-        entries.sort((left, right) => left.index - right.index)
-
-        return {
-          ...current,
-          [exerciseId]: entries,
-        }
-      })
-
-      setError('')
-      showSavedFeedback()
-    } catch {
-      setError('Could not save workout changes.')
-    }
+  async function refreshHistoryForExercise(exerciseId: string): Promise<void> {
+    const rows = await listExerciseHistory(exerciseId, 5)
+    setHistoryByExercise((current) => ({
+      ...current,
+      [exerciseId]: rows,
+    }))
   }
 
   function updateDraftSet(
@@ -340,7 +303,6 @@ export function RoutinesScreen() {
       const nextSet = updater(base[setIndex])
 
       base[setIndex] = nextSet
-      void persistSetChange(exerciseId, setIndex, nextSet)
 
       return {
         ...current,
@@ -425,6 +387,7 @@ export function RoutinesScreen() {
       }))
     }
 
+    await refreshHistoryForExercise(exerciseId)
     setHistorySheet(null)
     setError('')
     showSavedFeedback()
@@ -438,6 +401,41 @@ export function RoutinesScreen() {
       exerciseName: exercise.name,
       rows,
     })
+  }
+
+  async function handleSaveQuickEntry(exerciseId: string): Promise<void> {
+    if (!trackerSessionId) {
+      return
+    }
+
+    const quickDraft = ensureSetDraftLength(draftsByExercise[exerciseId] ?? [], 1)[0]
+    const weight = parseWeight(quickDraft.weight)
+    const reps = parseReps(quickDraft.reps)
+
+    if (weight <= 0 || reps <= 0) {
+      setError('Enter both weight and reps before saving.')
+      return
+    }
+
+    try {
+      const entry = await addSetEntry(trackerSessionId, exerciseId, {
+        weight,
+        reps,
+        completed: true,
+      })
+
+      setSetsByExercise((current) => ({
+        ...current,
+        [exerciseId]: [...(current[exerciseId] ?? []), entry],
+      }))
+
+      await refreshHistoryForExercise(exerciseId)
+      setMessage('Set saved.')
+      setError('')
+      showSavedFeedback()
+    } catch {
+      setError('Could not save set.')
+    }
   }
 
   function handleNoteChange(exerciseId: string, value: string): void {
@@ -510,22 +508,20 @@ export function RoutinesScreen() {
     setError('')
   }
 
-  function handleDraftReorder(targetExerciseId: string): void {
-    const draggingId = draggingExerciseIdRef.current
-    if (!draggingId || draggingId === targetExerciseId) {
-      return
-    }
-
+  function moveExerciseDraft(exerciseId: string, direction: -1 | 1): void {
     setExerciseDrafts((current) => {
-      const fromIndex = current.findIndex((item) => item.id === draggingId)
-      const toIndex = current.findIndex((item) => item.id === targetExerciseId)
-      if (fromIndex < 0 || toIndex < 0) {
+      const index = current.findIndex((item) => item.id === exerciseId)
+      if (index < 0) {
+        return current
+      }
+
+      const nextIndex = index + direction
+      if (nextIndex < 0 || nextIndex >= current.length) {
         return current
       }
 
       const next = [...current]
-      const [moved] = next.splice(fromIndex, 1)
-      next.splice(toIndex, 0, moved)
+      ;[next[index], next[nextIndex]] = [next[nextIndex], next[index]]
       return next
     })
   }
@@ -612,18 +608,6 @@ export function RoutinesScreen() {
     setMode('today')
     setMessage(`${selectedRoutine.name} deleted.`)
     setError('')
-  }
-
-  async function handleFinishWorkout(): Promise<void> {
-    if (!trackerSessionId) {
-      return
-    }
-
-    await endSession(trackerSessionId)
-    setMessage('Workout finished.')
-    setError('')
-    setExpandedExerciseId(null)
-    await loadData()
   }
 
   function updateExerciseDraft(
@@ -717,17 +701,30 @@ export function RoutinesScreen() {
                     <p className="muted">Last: {lastSummary}</p>
                     <p className="muted">Suggested: {suggestionSummary}</p>
                   </div>
-                  <button
-                    type="button"
-                    className="icon-circle"
-                    aria-label={`Open history for ${exercise.name}`}
-                    onClick={(event) => {
-                      stopCardToggle(event)
-                      void handleOpenHistorySheet(exercise)
-                    }}
-                  >
-                    🕘
-                  </button>
+                  <div className="today-card__icon-actions">
+                    <button
+                      type="button"
+                      className="icon-circle"
+                      aria-label={`Open history for ${exercise.name}`}
+                      onClick={(event) => {
+                        stopCardToggle(event)
+                        void handleOpenHistorySheet(exercise)
+                      }}
+                    >
+                      🕘
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-circle"
+                      aria-label={`Save set for ${exercise.name}`}
+                      onClick={(event) => {
+                        stopCardToggle(event)
+                        void handleSaveQuickEntry(exercise.id)
+                      }}
+                    >
+                      ✓
+                    </button>
+                  </div>
                 </div>
 
                 <div className="today-card__quick" onClick={stopCardToggle}>
@@ -829,15 +826,6 @@ export function RoutinesScreen() {
             )
           })}
 
-          <div className="finish-workout-bar">
-            <button
-              type="button"
-              className="button button--primary finish-workout-button"
-              onClick={() => void handleFinishWorkout()}
-            >
-              Finish workout
-            </button>
-          </div>
         </div>
       ) : (
         <div className="panel panel--compact">
@@ -873,43 +861,47 @@ export function RoutinesScreen() {
           </div>
 
           <div className="edit-exercise-list">
-            {exerciseDrafts.map((draft) => (
+            {exerciseDrafts.map((draft, index) => (
               <article
                 key={draft.id}
                 className="list-card edit-exercise-row"
-                draggable
-                onDragStart={() => {
-                  draggingExerciseIdRef.current = draft.id
-                }}
-                onDragOver={(event) => {
-                  event.preventDefault()
-                }}
-                onDrop={() => {
-                  handleDraftReorder(draft.id)
-                  draggingExerciseIdRef.current = ''
-                }}
-                onDragEnd={() => {
-                  draggingExerciseIdRef.current = ''
-                }}
               >
                 <div className="row row--between row--center">
-                  <div className="row row--center">
+                  <div className="row row--center edit-exercise-row__title">
                     <span className="drag-handle" aria-hidden="true">
                       ⋮⋮
                     </span>
                     <h3>{draft.name || 'Exercise'}</h3>
                   </div>
-                  <button
-                    type="button"
-                    className="icon-link icon-link--danger"
-                    onClick={() =>
-                      setExerciseDrafts((current) =>
-                        current.filter((item) => item.id !== draft.id),
-                      )
-                    }
-                  >
-                    Delete
-                  </button>
+                  <div className="edit-exercise-row__actions">
+                    <button
+                      type="button"
+                      className="icon-link"
+                      onClick={() => moveExerciseDraft(draft.id, -1)}
+                      disabled={index === 0}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-link"
+                      onClick={() => moveExerciseDraft(draft.id, 1)}
+                      disabled={index === exerciseDrafts.length - 1}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-link icon-link--danger"
+                      onClick={() =>
+                        setExerciseDrafts((current) =>
+                          current.filter((item) => item.id !== draft.id),
+                        )
+                      }
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
 
                 <label className="stack stack--tight">
@@ -1053,7 +1045,7 @@ export function RoutinesScreen() {
 
             <div className="history-modal__table">
               {historySheet.rows.length === 0 ? (
-                <p className="muted">No completed sessions yet.</p>
+                <p className="muted">No history yet.</p>
               ) : (
                 historySheet.rows.map((row) => (
                   <button
@@ -1062,7 +1054,7 @@ export function RoutinesScreen() {
                     className="history-entry"
                     onClick={() => void handleUseTemplate(historySheet.exerciseId, row.sets)}
                   >
-                    <span>{formatDateTime(row.session.endedAt ?? row.session.startedAt)}</span>
+                    <span>{formatDateTime(getHistoryTimestamp(row.session, row.sets))}</span>
                     <span>{formatSetList(row.sets)}</span>
                     <span className="history-entry__action">Use as template</span>
                   </button>
@@ -1154,6 +1146,12 @@ function buildSetDraftsFromEntries(
       continue
     }
 
+    const existingDraft = existingDrafts?.[index]
+    const hasTypedValue = Boolean(existingDraft?.weight) || Boolean(existingDraft?.reps)
+    if (hasTypedValue) {
+      continue
+    }
+
     next[index] = {
       weight: entry.weight > 0 ? formatNumber(entry.weight) : '',
       reps: entry.reps > 0 ? String(entry.reps) : '',
@@ -1198,12 +1196,12 @@ function formatLastSummary(lastSets: SetEntry[] | undefined): string {
     return 'none'
   }
 
-  const firstWorkSet = lastSets.find((set) => !set.isWarmup)
-  if (!firstWorkSet) {
+  const latestWorkSet = [...lastSets].reverse().find((set) => !set.isWarmup)
+  if (!latestWorkSet) {
     return 'none'
   }
 
-  return `${formatNumber(firstWorkSet.weight)} x ${firstWorkSet.reps}`
+  return `${formatNumber(latestWorkSet.weight)} x ${latestWorkSet.reps}`
 }
 
 function formatSuggestedSummary(exercise: Exercise, lastSets: SetEntry[] | undefined): string {
@@ -1236,6 +1234,15 @@ function formatSetList(sets: SetEntry[]): string {
   return workSets
     .map((set) => `${formatNumber(set.weight)} x ${set.reps}`)
     .join(' · ')
+}
+
+function getHistoryTimestamp(session: SessionRecord, sets: SetEntry[]): string {
+  const completedAtValues = sets
+    .map((set) => set.completedAt)
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => right.localeCompare(left))
+
+  return completedAtValues[0] ?? session.endedAt ?? session.startedAt
 }
 
 function getNextRoutineName(routines: Routine[]): string {
