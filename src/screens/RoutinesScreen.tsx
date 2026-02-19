@@ -58,6 +58,7 @@ const routineDayOrder = ['pull', 'push', 'legs']
 
 export function RoutinesScreen() {
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const historyRequestRef = useRef(0)
 
   const [trackerSessionId, setTrackerSessionId] = useState('')
   const [routines, setRoutines] = useState<Routine[]>([])
@@ -271,6 +272,23 @@ export function RoutinesScreen() {
     setAddExerciseName('')
   }, [exerciseMap, mode, selectedRoutine])
 
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [mode])
+
+  useEffect(() => {
+    if (!historySheet) {
+      return
+    }
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [historySheet])
+
   function showSavedFeedback(): void {
     setSavedVisible(true)
 
@@ -395,28 +413,44 @@ export function RoutinesScreen() {
   }
 
   async function handleOpenHistorySheet(exercise: Exercise): Promise<void> {
+    const cachedRows = historyByExercise[exercise.id] ?? []
+
     setHistorySheet({
       exerciseId: exercise.id,
       exerciseName: exercise.name,
-      rows: [],
+      rows: cachedRows,
       isLoading: true,
     })
 
+    const requestId = historyRequestRef.current + 1
+    historyRequestRef.current = requestId
+
     try {
       const rows = await listExerciseHistory(exercise.id, 5)
+
+      if (historyRequestRef.current !== requestId) {
+        return
+      }
 
       setHistoryByExercise((current) => ({
         ...current,
         [exercise.id]: rows,
       }))
 
-      setHistorySheet({
-        exerciseId: exercise.id,
-        exerciseName: exercise.name,
-        rows,
-        isLoading: false,
-      })
+      setHistorySheet((current) =>
+        current && current.exerciseId === exercise.id
+          ? {
+              ...current,
+              rows,
+              isLoading: false,
+            }
+          : current,
+      )
     } catch {
+      if (historyRequestRef.current !== requestId) {
+        return
+      }
+
       setError('Could not load exercise history.')
       setHistorySheet((current) =>
         current
@@ -428,6 +462,11 @@ export function RoutinesScreen() {
           : current,
       )
     }
+  }
+
+  function closeHistorySheet(): void {
+    historyRequestRef.current += 1
+    setHistorySheet(null)
   }
 
   async function handleSaveQuickEntry(exerciseId: string): Promise<void> {
@@ -1050,7 +1089,7 @@ export function RoutinesScreen() {
       )}
 
       {historySheet ? (
-        <div className="modal-backdrop" onClick={() => setHistorySheet(null)}>
+        <div className="modal-backdrop" onClick={closeHistorySheet}>
           <section
             className="history-modal"
             role="dialog"
@@ -1063,7 +1102,7 @@ export function RoutinesScreen() {
               <button
                 type="button"
                 className="icon-link"
-                onClick={() => setHistorySheet(null)}
+                onClick={closeHistorySheet}
                 aria-label="Close history"
               >
                 ✕
