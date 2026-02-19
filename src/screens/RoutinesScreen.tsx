@@ -39,6 +39,7 @@ interface HistorySheetState {
   exerciseId: string
   exerciseName: string
   rows: HistoryItem[]
+  isLoading: boolean
 }
 
 interface RoutineExerciseDraft {
@@ -394,13 +395,39 @@ export function RoutinesScreen() {
   }
 
   async function handleOpenHistorySheet(exercise: Exercise): Promise<void> {
-    const rows = historyByExercise[exercise.id] ?? (await listExerciseHistory(exercise.id, 5))
-
     setHistorySheet({
       exerciseId: exercise.id,
       exerciseName: exercise.name,
-      rows,
+      rows: [],
+      isLoading: true,
     })
+
+    try {
+      const rows = await listExerciseHistory(exercise.id, 5)
+
+      setHistoryByExercise((current) => ({
+        ...current,
+        [exercise.id]: rows,
+      }))
+
+      setHistorySheet({
+        exerciseId: exercise.id,
+        exerciseName: exercise.name,
+        rows,
+        isLoading: false,
+      })
+    } catch {
+      setError('Could not load exercise history.')
+      setHistorySheet((current) =>
+        current
+          ? {
+              ...current,
+              rows: [],
+              isLoading: false,
+            }
+          : current,
+      )
+    }
   }
 
   async function handleSaveQuickEntry(exerciseId: string): Promise<void> {
@@ -866,7 +893,7 @@ export function RoutinesScreen() {
                 key={draft.id}
                 className="list-card edit-exercise-row"
               >
-                <div className="row row--between row--center">
+                <div className="edit-exercise-row__header">
                   <div className="row row--center edit-exercise-row__title">
                     <span className="drag-handle" aria-hidden="true">
                       ⋮⋮
@@ -1045,7 +1072,11 @@ export function RoutinesScreen() {
 
             <div className="history-modal__table">
               {historySheet.rows.length === 0 ? (
-                <p className="muted">No history yet.</p>
+                historySheet.isLoading ? (
+                  <p className="muted">Loading history...</p>
+                ) : (
+                  <p className="muted">No history yet.</p>
+                )
               ) : (
                 historySheet.rows.map((row) => (
                   <button
