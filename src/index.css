@@ -134,6 +134,7 @@ a {
   gap: 0.1rem;
   text-align: left;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .day-button small {
@@ -162,6 +163,7 @@ a {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .button:focus-visible,
@@ -381,6 +383,7 @@ textarea {
   min-height: 1.85rem;
   padding: 0.2rem 0.35rem;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .icon-link--danger {
@@ -472,22 +475,22 @@ textarea {
   justify-content: center;
   padding: 0.8rem;
   z-index: 20;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .history-modal {
   width: min(100%, 720px);
   max-height: min(80dvh, 680px);
-  overflow-y: auto;
+  overflow: hidden;
   border-radius: 0.85rem;
   border: 1px solid var(--border);
   background: #ffffff;
   padding: 0.6rem;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 0.45rem;
   touch-action: pan-y;
-  -webkit-overflow-scrolling: touch;
 }
 
 .history-modal__header {
@@ -509,6 +512,10 @@ textarea {
 .history-modal__table {
   display: grid;
   gap: 0.22rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 0.15rem;
 }
 
 .history-modal__row {
@@ -641,9 +648,10 @@ textarea {
   border: 1px solid var(--border);
   border-radius: 0.7rem;
   background: #ffffff;
-  font-size: 0.93rem;
+  font-size: 1rem;
   font-weight: 700;
   color: var(--text-muted);
+  touch-action: manipulation;
 }
 
 .mode-toggle__button--active {
