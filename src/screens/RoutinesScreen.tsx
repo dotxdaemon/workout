@@ -1209,7 +1209,6 @@ export function RoutinesScreen() {
                   >
                     <span>{formatDateTime(getHistoryTimestamp(row.session, row.sets))}</span>
                     <span>{formatSetList(row.sets)}</span>
-                    <span className="history-entry__action">Use as template</span>
                   </button>
                 ))
               )}
