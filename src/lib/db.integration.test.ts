@@ -60,7 +60,9 @@ describe('IndexedDB integration', () => {
     expect(secondSet.reps).toBe(8)
 
     const history = await listExerciseHistory(exercise.id, 10)
-    expect(history).toHaveLength(1)
+    expect(history).toHaveLength(2)
+    expect(history[0].session.id).toBe(secondSession.id)
+    expect(history[1].session.id).toBe(firstSession.id)
 
     const lastCompleted = await getLastCompletedSessionForExercise(exercise.id)
     expect(lastCompleted?.session.id).toBe(firstSession.id)
@@ -167,5 +169,25 @@ describe('IndexedDB integration', () => {
       [190, 6],
     ])
     expect(entries.every((entry) => !entry.completedAt)).toBe(true)
+  })
+
+  it('includes active session entries in exercise history', async () => {
+    const exercise = await createExercise({
+      name: 'Pendlay Row',
+      unitDefault: 'lb',
+    })
+
+    const session = await startSession()
+    await addSetEntry(session.id, exercise.id, {
+      weight: 165,
+      reps: 6,
+      completed: true,
+    })
+
+    const history = await listExerciseHistory(exercise.id, 5)
+    expect(history).toHaveLength(1)
+    expect(history[0].session.id).toBe(session.id)
+    expect(history[0].session.endedAt).toBeUndefined()
+    expect(history[0].sets.map((set) => [set.weight, set.reps])).toEqual([[165, 6]])
   })
 })
