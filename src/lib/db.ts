@@ -5,11 +5,13 @@ import type {
   Exercise,
   ProgressionSettings,
   Routine,
+  RoutineSplitId,
   SessionRecord,
   SetEntry,
   Unit,
   WorkoutExport,
 } from '../types'
+import { inferRoutineSplitId } from './routineSplit'
 
 class WorkoutDatabase extends Dexie {
   exercises!: Table<Exercise, string>
@@ -25,13 +27,37 @@ class WorkoutDatabase extends Dexie {
       sessions: 'id,startedAt,endedAt,routineId',
       setEntries: 'id,sessionId,exerciseId,[sessionId+exerciseId],index,completedAt',
     })
+    this.version(2)
+      .stores({
+        exercises: 'id,name',
+        routines: 'id,name,splitId',
+        sessions: 'id,startedAt,endedAt,routineId',
+        setEntries: 'id,sessionId,exerciseId,[sessionId+exerciseId],index,completedAt',
+      })
+      .upgrade(async (transaction) => {
+        await transaction
+          .table('routines')
+          .toCollection()
+          .modify((routine: { name: string; splitId?: RoutineSplitId }) => {
+            if (!routine.splitId) {
+              routine.splitId = inferRoutineSplitId(routine.name)
+            }
+          })
+      })
   }
 }
 
 export const db = new WorkoutDatabase()
 
-const coreRoutineTemplates: Array<{ name: string; exerciseNames: string[] }> = [
+interface CoreRoutineTemplate {
+  splitId: RoutineSplitId
+  name: string
+  exerciseNames: string[]
+}
+
+const coreRoutineTemplates: CoreRoutineTemplate[] = [
   {
+    splitId: '3-day-split',
     name: 'Push',
     exerciseNames: [
       'Barbell Bench Press',
@@ -42,6 +68,7 @@ const coreRoutineTemplates: Array<{ name: string; exerciseNames: string[] }> = [
     ],
   },
   {
+    splitId: '3-day-split',
     name: 'Pull',
     exerciseNames: [
       'Barbell Row',
@@ -52,6 +79,7 @@ const coreRoutineTemplates: Array<{ name: string; exerciseNames: string[] }> = [
     ],
   },
   {
+    splitId: '3-day-split',
     name: 'Legs',
     exerciseNames: [
       'Back Squat',
@@ -59,6 +87,54 @@ const coreRoutineTemplates: Array<{ name: string; exerciseNames: string[] }> = [
       'Leg Press',
       'Leg Curl',
       'Calf Raise',
+    ],
+  },
+  {
+    splitId: '4-day-split',
+    name: 'Day 1 – Chest / Back / Biceps 1',
+    exerciseNames: [
+      'Bench Press',
+      'Machine Row',
+      'Incline Dumbbell Press',
+      'Lat Pulldown',
+      'Cable Row',
+      'Barbell OR Dumbbell Curl',
+    ],
+  },
+  {
+    splitId: '4-day-split',
+    name: 'Day 2 – Shoulders / Legs / Triceps 1',
+    exerciseNames: [
+      'Leg Press',
+      'Shoulder Machine Press',
+      'Romanian Deadlift',
+      'Lateral Raise Variation',
+      'Split Squat + Reverse Pec Dec',
+      'Dumbbell Skull Crusher',
+    ],
+  },
+  {
+    splitId: '4-day-split',
+    name: 'Day 3 – Chest / Back / Biceps 2',
+    exerciseNames: [
+      'Assisted Pull Ups',
+      'Incline Bench Press',
+      'Chest Supported Row',
+      'Weighted Dips',
+      'Machine Press OR Fly',
+      'Incline Dumbbell Curl',
+    ],
+  },
+  {
+    splitId: '4-day-split',
+    name: 'Day 4 – Shoulders / Legs / Triceps 2',
+    exerciseNames: [
+      'Standing Press',
+      'Trap Bar Deadlift',
+      'Lateral Raise Variation',
+      'Leg Press',
+      'Lying Hamstring Curl',
+      'Tricep Pushdown',
     ],
   },
 ]
@@ -85,7 +161,10 @@ export async function ensureCoreRoutines(unitDefault: Unit): Promise<void> {
     existingExercises.map((exercise) => [exercise.name.toLowerCase(), exercise]),
   )
   const routineByName = new Map(
-    existingRoutines.map((routine) => [routine.name.toLowerCase(), routine]),
+    existingRoutines.map((routine) => [
+      toSplitRoutineKey(normalizeRoutineSplitId(routine.splitId, routine.name), routine.name),
+      routine,
+    ]),
   )
 
   for (const template of coreRoutineTemplates) {
@@ -106,9 +185,11 @@ export async function ensureCoreRoutines(unitDefault: Unit): Promise<void> {
       exerciseIds.push(exercise.id)
     }
 
-    if (!routineByName.has(template.name.toLowerCase())) {
-      const routine = await createRoutine(template.name, exerciseIds)
-      routineByName.set(template.name.toLowerCase(), routine)
+    const routineKey = toSplitRoutineKey(template.splitId, template.name)
+
+    if (!routineByName.has(routineKey)) {
+      const routine = await createRoutine(template.name, exerciseIds, template.splitId)
+      routineByName.set(routineKey, routine)
     }
   }
 }
@@ -150,10 +231,15 @@ export async function getRoutine(id: string): Promise<Routine | undefined> {
   return db.routines.get(id)
 }
 
-export async function createRoutine(name: string, exerciseIds: string[]): Promise<Routine> {
+export async function createRoutine(
+  name: string,
+  exerciseIds: string[],
+  splitId: RoutineSplitId = '3-day-split',
+): Promise<Routine> {
   const routine: Routine = {
     id: createId(),
     name: name.trim(),
+    splitId,
     exerciseIds,
   }
   await db.routines.add(routine)
@@ -543,7 +629,11 @@ export async function importFullExportData(data: WorkoutExport['data']): Promise
       await db.exercises.bulkAdd(data.exercises)
     }
     if (data.routines.length > 0) {
-      await db.routines.bulkAdd(data.routines)
+      const routines = data.routines.map((routine) => ({
+        ...routine,
+        splitId: normalizeRoutineSplitId(routine.splitId, routine.name),
+      }))
+      await db.routines.bulkAdd(routines)
     }
     if (data.sessions.length > 0) {
       await db.sessions.bulkAdd(data.sessions)
@@ -589,4 +679,16 @@ function isSameLocalDate(left: Date, right: Date): boolean {
     left.getMonth() === right.getMonth() &&
     left.getDate() === right.getDate()
   )
+}
+
+function toSplitRoutineKey(splitId: RoutineSplitId, name: string): string {
+  return `${splitId}:${name.toLowerCase()}`
+}
+
+function normalizeRoutineSplitId(splitId: unknown, name: string): RoutineSplitId {
+  if (splitId === '3-day-split' || splitId === '4-day-split') {
+    return splitId
+  }
+
+  return inferRoutineSplitId(name)
 }

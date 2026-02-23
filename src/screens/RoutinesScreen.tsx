@@ -27,8 +27,14 @@ import {
 } from '../lib/historySheet'
 import { readPreferences } from '../lib/preferences'
 import { buildProgressionSuggestion } from '../lib/progression'
-import { readSelectedRoutineId, writeSelectedRoutineId } from '../lib/routineSelection'
-import type { Exercise, Routine, SessionRecord, SetEntry, Unit } from '../types'
+import {
+  readActiveRoutineSplitId,
+  readSelectedRoutineId,
+  writeActiveRoutineSplitId,
+  writeSelectedRoutineId,
+} from '../lib/routineSelection'
+import { routineSplitOptions } from '../lib/routineSplit'
+import type { Exercise, Routine, RoutineSplitId, SessionRecord, SetEntry, Unit } from '../types'
 
 interface SetDraft {
   weight: string
@@ -59,8 +65,6 @@ interface RoutineExerciseDraft {
 
 type ScreenMode = 'today' | 'edit'
 
-const routineDayOrder = ['pull', 'push', 'legs']
-
 export function RoutinesScreen() {
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const historyRequestRef = useRef(0)
@@ -75,6 +79,9 @@ export function RoutinesScreen() {
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [setsByExercise, setSetsByExercise] = useState<Record<string, SetEntry[]>>({})
   const [historyByExercise, setHistoryByExercise] = useState<Record<string, HistoryItem[]>>({})
+  const [activeSplitId, setActiveSplitId] = useState<RoutineSplitId>(() =>
+    readActiveRoutineSplitId(),
+  )
   const [selectedRoutineId, setSelectedRoutineId] = useState('')
   const [mode, setMode] = useState<ScreenMode>('today')
   const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(null)
@@ -97,16 +104,38 @@ export function RoutinesScreen() {
     [exercises],
   )
 
+  const activeSplit = useMemo(
+    () => routineSplitOptions.find((option) => option.id === activeSplitId) ?? routineSplitOptions[0],
+    [activeSplitId],
+  )
+
+  const splitRoutines = useMemo(
+    () => routines.filter((routine) => routine.splitId === activeSplit.id),
+    [activeSplit.id, routines],
+  )
+
   const orderedRoutines = useMemo(() => {
-    const routineByName = new Map(routines.map((routine) => [routine.name.toLowerCase(), routine]))
+    const orderByName = new Map(
+      activeSplit.routineOrder.map((name, index) => [name.toLowerCase(), index]),
+    )
 
-    const ordered = routineDayOrder
-      .map((name) => routineByName.get(name))
-      .filter((routine): routine is Routine => Boolean(routine))
+    return [...splitRoutines].sort((left, right) => {
+      const leftIndex = orderByName.get(left.name.toLowerCase())
+      const rightIndex = orderByName.get(right.name.toLowerCase())
 
-    const extras = routines.filter((routine) => !routineDayOrder.includes(routine.name.toLowerCase()))
-    return [...ordered, ...extras]
-  }, [routines])
+      if (leftIndex == null && rightIndex == null) {
+        return left.name.localeCompare(right.name)
+      }
+      if (leftIndex == null) {
+        return 1
+      }
+      if (rightIndex == null) {
+        return -1
+      }
+
+      return leftIndex - rightIndex
+    })
+  }, [activeSplit.routineOrder, splitRoutines])
 
   const selectedRoutine = useMemo(
     () => orderedRoutines.find((routine) => routine.id === selectedRoutineId) ?? orderedRoutines[0],
@@ -138,28 +167,6 @@ export function RoutinesScreen() {
     setDefaultUnit(preferences.defaultUnit)
     setDefaultWeightIncrement(preferences.defaultWeightIncrement)
     setError('')
-
-    const storedRoutineId = readSelectedRoutineId()
-
-    setSelectedRoutineId((current) => {
-      if (current && loadedRoutines.some((routine) => routine.id === current)) {
-        return current
-      }
-
-      if (storedRoutineId && loadedRoutines.some((routine) => routine.id === storedRoutineId)) {
-        return storedRoutineId
-      }
-
-      const byName = new Map(loadedRoutines.map((routine) => [routine.name.toLowerCase(), routine.id]))
-
-      return (
-        byName.get('push') ??
-        byName.get('pull') ??
-        byName.get('legs') ??
-        loadedRoutines[0]?.id ??
-        ''
-      )
-    })
   }, [])
 
   useEffect(() => {
@@ -177,22 +184,52 @@ export function RoutinesScreen() {
   }, [])
 
   useEffect(() => {
-    if (!selectedRoutineId) {
-      return
-    }
-
-    writeSelectedRoutineId(selectedRoutineId)
-  }, [selectedRoutineId])
+    writeActiveRoutineSplitId(activeSplit.id)
+  }, [activeSplit.id])
 
   useEffect(() => {
-    if (!trackerSessionId || !selectedRoutineId) {
+    const selectedInSplit = orderedRoutines.find((routine) => routine.id === selectedRoutineId)
+    if (selectedInSplit) {
       return
     }
 
-    void assignRoutineToSession(trackerSessionId, selectedRoutineId).catch(() => {
+    const storedRoutineId = readSelectedRoutineId(activeSplit.id)
+    if (storedRoutineId && orderedRoutines.some((routine) => routine.id === storedRoutineId)) {
+      setSelectedRoutineId(storedRoutineId)
+      return
+    }
+
+    for (const fallbackName of activeSplit.fallbackRoutineNames) {
+      const fallback = orderedRoutines.find(
+        (routine) => routine.name.toLowerCase() === fallbackName.toLowerCase(),
+      )
+      if (fallback) {
+        setSelectedRoutineId(fallback.id)
+        return
+      }
+    }
+
+    setSelectedRoutineId(orderedRoutines[0]?.id ?? '')
+  }, [activeSplit.fallbackRoutineNames, activeSplit.id, orderedRoutines, selectedRoutineId])
+
+  useEffect(() => {
+    const selectedInSplit = orderedRoutines.some((routine) => routine.id === selectedRoutineId)
+    if (!selectedInSplit) {
+      return
+    }
+
+    writeSelectedRoutineId(activeSplit.id, selectedRoutineId)
+  }, [activeSplit.id, orderedRoutines, selectedRoutineId])
+
+  useEffect(() => {
+    if (!trackerSessionId || !selectedRoutine?.id) {
+      return
+    }
+
+    void assignRoutineToSession(trackerSessionId, selectedRoutine.id).catch(() => {
       setError('Could not associate routine with the current session.')
     })
-  }, [selectedRoutineId, trackerSessionId])
+  }, [selectedRoutine?.id, trackerSessionId])
 
   useEffect(() => {
     if (selectedExerciseIds.length === 0) {
@@ -594,8 +631,8 @@ export function RoutinesScreen() {
   }
 
   async function handleCreateRoutine(): Promise<void> {
-    const routineName = getNextRoutineName(routines)
-    const routine = await createRoutine(routineName, [])
+    const routineName = getNextRoutineName(splitRoutines)
+    const routine = await createRoutine(routineName, [], activeSplit.id)
 
     setRoutines((current) => [...current, routine])
     setSelectedRoutineId(routine.id)
@@ -738,7 +775,7 @@ export function RoutinesScreen() {
       return
     }
 
-    if (routines.length <= 1) {
+    if (splitRoutines.length <= 1) {
       setError('At least one routine is required.')
       return
     }
@@ -746,8 +783,9 @@ export function RoutinesScreen() {
     await deleteRoutine(selectedRoutine.id)
 
     const remaining = routines.filter((routine) => routine.id !== selectedRoutine.id)
+    const remainingInSplit = remaining.filter((routine) => routine.splitId === activeSplit.id)
     setRoutines(remaining)
-    setSelectedRoutineId(remaining[0]?.id ?? '')
+    setSelectedRoutineId(remainingInSplit[0]?.id ?? '')
     setMode('today')
     setMessage(`${selectedRoutine.name} deleted.`)
     setError('')
@@ -793,6 +831,22 @@ export function RoutinesScreen() {
           >
             Edit routine
           </button>
+        </div>
+
+        <div className="mode-toggle" role="tablist" aria-label="Routine split">
+          {routineSplitOptions.map((split) => (
+            <button
+              key={split.id}
+              type="button"
+              className={activeSplit.id === split.id ? 'mode-toggle__button mode-toggle__button--active' : 'mode-toggle__button'}
+              onClick={() => {
+                setActiveSplitId(split.id)
+                setMode('today')
+              }}
+            >
+              {split.label}
+            </button>
+          ))}
         </div>
 
         <div className="day-picker">

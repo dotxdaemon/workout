@@ -69,17 +69,25 @@ describe('IndexedDB integration', () => {
     expect(lastCompleted?.sets).toHaveLength(1)
   })
 
-  it('seeds push, pull, and legs routines for easy day selection', async () => {
+  it('seeds both 3 day and 4 day split routines for easy split selection', async () => {
     await ensureCoreRoutines('lb')
 
     const routines = await listRoutines()
     const exercises = await listExercises()
 
     expect(routines.map((routine) => routine.name).sort()).toEqual([
+      'Day 1 – Chest / Back / Biceps 1',
+      'Day 2 – Shoulders / Legs / Triceps 1',
+      'Day 3 – Chest / Back / Biceps 2',
+      'Day 4 – Shoulders / Legs / Triceps 2',
       'Legs',
       'Pull',
       'Push',
     ])
+
+    expect(routines.filter((routine) => routine.splitId === '3-day-split')).toHaveLength(3)
+    expect(routines.filter((routine) => routine.splitId === '4-day-split')).toHaveLength(4)
+
     expect(exercises.length).toBeGreaterThan(0)
     expect(routines.every((routine) => routine.exerciseIds.length > 0)).toBe(true)
   })

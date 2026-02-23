@@ -1,6 +1,7 @@
 // ABOUTME: Declares the shared domain types for exercises, routines, sessions, and exports.
 // ABOUTME: Keeps persistence and UI layers aligned on a single data contract.
 export type Unit = 'lb' | 'kg'
+export type RoutineSplitId = '3-day-split' | '4-day-split'
 
 export interface ProgressionSettings {
   repMin: number
@@ -21,6 +22,7 @@ export interface Exercise {
 export interface Routine {
   id: string
   name: string
+  splitId: RoutineSplitId
   exerciseIds: string[]
 }
 

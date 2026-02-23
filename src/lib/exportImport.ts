@@ -208,6 +208,13 @@ function validateRoutine(value: unknown, index: number): void {
   if (typeof routine.name !== 'string' || routine.name.trim().length === 0) {
     throw new Error(`Import failed: ${label}.name must be a non-empty string.`)
   }
+  if (
+    typeof routine.splitId !== 'undefined' &&
+    routine.splitId !== '3-day-split' &&
+    routine.splitId !== '4-day-split'
+  ) {
+    throw new Error(`Import failed: ${label}.splitId must be 3-day-split or 4-day-split.`)
+  }
   assertArray(routine.exerciseIds, `${label}.exerciseIds`)
   routine.exerciseIds.forEach((exerciseId, exerciseIndex) => {
     if (typeof exerciseId !== 'string') {
