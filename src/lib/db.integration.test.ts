@@ -58,6 +58,7 @@ describe('IndexedDB integration', () => {
 
     expect(secondSet.weight).toBe(225)
     expect(secondSet.reps).toBe(8)
+    await markSetComplete(secondSet.id, true)
 
     const history = await listExerciseHistory(exercise.id, 10)
     expect(history).toHaveLength(2)

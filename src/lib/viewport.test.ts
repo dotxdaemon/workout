@@ -1,3 +1,6 @@
+/// <reference types="node" />
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
 import { describe, expect, it } from 'vitest'
 import { calculateViewportBottomOffset } from './viewport'
 
@@ -18,3 +21,27 @@ describe('calculateViewportBottomOffset', () => {
     expect(calculateViewportBottomOffset(Number.NaN, 900, 0)).toBe(0)
   })
 })
+
+describe('app layout css', () => {
+  const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
+
+  it('uses screen area as the only vertical scroll container', () => {
+    const block = getRuleBlock(css, '.screen-area')
+
+    expect(block).toContain('min-height: 0')
+    expect(block).toContain('overflow-y: auto')
+  })
+
+  it('keeps bottom navigation in layout flow instead of sticky overlay', () => {
+    const block = getRuleBlock(css, '.bottom-nav')
+
+    expect(block).toContain('position: relative')
+    expect(block).not.toContain('position: sticky')
+  })
+})
+
+function getRuleBlock(css: string, selector: string): string {
+  const escapedSelector = selector.replace('.', '\\.')
+  const match = css.match(new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\}`, 'm'))
+  return match?.[1] ?? ''
+}

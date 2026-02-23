@@ -25,15 +25,22 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  overflow: hidden;
   overflow-x: hidden;
 }
 
 #root {
-  min-height: 100vh;
+  min-height: 100%;
 }
 
 h1,
@@ -50,13 +57,18 @@ a {
 .app-shell {
   width: min(100%, 720px);
   margin: 0 auto;
-  min-height: 100vh;
+  min-height: 100dvh;
+  height: 100dvh;
   display: grid;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 
 .screen-area {
   padding: 1rem 0.9rem 1rem;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .page {
@@ -600,8 +612,7 @@ textarea {
 }
 
 .bottom-nav {
-  position: sticky;
-  bottom: 0;
+  position: relative;
   width: 100%;
   background: rgba(255, 255, 255, 0.96);
   border-top: 1px solid var(--border);
