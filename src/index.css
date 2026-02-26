@@ -817,10 +817,10 @@ textarea {
 
 .edit-actions-sticky {
   position: sticky;
-  bottom: 0;
+  top: 0;
   z-index: 2;
   background: linear-gradient(
-    to top,
+    to bottom,
     rgba(248, 250, 252, 0.98) 74%,
     rgba(248, 250, 252, 0)
   );

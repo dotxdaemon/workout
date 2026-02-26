@@ -38,6 +38,15 @@ describe('app layout css', () => {
     expect(block).toContain('position: relative')
     expect(block).not.toContain('position: sticky')
   })
+
+  it('pins edit actions at the top while scrolling edit cards', () => {
+    const block = getRuleBlock(css, '.edit-actions-sticky')
+    const hasBottomAnchor = /(^|\n)\s*bottom:\s*0;/.test(block)
+
+    expect(block).toContain('position: sticky')
+    expect(block).toContain('top: 0')
+    expect(hasBottomAnchor).toBe(false)
+  })
 })
 
 describe('service worker cache strategy', () => {
