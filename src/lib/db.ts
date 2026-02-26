@@ -181,6 +181,15 @@ async function ensureCoreRoutinesInternal(unitDefault: Unit): Promise<void> {
       routine,
     ]),
   )
+  const existingRoutineSplits = new Set<RoutineSplitId>(
+    existingRoutines.map((routine) => normalizeRoutineSplitId(routine.splitId, routine.name)),
+  )
+  const splitsToSeed = new Set<RoutineSplitId>()
+  for (const template of coreRoutineTemplates) {
+    if (!existingRoutineSplits.has(template.splitId)) {
+      splitsToSeed.add(template.splitId)
+    }
+  }
 
   for (const template of coreRoutineTemplates) {
     const exerciseIds: string[] = []
@@ -202,7 +211,7 @@ async function ensureCoreRoutinesInternal(unitDefault: Unit): Promise<void> {
 
     const routineKey = toSplitRoutineKey(template.splitId, template.name)
 
-    if (!routineByName.has(routineKey)) {
+    if (splitsToSeed.has(template.splitId) && !routineByName.has(routineKey)) {
       const routine = await createRoutine(template.name, exerciseIds, template.splitId)
       routineByName.set(routineKey, routine)
     }

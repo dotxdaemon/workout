@@ -21,6 +21,7 @@ import {
   saveSessionExerciseSet,
   listSessionSetEntries,
   startSession,
+  updateRoutine,
   updateSetEntry,
 } from './db'
 
@@ -100,6 +101,27 @@ describe('IndexedDB integration', () => {
 
     expect(routines.filter((routine) => routine.splitId === '3-day-split')).toHaveLength(3)
     expect(routines.filter((routine) => routine.splitId === '4-day-split')).toHaveLength(4)
+  })
+
+  it('does not recreate a renamed seeded routine when setup runs again', async () => {
+    await ensureCoreRoutines('lb')
+    const seeded = await listRoutines()
+    const pushRoutine = seeded.find(
+      (routine) => routine.splitId === '3-day-split' && routine.name === 'Push',
+    )
+
+    expect(pushRoutine).toBeDefined()
+
+    await updateRoutine(pushRoutine!.id, {
+      name: 'Push QA',
+    })
+
+    await ensureCoreRoutines('lb')
+
+    const routines = await listRoutines()
+    expect(routines.filter((routine) => routine.splitId === '3-day-split')).toHaveLength(3)
+    expect(routines.some((routine) => routine.splitId === '3-day-split' && routine.name === 'Push')).toBe(false)
+    expect(routines.some((routine) => routine.splitId === '3-day-split' && routine.name === 'Push QA')).toBe(true)
   })
 
   it('can prefill inline set input and remove an exercise from the session list', async () => {

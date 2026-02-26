@@ -1289,15 +1289,13 @@ export function RoutinesScreen() {
                 )
               ) : (
                 historySheet.rows.map((row) => (
-                  <button
+                  <div
                     key={row.session.id}
-                    type="button"
                     className="history-entry"
-                    onClick={() => void handleUseTemplate(historySheet.exerciseId, row.sets)}
                   >
                     <span>{formatDateTime(getHistoryTimestamp(row.session, row.sets))}</span>
                     <span>{formatSetList(row.sets)}</span>
-                  </button>
+                  </div>
                 ))
               )}
             </div>
