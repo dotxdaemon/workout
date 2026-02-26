@@ -284,3 +284,18 @@ DO NOT add text or add content of your own unless I specify WHAT to add. Show a 
 - Use a failure-first flow for UI bugs: show one failing check before code changes, then show it passing after.
 - Keep UI fixes minimal and scoped; avoid unrelated style refactors and explain every touched selector and file.
 - End with a confidence section listing: what is known for sure, what is inferred, and what could still be wrong.
+
+For any reported bug, do not implement anything until all of the following are done:
+
+1. Reproduce the exact user-reported flow first (same screen, same steps, same viewport/device constraints).
+2. Write the exact reproduction steps in the response before code changes.
+3. State one concrete root-cause hypothesis in one sentence before editing.
+4. Add one failing test (or deterministic repro script for UI-only issues) that captures the reported bug.
+5. Confirm that test fails before any fix.
+6. Make the smallest possible code change tied only to that hypothesis.
+7. Re-run the same failing test and confirm it passes.
+8. Run full verification gates: npm test, npm run lint, npm run typecheck.
+9. For mobile UI bugs, verify at 390x844: open/close behavior, internal sheet scroll, swipe-down close, backdrop close, bottom-nav non-interference, and no input-focus zoom/layout jump.
+10. Include before/after screenshots at the same viewport proving the specific bug is fixed.
+11. Do not provide PR links or claim completion until all gates pass.
+12. End with: root cause, files changed, what was removed/neutralized, acceptance checklist PASS/FAIL, exact commands run with exit codes.
