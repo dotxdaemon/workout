@@ -1050,16 +1050,7 @@ export function RoutinesScreen() {
         </div>
       ) : (
         <div className="panel panel--compact">
-          <div className="row row--between row--center">
-            <h2>Edit routine</h2>
-            <button
-              type="button"
-              className="button button--primary button--small"
-              onClick={() => void handleSaveRoutineEdits()}
-            >
-              Save routine
-            </button>
-          </div>
+          <h2>Edit routine</h2>
 
           <label className="stack stack--tight">
             <span>Routine name</span>
