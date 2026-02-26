@@ -22,6 +22,7 @@ import {
 import { formatDateTime, formatNumber } from '../lib/format'
 import {
   getHistorySheetDragOffset,
+  shouldIgnoreHistorySheetBackdropClose,
   shouldAllowHistorySheetDrag,
   shouldCloseHistorySheetAfterDrag,
 } from '../lib/historySheet'
@@ -73,6 +74,7 @@ export function RoutinesScreen() {
   const historySheetStartScrollTopRef = useRef(0)
   const historySheetDragOffsetRef = useRef(0)
   const historySheetDraggingRef = useRef(false)
+  const historySheetOpenedAtRef = useRef(0)
 
   const [trackerSessionId, setTrackerSessionId] = useState('')
   const [routines, setRoutines] = useState<Routine[]>([])
@@ -452,13 +454,17 @@ export function RoutinesScreen() {
     }
 
     await refreshHistoryForExercise(exerciseId)
-    setHistorySheet(null)
+    closeHistorySheet('user')
     setError('')
     showSavedFeedback()
   }
 
-  async function handleOpenHistorySheet(exercise: Exercise): Promise<void> {
+  async function handleOpenHistorySheet(
+    exercise: Exercise,
+    openedAtMs: number,
+  ): Promise<void> {
     const cachedRows = historyByExercise[exercise.id] ?? []
+    historySheetOpenedAtRef.current = openedAtMs
 
     setHistorySheet({
       exerciseId: exercise.id,
@@ -510,10 +516,28 @@ export function RoutinesScreen() {
     }
   }
 
-  function closeHistorySheet(): void {
+  function closeHistorySheet(
+    reason: 'backdrop' | 'user' | 'drag' = 'user',
+    actionAtMs?: number,
+  ): void {
+    if (
+      reason === 'backdrop' &&
+      shouldIgnoreHistorySheetBackdropClose(
+        historySheetOpenedAtRef.current,
+        actionAtMs ?? historySheetOpenedAtRef.current,
+      )
+    ) {
+      return
+    }
+
     historyRequestRef.current += 1
     resetHistorySheetDrag()
+    historySheetOpenedAtRef.current = 0
     setHistorySheet(null)
+  }
+
+  function handleHistoryBackdropClick(event: MouseEvent<HTMLDivElement>): void {
+    closeHistorySheet('backdrop', event.timeStamp)
   }
 
   function resetHistorySheetDrag(): void {
@@ -573,7 +597,7 @@ export function RoutinesScreen() {
     }
 
     if (shouldCloseHistorySheetAfterDrag(historySheetDragOffsetRef.current)) {
-      closeHistorySheet()
+      closeHistorySheet('drag')
       return
     }
 
@@ -905,7 +929,7 @@ export function RoutinesScreen() {
                       aria-label={`Open history for ${exercise.name}`}
                       onClick={(event) => {
                         stopCardToggle(event)
-                        void handleOpenHistorySheet(exercise)
+                        void handleOpenHistorySheet(exercise, event.timeStamp)
                       }}
                     >
                       🕘
@@ -1026,7 +1050,16 @@ export function RoutinesScreen() {
         </div>
       ) : (
         <div className="panel panel--compact">
-          <h2>Edit routine</h2>
+          <div className="row row--between row--center">
+            <h2>Edit routine</h2>
+            <button
+              type="button"
+              className="button button--primary button--small"
+              onClick={() => void handleSaveRoutineEdits()}
+            >
+              Save routine
+            </button>
+          </div>
 
           <label className="stack stack--tight">
             <span>Routine name</span>
@@ -1054,6 +1087,23 @@ export function RoutinesScreen() {
               onClick={() => void handleAddExerciseToDraft()}
             >
               Add
+            </button>
+          </div>
+
+          <div className="button-row edit-actions-sticky">
+            <button
+              type="button"
+              className="button button--primary"
+              onClick={() => void handleSaveRoutineEdits()}
+            >
+              Save routine
+            </button>
+            <button
+              type="button"
+              className="button button--danger"
+              onClick={() => void handleDeleteRoutine()}
+            >
+              Delete routine
             </button>
           </div>
 
@@ -1200,27 +1250,11 @@ export function RoutinesScreen() {
             ))}
           </div>
 
-          <div className="button-row">
-            <button
-              type="button"
-              className="button button--primary"
-              onClick={() => void handleSaveRoutineEdits()}
-            >
-              Save routine
-            </button>
-            <button
-              type="button"
-              className="button button--danger"
-              onClick={() => void handleDeleteRoutine()}
-            >
-              Delete routine
-            </button>
-          </div>
         </div>
       )}
 
       {historySheet ? (
-        <div className="modal-backdrop" onClick={closeHistorySheet}>
+        <div className="modal-backdrop" onClick={handleHistoryBackdropClick}>
           <section
             className={historySheetDragging ? 'history-modal history-modal--dragging' : 'history-modal'}
             role="dialog"
@@ -1239,7 +1273,7 @@ export function RoutinesScreen() {
               <button
                 type="button"
                 className="icon-link"
-                onClick={closeHistorySheet}
+                onClick={() => closeHistorySheet('user')}
                 aria-label="Close history"
               >
                 ✕

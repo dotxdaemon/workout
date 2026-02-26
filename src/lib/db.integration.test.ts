@@ -93,6 +93,15 @@ describe('IndexedDB integration', () => {
     expect(routines.every((routine) => routine.exerciseIds.length > 0)).toBe(true)
   })
 
+  it('prevents duplicate seed data when routine setup runs concurrently', async () => {
+    await Promise.all([ensureCoreRoutines('lb'), ensureCoreRoutines('lb')])
+
+    const routines = await listRoutines()
+
+    expect(routines.filter((routine) => routine.splitId === '3-day-split')).toHaveLength(3)
+    expect(routines.filter((routine) => routine.splitId === '4-day-split')).toHaveLength(4)
+  })
+
   it('can prefill inline set input and remove an exercise from the session list', async () => {
     const exercise = await createExercise({
       name: 'Incline Press',

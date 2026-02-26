@@ -1,6 +1,7 @@
 // ABOUTME: Provides drag math for the history bottom sheet gesture interactions.
 // ABOUTME: Keeps touch-close rules small and testable outside of React components.
 const HISTORY_SHEET_CLOSE_THRESHOLD = 96
+const HISTORY_SHEET_BACKDROP_GUARD_MS = 180
 
 export function shouldAllowHistorySheetDrag(startScrollTop: number, deltaY: number): boolean {
   return startScrollTop <= 0 && deltaY > 0
@@ -25,4 +26,17 @@ export function shouldCloseHistorySheetAfterDrag(
   }
 
   return dragOffset >= closeThreshold
+}
+
+export function shouldIgnoreHistorySheetBackdropClose(
+  openedAtMs: number,
+  nowMs: number,
+  guardMs = HISTORY_SHEET_BACKDROP_GUARD_MS,
+): boolean {
+  if (!Number.isFinite(openedAtMs) || !Number.isFinite(nowMs)) {
+    return false
+  }
+
+  const elapsed = nowMs - openedAtMs
+  return elapsed >= 0 && elapsed < guardMs
 }

@@ -1,4 +1,6 @@
-const CACHE_NAME = 'workout-shell-v1'
+// ABOUTME: Caches the app shell for offline support and handles fetch strategies by request type.
+// ABOUTME: Keeps UI assets fresh while preserving offline fallback for same-origin requests.
+const CACHE_NAME = 'workout-shell-v2'
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icons/icon.svg']
 
 self.addEventListener('install', (event) => {
@@ -41,6 +43,15 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  if (
+    request.destination === 'script' ||
+    request.destination === 'style' ||
+    request.destination === 'worker'
+  ) {
+    event.respondWith(networkFirst(request))
+    return
+  }
+
   event.respondWith(cacheFirst(request))
 })
 
@@ -66,4 +77,18 @@ async function cacheFirst(request) {
   const cache = await caches.open(CACHE_NAME)
   await cache.put(request, networkResponse.clone())
   return networkResponse
+}
+
+async function networkFirst(request) {
+  try {
+    const networkResponse = await fetch(request)
+    const cache = await caches.open(CACHE_NAME)
+    if (networkResponse.ok) {
+      await cache.put(request, networkResponse.clone())
+    }
+    return networkResponse
+  } catch {
+    const cachedResponse = await caches.match(request)
+    return cachedResponse || Response.error()
+  }
 }

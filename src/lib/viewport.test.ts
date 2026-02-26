@@ -40,6 +40,16 @@ describe('app layout css', () => {
   })
 })
 
+describe('service worker cache strategy', () => {
+  const workerSource = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8')
+
+  it('uses network-first refresh for scripts and styles to avoid stale UI shell', () => {
+    expect(workerSource).toContain("request.destination === 'script'")
+    expect(workerSource).toContain("request.destination === 'style'")
+    expect(workerSource).toContain('event.respondWith(networkFirst(request))')
+  })
+})
+
 function getRuleBlock(css: string, selector: string): string {
   const escapedSelector = selector.replace('.', '\\.')
   const match = css.match(new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\}`, 'm'))

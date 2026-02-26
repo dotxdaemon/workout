@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   getHistorySheetDragOffset,
+  shouldIgnoreHistorySheetBackdropClose,
   shouldAllowHistorySheetDrag,
   shouldCloseHistorySheetAfterDrag,
 } from './historySheet'
@@ -42,5 +43,15 @@ describe('shouldCloseHistorySheetAfterDrag', () => {
 
   it('stays open when drag is below threshold', () => {
     expect(shouldCloseHistorySheetAfterDrag(95)).toBe(false)
+  })
+})
+
+describe('shouldIgnoreHistorySheetBackdropClose', () => {
+  it('ignores backdrop close immediately after opening', () => {
+    expect(shouldIgnoreHistorySheetBackdropClose(1000, 1050)).toBe(true)
+  })
+
+  it('allows backdrop close after the safety window', () => {
+    expect(shouldIgnoreHistorySheetBackdropClose(1000, 1400)).toBe(false)
   })
 })

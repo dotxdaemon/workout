@@ -48,6 +48,7 @@ class WorkoutDatabase extends Dexie {
 }
 
 export const db = new WorkoutDatabase()
+let ensureCoreRoutinesTask: Promise<void> | null = null
 
 interface CoreRoutineTemplate {
   splitId: RoutineSplitId
@@ -154,6 +155,20 @@ export async function listExercises(): Promise<Exercise[]> {
 }
 
 export async function ensureCoreRoutines(unitDefault: Unit): Promise<void> {
+  if (ensureCoreRoutinesTask) {
+    return ensureCoreRoutinesTask
+  }
+
+  ensureCoreRoutinesTask = ensureCoreRoutinesInternal(unitDefault).finally(() => {
+    ensureCoreRoutinesTask = null
+  })
+
+  return ensureCoreRoutinesTask
+}
+
+async function ensureCoreRoutinesInternal(unitDefault: Unit): Promise<void> {
+  await repairSeedDuplicates()
+
   const existingExercises = await db.exercises.toArray()
   const existingRoutines = await db.routines.toArray()
 
@@ -528,7 +543,12 @@ export async function markSetComplete(
 export async function getLastCompletedSessionForExercise(
   exerciseId: string,
 ): Promise<{ session: SessionRecord; sets: SetEntry[] } | null> {
-  const entries = await db.setEntries.where('exerciseId').equals(exerciseId).toArray()
+  const relatedExerciseIds = await getRelatedExerciseIds(exerciseId)
+  const entries =
+    relatedExerciseIds.length > 1
+      ? await db.setEntries.where('exerciseId').anyOf(relatedExerciseIds).toArray()
+      : await db.setEntries.where('exerciseId').equals(exerciseId).toArray()
+
   if (entries.length === 0) {
     return null
   }
@@ -558,7 +578,12 @@ export async function listExerciseHistory(
   exerciseId: string,
   limit = 10,
 ): Promise<Array<{ session: SessionRecord; sets: SetEntry[] }>> {
-  const entries = await db.setEntries.where('exerciseId').equals(exerciseId).toArray()
+  const relatedExerciseIds = await getRelatedExerciseIds(exerciseId)
+  const entries =
+    relatedExerciseIds.length > 1
+      ? await db.setEntries.where('exerciseId').anyOf(relatedExerciseIds).toArray()
+      : await db.setEntries.where('exerciseId').equals(exerciseId).toArray()
+
   if (entries.length === 0) {
     return []
   }
@@ -691,4 +716,174 @@ function normalizeRoutineSplitId(splitId: unknown, name: string): RoutineSplitId
   }
 
   return inferRoutineSplitId(name)
+}
+
+async function repairSeedDuplicates(): Promise<void> {
+  await db.transaction('rw', db.exercises, db.routines, db.sessions, db.setEntries, async () => {
+    const [exercises, routines, sessions, setEntries] = await Promise.all([
+      db.exercises.toArray(),
+      db.routines.toArray(),
+      db.sessions.toArray(),
+      db.setEntries.toArray(),
+    ])
+
+    if (exercises.length === 0 && routines.length === 0) {
+      return
+    }
+
+    const setCountByExerciseId = new Map<string, number>()
+    for (const entry of setEntries) {
+      setCountByExerciseId.set(
+        entry.exerciseId,
+        (setCountByExerciseId.get(entry.exerciseId) ?? 0) + 1,
+      )
+    }
+
+    const routineById = new Map(routines.map((routine) => [routine.id, routine]))
+    const exercisesByName = new Map<string, Exercise[]>()
+    for (const exercise of exercises) {
+      const key = exercise.name.toLowerCase()
+      const list = exercisesByName.get(key) ?? []
+      list.push(exercise)
+      exercisesByName.set(key, list)
+    }
+
+    for (const duplicateExercises of exercisesByName.values()) {
+      if (duplicateExercises.length <= 1) {
+        continue
+      }
+
+      const [canonical, ...duplicates] = [...duplicateExercises].sort((left, right) => {
+        const leftCount = setCountByExerciseId.get(left.id) ?? 0
+        const rightCount = setCountByExerciseId.get(right.id) ?? 0
+        if (leftCount !== rightCount) {
+          return rightCount - leftCount
+        }
+        return left.id.localeCompare(right.id)
+      })
+
+      for (const duplicate of duplicates) {
+        await db.setEntries.where('exerciseId').equals(duplicate.id).modify({
+          exerciseId: canonical.id,
+        })
+
+        for (const routine of routineById.values()) {
+          if (!routine.exerciseIds.includes(duplicate.id)) {
+            continue
+          }
+
+          const nextExerciseIds = dedupeIdsInOrder(
+            routine.exerciseIds.map((exerciseId) =>
+              exerciseId === duplicate.id ? canonical.id : exerciseId,
+            ),
+          )
+
+          routine.exerciseIds = nextExerciseIds
+          await db.routines.update(routine.id, {
+            exerciseIds: nextExerciseIds,
+          })
+        }
+
+        await db.exercises.delete(duplicate.id)
+      }
+    }
+
+    const routineGroups = new Map<string, Routine[]>()
+    const routineUsage = new Map<string, { count: number; latestStartedAt: string }>()
+    for (const session of sessions) {
+      if (!session.routineId) {
+        continue
+      }
+
+      const existing = routineUsage.get(session.routineId)
+      if (existing) {
+        existing.count += 1
+        if (session.startedAt > existing.latestStartedAt) {
+          existing.latestStartedAt = session.startedAt
+        }
+      } else {
+        routineUsage.set(session.routineId, {
+          count: 1,
+          latestStartedAt: session.startedAt,
+        })
+      }
+    }
+
+    for (const routine of routineById.values()) {
+      const splitId = normalizeRoutineSplitId(routine.splitId, routine.name)
+      if (splitId !== routine.splitId) {
+        routine.splitId = splitId
+        await db.routines.update(routine.id, {
+          splitId,
+        })
+      }
+
+      const key = toSplitRoutineKey(splitId, routine.name)
+      const list = routineGroups.get(key) ?? []
+      list.push(routine)
+      routineGroups.set(key, list)
+    }
+
+    for (const groupedRoutines of routineGroups.values()) {
+      if (groupedRoutines.length <= 1) {
+        continue
+      }
+
+      const [canonical, ...duplicates] = [...groupedRoutines].sort((left, right) => {
+        const leftUsage = routineUsage.get(left.id) ?? { count: 0, latestStartedAt: '' }
+        const rightUsage = routineUsage.get(right.id) ?? { count: 0, latestStartedAt: '' }
+
+        if (leftUsage.count !== rightUsage.count) {
+          return rightUsage.count - leftUsage.count
+        }
+        if (leftUsage.latestStartedAt !== rightUsage.latestStartedAt) {
+          return rightUsage.latestStartedAt.localeCompare(leftUsage.latestStartedAt)
+        }
+        return left.id.localeCompare(right.id)
+      })
+
+      for (const duplicate of duplicates) {
+        await db.sessions.where('routineId').equals(duplicate.id).modify({
+          routineId: canonical.id,
+        })
+        await db.routines.delete(duplicate.id)
+      }
+    }
+  })
+}
+
+async function getRelatedExerciseIds(exerciseId: string): Promise<string[]> {
+  const exercise = await db.exercises.get(exerciseId)
+  if (!exercise) {
+    return [exerciseId]
+  }
+
+  const matchingExercises = await db.exercises
+    .filter((item) => item.name.toLowerCase() === exercise.name.toLowerCase())
+    .toArray()
+  if (matchingExercises.length === 0) {
+    return [exerciseId]
+  }
+
+  const ids = matchingExercises.map((item) => item.id)
+  if (ids.includes(exerciseId)) {
+    return ids
+  }
+
+  return [exerciseId, ...ids]
+}
+
+function dedupeIdsInOrder(values: string[]): string[] {
+  const seen = new Set<string>()
+  const next: string[] = []
+
+  for (const value of values) {
+    if (seen.has(value)) {
+      continue
+    }
+    seen.add(value)
+    next.push(value)
+  }
+
+  return next
 }
