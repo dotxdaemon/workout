@@ -79,4 +79,25 @@ describe('RoutinesScreen edit actions', () => {
     expect(css).toContain('.today-input-row__timer')
     expect(css).toContain('max-width: 38px')
   })
+
+  it('replaces Goal with Next in today card stats', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/screens/RoutinesScreen.tsx'), 'utf8')
+
+    expect(source).toContain('Next')
+    expect(source).not.toContain('Goal')
+  })
+
+  it('keeps edit mode focused on add/reorder/delete without advanced progression fields', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/screens/RoutinesScreen.tsx'), 'utf8')
+
+    expect(source).toContain('Add exercise')
+    expect(source).toContain('Delete')
+    expect(source).toContain('↑')
+    expect(source).toContain('↓')
+    expect(source).not.toContain('<span>Unit</span>')
+    expect(source).not.toContain('<span>Sets</span>')
+    expect(source).not.toContain('Rep min')
+    expect(source).not.toContain('Rep max')
+    expect(source).not.toContain('Weight increment')
+  })
 })

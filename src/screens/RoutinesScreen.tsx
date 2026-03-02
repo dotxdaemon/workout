@@ -733,7 +733,7 @@ export function RoutinesScreen() {
     })
 
     setAddExerciseName('')
-    setMessage('Exercise ready. Save routine to apply order and settings.')
+    setMessage('Exercise ready. Save routine to apply changes.')
     setError('')
   }
 
@@ -913,7 +913,7 @@ export function RoutinesScreen() {
                 const setDrafts = ensureSetDraftLength(draftsByExercise[exercise.id] ?? [], targetSets)
                 const historyRows = historyByExercise[exercise.id] ?? []
                 const lastSummary = formatLastSummary(historyRows[0]?.sets)
-                const suggestionSummary = formatSuggestedSummary(exercise, historyRows[0]?.sets)
+                const nextStepSummary = formatNextStepSummary(exercise, historyRows[0]?.sets)
                 const isCompleted = completedByExercise[exercise.id]
 
                 return (
@@ -956,8 +956,8 @@ export function RoutinesScreen() {
                           <span className="today-card__stats-dot" aria-hidden="true">
                             •
                           </span>
-                          <span className="today-card__stats-label">Goal</span>
-                          <span className="today-card__stats-goal">{suggestionSummary}</span>
+                          <span className="today-card__stats-label">Next</span>
+                          <span className="today-card__stats-next">{nextStepSummary}</span>
                         </div>
 
                         <div className="today-input-row" onClick={stopCardToggle}>
@@ -1249,88 +1249,6 @@ export function RoutinesScreen() {
                     />
                   </label>
 
-                  <div className="input-grid">
-                    <label className="stack stack--tight">
-                      <span>Unit</span>
-                      <select
-                        value={draft.unit}
-                        onChange={(event) =>
-                          updateExerciseDraft(draft.id, (current) => ({
-                            ...current,
-                            unit: event.target.value as Unit,
-                          }))
-                        }
-                      >
-                        <option value="lb">lb</option>
-                        <option value="kg">kg</option>
-                      </select>
-                    </label>
-
-                    <label className="stack stack--tight">
-                      <span>Sets</span>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        min="1"
-                        value={draft.workSetsTarget}
-                        onChange={(event) =>
-                          updateExerciseDraft(draft.id, (current) => ({
-                            ...current,
-                            workSetsTarget: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-
-                    <label className="stack stack--tight">
-                      <span>Rep min</span>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        min="1"
-                        value={draft.repMin}
-                        onChange={(event) =>
-                          updateExerciseDraft(draft.id, (current) => ({
-                            ...current,
-                            repMin: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-
-                    <label className="stack stack--tight">
-                      <span>Rep max</span>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        min="1"
-                        value={draft.repMax}
-                        onChange={(event) =>
-                          updateExerciseDraft(draft.id, (current) => ({
-                            ...current,
-                            repMax: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-
-                    <label className="stack stack--tight">
-                      <span>Weight increment</span>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        min="0.1"
-                        step="0.1"
-                        value={draft.weightIncrement}
-                        onChange={(event) =>
-                          updateExerciseDraft(draft.id, (current) => ({
-                            ...current,
-                            weightIncrement: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-                  </div>
                 </article>
               ))}
             </div>
@@ -1641,7 +1559,7 @@ function formatLastSummary(lastSets: SetEntry[] | undefined): string {
   return `${formatNumber(latestWorkSet.weight)} x ${latestWorkSet.reps}`
 }
 
-function formatSuggestedSummary(exercise: Exercise, lastSets: SetEntry[] | undefined): string {
+function formatNextStepSummary(exercise: Exercise, lastSets: SetEntry[] | undefined): string {
   if (!lastSets || lastSets.length === 0) {
     return 'none'
   }
@@ -1651,15 +1569,22 @@ function formatSuggestedSummary(exercise: Exercise, lastSets: SetEntry[] | undef
     return 'none'
   }
 
-  const previousReps = lastSets.filter((set) => !set.isWarmup).map((set) => set.reps)
-  const changedIndex = suggestion.nextReps.findIndex((reps, index) => reps !== previousReps[index])
-  const suggestedReps = suggestion.nextReps[changedIndex >= 0 ? changedIndex : 0]
-
-  if (typeof suggestedReps !== 'number') {
-    return 'none'
+  if (suggestion.kind === 'collect_more_sets') {
+    return 'finish remaining sets'
   }
 
-  return `${formatNumber(suggestion.suggestedWeight)} x ${suggestedReps}`
+  if (suggestion.kind === 'increase_weight') {
+    const { repMin, unit, weightIncrement } = exercise.progressionSettings
+    return `+${formatNumber(weightIncrement)} ${unit}, reset to ${repMin} reps`
+  }
+
+  const previousReps = lastSets.filter((set) => !set.isWarmup).map((set) => set.reps)
+  const changedIndex = suggestion.nextReps.findIndex((reps, index) => reps !== previousReps[index])
+  if (changedIndex >= 0) {
+    return `+1 rep (set ${changedIndex + 1})`
+  }
+
+  return 'match last reps'
 }
 
 function formatSetList(sets: SetEntry[]): string {

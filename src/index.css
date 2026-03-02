@@ -1047,7 +1047,7 @@ input[type='number']::-webkit-outer-spin-button {
   color: var(--border);
 }
 
-.today-card__stats-goal {
+.today-card__stats-next {
   color: var(--accent);
   font-weight: 700;
 }
