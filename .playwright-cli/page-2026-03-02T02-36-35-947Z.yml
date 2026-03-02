@@ -1,0 +1,164 @@
+- generic [ref=e3]:
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - heading "Routines" [level=1] [ref=e8]
+        - generic [ref=e9]: Saved
+      - paragraph [ref=e10]: Today mode is built for fast logging. Edit mode handles setup.
+    - paragraph [ref=e294]: Routine saved.
+    - generic [ref=e11]:
+      - tablist "Routine modes" [ref=e12]:
+        - button "Today" [ref=e13]
+        - button "Edit routine" [ref=e14]
+      - tablist "Routine split" [ref=e15]:
+        - button "3 day split" [ref=e16]
+        - button "4 day split" [ref=e17]
+      - generic [ref=e23]:
+        - button "Pull 5 exercises" [ref=e24] [cursor=pointer]:
+          - generic [ref=e25]: Pull
+          - generic [ref=e26]: 5 exercises
+        - button "Push 6 exercises" [ref=e323] [cursor=pointer]:
+          - generic [ref=e28]: Push
+          - generic [ref=e29]: 6 exercises
+        - button "Legs 5 exercises" [ref=e30] [cursor=pointer]:
+          - generic [ref=e31]: Legs
+          - generic [ref=e32]: 5 exercises
+      - button "Create routine" [ref=e18] [cursor=pointer]
+    - generic [ref=e19]:
+      - article [ref=e324]:
+        - generic [ref=e325]:
+          - generic [ref=e326]:
+            - heading "Barbell Bench Press" [level=3] [ref=e327]
+            - paragraph [ref=e328]: "Last: none"
+            - paragraph [ref=e329]: "Suggested: none"
+          - generic [ref=e330]:
+            - button "Open history for Barbell Bench Press" [ref=e331]: 🕘
+            - button "Save set for Barbell Bench Press" [ref=e332]: ✓
+        - generic [ref=e333]:
+          - generic [ref=e334]:
+            - generic [ref=e335]: Weight
+            - generic [ref=e336]:
+              - button "Weight +" [ref=e337]: "-"
+              - spinbutton [ref=e338]
+              - button "+" [ref=e339]
+          - generic [ref=e340]:
+            - generic [ref=e341]: Reps
+            - generic [ref=e342]:
+              - button "Reps +" [ref=e343]: "-"
+              - spinbutton [ref=e344]
+              - button "+" [ref=e345]
+      - article [ref=e346]:
+        - generic [ref=e347]:
+          - generic [ref=e348]:
+            - heading "Overhead Press" [level=3] [ref=e349]
+            - paragraph [ref=e350]: "Last: none"
+            - paragraph [ref=e351]: "Suggested: none"
+          - generic [ref=e352]:
+            - button "Open history for Overhead Press" [ref=e353]: 🕘
+            - button "Save set for Overhead Press" [ref=e354]: ✓
+        - generic [ref=e355]:
+          - generic [ref=e356]:
+            - generic [ref=e357]: Weight
+            - generic [ref=e358]:
+              - button "Weight +" [ref=e359]: "-"
+              - spinbutton [ref=e360]
+              - button "+" [ref=e361]
+          - generic [ref=e362]:
+            - generic [ref=e363]: Reps
+            - generic [ref=e364]:
+              - button "Reps +" [ref=e365]: "-"
+              - spinbutton [ref=e366]
+              - button "+" [ref=e367]
+      - article [ref=e368]:
+        - generic [ref=e369]:
+          - generic [ref=e370]:
+            - heading "Incline Dumbbell Press" [level=3] [ref=e371]
+            - paragraph [ref=e372]: "Last: none"
+            - paragraph [ref=e373]: "Suggested: none"
+          - generic [ref=e374]:
+            - button "Open history for Incline Dumbbell Press" [ref=e375]: 🕘
+            - button "Save set for Incline Dumbbell Press" [ref=e376]: ✓
+        - generic [ref=e377]:
+          - generic [ref=e378]:
+            - generic [ref=e379]: Weight
+            - generic [ref=e380]:
+              - button "Weight +" [ref=e381]: "-"
+              - spinbutton [ref=e382]
+              - button "+" [ref=e383]
+          - generic [ref=e384]:
+            - generic [ref=e385]: Reps
+            - generic [ref=e386]:
+              - button "Reps +" [ref=e387]: "-"
+              - spinbutton [ref=e388]
+              - button "+" [ref=e389]
+      - article [ref=e390]:
+        - generic [ref=e391]:
+          - generic [ref=e392]:
+            - heading "Lateral Raise" [level=3] [ref=e393]
+            - paragraph [ref=e394]: "Last: none"
+            - paragraph [ref=e395]: "Suggested: none"
+          - generic [ref=e396]:
+            - button "Open history for Lateral Raise" [ref=e397]: 🕘
+            - button "Save set for Lateral Raise" [ref=e398]: ✓
+        - generic [ref=e399]:
+          - generic [ref=e400]:
+            - generic [ref=e401]: Weight
+            - generic [ref=e402]:
+              - button "Weight +" [ref=e403]: "-"
+              - spinbutton [ref=e404]
+              - button "+" [ref=e405]
+          - generic [ref=e406]:
+            - generic [ref=e407]: Reps
+            - generic [ref=e408]:
+              - button "Reps +" [ref=e409]: "-"
+              - spinbutton [ref=e410]
+              - button "+" [ref=e411]
+      - article [ref=e412]:
+        - generic [ref=e413]:
+          - generic [ref=e414]:
+            - heading "Triceps Pushdown" [level=3] [ref=e415]
+            - paragraph [ref=e416]: "Last: none"
+            - paragraph [ref=e417]: "Suggested: none"
+          - generic [ref=e418]:
+            - button "Open history for Triceps Pushdown" [ref=e419]: 🕘
+            - button "Save set for Triceps Pushdown" [ref=e420]: ✓
+        - generic [ref=e421]:
+          - generic [ref=e422]:
+            - generic [ref=e423]: Weight
+            - generic [ref=e424]:
+              - button "Weight +" [ref=e425]: "-"
+              - spinbutton [ref=e426]
+              - button "+" [ref=e427]
+          - generic [ref=e428]:
+            - generic [ref=e429]: Reps
+            - generic [ref=e430]:
+              - button "Reps +" [ref=e431]: "-"
+              - spinbutton [ref=e432]
+              - button "+" [ref=e433]
+      - article [ref=e434]:
+        - generic [ref=e435]:
+          - generic [ref=e436]:
+            - heading "Face Pull" [level=3] [ref=e437]
+            - paragraph [ref=e438]: "Last: none"
+            - paragraph [ref=e439]: "Suggested: none"
+          - generic [ref=e440]:
+            - button "Open history for Face Pull" [ref=e441]: 🕘
+            - button "Save set for Face Pull" [ref=e442]: ✓
+        - generic [ref=e443]:
+          - generic [ref=e444]:
+            - generic [ref=e445]: Weight
+            - generic [ref=e446]:
+              - button "Weight +" [ref=e447]: "-"
+              - spinbutton [ref=e448]
+              - button "+" [ref=e449]
+          - generic [ref=e450]:
+            - generic [ref=e451]: Reps
+            - generic [ref=e452]:
+              - button "Reps +" [ref=e453]: "-"
+              - spinbutton [ref=e454]
+              - button "+" [ref=e455]
+  - navigation "Primary navigation" [ref=e20]:
+    - link "Routines" [ref=e21] [cursor=pointer]:
+      - /url: "#/routines"
+    - link "Settings" [ref=e22] [cursor=pointer]:
+      - /url: "#/settings"

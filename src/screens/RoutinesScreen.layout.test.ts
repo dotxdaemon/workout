@@ -33,4 +33,21 @@ describe('RoutinesScreen edit actions', () => {
     expect(source).toContain('day-button--upcoming')
     expect(source).toContain('today-active-day-header')
   })
+
+  it('uses redesigned header and today input controls', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/screens/RoutinesScreen.tsx'), 'utf8')
+
+    expect(source).toContain('routines-header__split')
+    expect(source).toContain('pill-toggle')
+    expect(source).toContain('today-input-row__timer')
+  })
+
+  it('defines dark theme tokens and bottom nav accent styles', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
+
+    expect(css).toContain('--bg: #0D0D0F')
+    expect(css).toContain('--accent: #C4B5FD')
+    expect(css).toContain('.bottom-nav')
+    expect(css).toContain('background: var(--bg)')
+  })
 })

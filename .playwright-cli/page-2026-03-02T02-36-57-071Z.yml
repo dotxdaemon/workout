@@ -1,0 +1,193 @@
+- generic [ref=e3]:
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - heading "Routines" [level=1] [ref=e8]
+        - generic [ref=e9]: Saved
+      - paragraph [ref=e10]: Today mode is built for fast logging. Edit mode handles setup.
+    - paragraph [ref=e294]: Routine saved.
+    - generic [ref=e11]:
+      - tablist "Routine modes" [ref=e12]:
+        - button "Today" [ref=e13]
+        - button "Edit routine" [ref=e14]
+      - tablist "Routine split" [ref=e15]:
+        - button "3 day split" [ref=e16]
+        - button "4 day split" [ref=e17]
+      - generic [ref=e23]:
+        - button "Pull 5 exercises" [active] [ref=e24] [cursor=pointer]:
+          - generic [ref=e25]: Pull
+          - generic [ref=e26]: 5 exercises
+        - button "Push 6 exercises" [ref=e323] [cursor=pointer]:
+          - generic [ref=e28]: Push
+          - generic [ref=e29]: 6 exercises
+        - button "Legs 5 exercises" [ref=e30] [cursor=pointer]:
+          - generic [ref=e31]: Legs
+          - generic [ref=e32]: 5 exercises
+      - button "Create routine" [ref=e18] [cursor=pointer]
+    - generic [ref=e19]:
+      - heading "Edit routine" [level=2] [ref=e456]
+      - generic [ref=e457]:
+        - generic [ref=e458]: Routine name
+        - textbox "Routine name" [ref=e459]: Pull
+      - generic [ref=e460]:
+        - textbox "Add exercise" [ref=e461]
+        - button "Add" [ref=e462] [cursor=pointer]
+      - generic [ref=e463]:
+        - button "Save routine" [ref=e464] [cursor=pointer]
+        - button "Delete routine" [ref=e465] [cursor=pointer]
+      - generic [ref=e466]:
+        - article [ref=e635]:
+          - generic [ref=e636]:
+            - generic [ref=e637]:
+              - generic [ref=e638]: ⋮⋮
+              - heading "Barbell Row" [level=3] [ref=e639]
+            - generic [ref=e640]:
+              - button "↑" [disabled] [ref=e641] [cursor=pointer]
+              - button "↓" [ref=e642] [cursor=pointer]
+              - button "Delete" [ref=e643] [cursor=pointer]
+          - generic [ref=e644]:
+            - generic [ref=e645]: Name
+            - textbox "Name" [ref=e646]: Barbell Row
+          - generic [ref=e647]:
+            - generic [ref=e648]:
+              - generic [ref=e649]: Unit
+              - combobox "Unit" [ref=e650]:
+                - option "lb" [selected]
+                - option "kg"
+            - generic [ref=e651]:
+              - generic [ref=e652]: Sets
+              - spinbutton "Sets" [ref=e653]: "3"
+            - generic [ref=e654]:
+              - generic [ref=e655]: Rep min
+              - spinbutton "Rep min" [ref=e656]: "6"
+            - generic [ref=e657]:
+              - generic [ref=e658]: Rep max
+              - spinbutton "Rep max" [ref=e659]: "10"
+            - generic [ref=e660]:
+              - generic [ref=e661]: Weight increment
+              - spinbutton "Weight increment" [ref=e662]: "5"
+        - article [ref=e663]:
+          - generic [ref=e664]:
+            - generic [ref=e665]:
+              - generic [ref=e666]: ⋮⋮
+              - heading "Lat Pulldown" [level=3] [ref=e667]
+            - generic [ref=e668]:
+              - button "↑" [ref=e669] [cursor=pointer]
+              - button "↓" [ref=e670] [cursor=pointer]
+              - button "Delete" [ref=e671] [cursor=pointer]
+          - generic [ref=e672]:
+            - generic [ref=e673]: Name
+            - textbox "Name" [ref=e674]: Lat Pulldown
+          - generic [ref=e675]:
+            - generic [ref=e676]:
+              - generic [ref=e677]: Unit
+              - combobox "Unit" [ref=e678]:
+                - option "lb" [selected]
+                - option "kg"
+            - generic [ref=e679]:
+              - generic [ref=e680]: Sets
+              - spinbutton "Sets" [ref=e681]: "3"
+            - generic [ref=e682]:
+              - generic [ref=e683]: Rep min
+              - spinbutton "Rep min" [ref=e684]: "6"
+            - generic [ref=e685]:
+              - generic [ref=e686]: Rep max
+              - spinbutton "Rep max" [ref=e687]: "10"
+            - generic [ref=e688]:
+              - generic [ref=e689]: Weight increment
+              - spinbutton "Weight increment" [ref=e690]: "5"
+        - article [ref=e691]:
+          - generic [ref=e692]:
+            - generic [ref=e693]:
+              - generic [ref=e694]: ⋮⋮
+              - heading "Seated Cable Row" [level=3] [ref=e695]
+            - generic [ref=e696]:
+              - button "↑" [ref=e697] [cursor=pointer]
+              - button "↓" [ref=e698] [cursor=pointer]
+              - button "Delete" [ref=e699] [cursor=pointer]
+          - generic [ref=e700]:
+            - generic [ref=e701]: Name
+            - textbox "Name" [ref=e702]: Seated Cable Row
+          - generic [ref=e703]:
+            - generic [ref=e704]:
+              - generic [ref=e705]: Unit
+              - combobox "Unit" [ref=e706]:
+                - option "lb" [selected]
+                - option "kg"
+            - generic [ref=e707]:
+              - generic [ref=e708]: Sets
+              - spinbutton "Sets" [ref=e709]: "3"
+            - generic [ref=e710]:
+              - generic [ref=e711]: Rep min
+              - spinbutton "Rep min" [ref=e712]: "6"
+            - generic [ref=e713]:
+              - generic [ref=e714]: Rep max
+              - spinbutton "Rep max" [ref=e715]: "10"
+            - generic [ref=e716]:
+              - generic [ref=e717]: Weight increment
+              - spinbutton "Weight increment" [ref=e718]: "5"
+        - article [ref=e607]:
+          - generic [ref=e608]:
+            - generic [ref=e609]:
+              - generic [ref=e610]: ⋮⋮
+              - heading "Face Pull" [level=3] [ref=e611]
+            - generic [ref=e612]:
+              - button "↑" [ref=e613] [cursor=pointer]
+              - button "↓" [ref=e614] [cursor=pointer]
+              - button "Delete" [ref=e615] [cursor=pointer]
+          - generic [ref=e616]:
+            - generic [ref=e617]: Name
+            - textbox "Name" [ref=e618]: Face Pull
+          - generic [ref=e619]:
+            - generic [ref=e620]:
+              - generic [ref=e621]: Unit
+              - combobox "Unit" [ref=e622]:
+                - option "lb" [selected]
+                - option "kg"
+            - generic [ref=e623]:
+              - generic [ref=e624]: Sets
+              - spinbutton "Sets" [ref=e625]: "3"
+            - generic [ref=e626]:
+              - generic [ref=e627]: Rep min
+              - spinbutton "Rep min" [ref=e628]: "6"
+            - generic [ref=e629]:
+              - generic [ref=e630]: Rep max
+              - spinbutton "Rep max" [ref=e631]: "10"
+            - generic [ref=e632]:
+              - generic [ref=e633]: Weight increment
+              - spinbutton "Weight increment" [ref=e634]: "5"
+        - article [ref=e719]:
+          - generic [ref=e720]:
+            - generic [ref=e721]:
+              - generic [ref=e722]: ⋮⋮
+              - heading "Dumbbell Curl" [level=3] [ref=e723]
+            - generic [ref=e724]:
+              - button "↑" [ref=e725] [cursor=pointer]
+              - button "↓" [disabled] [ref=e726] [cursor=pointer]
+              - button "Delete" [ref=e727] [cursor=pointer]
+          - generic [ref=e728]:
+            - generic [ref=e729]: Name
+            - textbox "Name" [ref=e730]: Dumbbell Curl
+          - generic [ref=e731]:
+            - generic [ref=e732]:
+              - generic [ref=e733]: Unit
+              - combobox "Unit" [ref=e734]:
+                - option "lb" [selected]
+                - option "kg"
+            - generic [ref=e735]:
+              - generic [ref=e736]: Sets
+              - spinbutton "Sets" [ref=e737]: "3"
+            - generic [ref=e738]:
+              - generic [ref=e739]: Rep min
+              - spinbutton "Rep min" [ref=e740]: "6"
+            - generic [ref=e741]:
+              - generic [ref=e742]: Rep max
+              - spinbutton "Rep max" [ref=e743]: "10"
+            - generic [ref=e744]:
+              - generic [ref=e745]: Weight increment
+              - spinbutton "Weight increment" [ref=e746]: "5"
+  - navigation "Primary navigation" [ref=e20]:
+    - link "Routines" [ref=e21] [cursor=pointer]:
+      - /url: "#/routines"
+    - link "Settings" [ref=e22] [cursor=pointer]:
+      - /url: "#/settings"

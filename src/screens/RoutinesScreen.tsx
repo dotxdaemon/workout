@@ -68,7 +68,6 @@ interface RoutineExerciseDraft {
 type ScreenMode = 'today' | 'edit'
 
 export function RoutinesScreen() {
-  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const historyRequestRef = useRef(0)
   const historySheetListRef = useRef<HTMLDivElement | null>(null)
   const historySheetDragStartYRef = useRef<number | null>(null)
@@ -93,7 +92,7 @@ export function RoutinesScreen() {
   const [historySheet, setHistorySheet] = useState<HistorySheetState | null>(null)
   const [historySheetDragOffset, setHistorySheetDragOffset] = useState(0)
   const [historySheetDragging, setHistorySheetDragging] = useState(false)
-  const [savedVisible, setSavedVisible] = useState(false)
+  const [completedExerciseIds, setCompletedExerciseIds] = useState<Record<string, boolean>>({})
   const [defaultUnit, setDefaultUnit] = useState<Unit>('lb')
   const [defaultWeightIncrement, setDefaultWeightIncrement] = useState(5)
   const [routineNameDraft, setRoutineNameDraft] = useState('')
@@ -158,6 +157,27 @@ export function RoutinesScreen() {
     [orderedRoutines, selectedRoutine],
   )
 
+  const dayHeading = useMemo(
+    () => buildDayHeading(selectedRoutine?.name, selectedRoutineIndex),
+    [selectedRoutine?.name, selectedRoutineIndex],
+  )
+
+  const routineFocusLabel = useMemo(
+    () => getRoutineFocusLabel(selectedRoutine?.name),
+    [selectedRoutine?.name],
+  )
+
+  const completedByExercise = useMemo(() => {
+    const next: Record<string, boolean> = {}
+
+    for (const exerciseId of selectedExerciseIds) {
+      const hasSavedSet = (setsByExercise[exerciseId] ?? []).length > 0
+      next[exerciseId] = completedExerciseIds[exerciseId] ?? hasSavedSet
+    }
+
+    return next
+  }, [completedExerciseIds, selectedExerciseIds, setsByExercise])
+
   const loadData = useCallback(async () => {
     const preferences = readPreferences()
     await ensureCoreRoutines(preferences.defaultUnit)
@@ -185,14 +205,6 @@ export function RoutinesScreen() {
       setError('Could not load routines.')
     })
   }, [loadData])
-
-  useEffect(() => {
-    return () => {
-      if (savedTimerRef.current) {
-        clearTimeout(savedTimerRef.current)
-      }
-    }
-  }, [])
 
   useEffect(() => {
     writeActiveRoutineSplitId(activeSplit.id)
@@ -342,18 +354,7 @@ export function RoutinesScreen() {
     return applyHistorySheetOverlayLock(screenArea, bottomNav)
   }, [historySheet])
 
-  function showSavedFeedback(): void {
-    setSavedVisible(true)
-
-    if (savedTimerRef.current) {
-      clearTimeout(savedTimerRef.current)
-    }
-
-    savedTimerRef.current = setTimeout(() => {
-      setSavedVisible(false)
-      savedTimerRef.current = null
-    }, 900)
-  }
+  function showSavedFeedback(): void {}
 
   async function refreshHistoryForExercise(exerciseId: string): Promise<void> {
     const rows = await listExerciseHistory(exerciseId, 5)
@@ -613,9 +614,9 @@ export function RoutinesScreen() {
     setHistorySheetDragging(false)
   }
 
-  async function handleSaveQuickEntry(exerciseId: string): Promise<void> {
+  async function handleSaveQuickEntry(exerciseId: string): Promise<boolean> {
     if (!trackerSessionId) {
-      return
+      return false
     }
 
     const quickDraft = ensureSetDraftLength(draftsByExercise[exerciseId] ?? [], 1)[0]
@@ -624,7 +625,7 @@ export function RoutinesScreen() {
 
     if (weight <= 0 || reps <= 0) {
       setError('Enter both weight and reps before saving.')
-      return
+      return false
     }
 
     try {
@@ -639,13 +640,31 @@ export function RoutinesScreen() {
         [exerciseId]: [...(current[exerciseId] ?? []), entry],
       }))
 
+      setCompletedExerciseIds((current) => ({
+        ...current,
+        [exerciseId]: true,
+      }))
       await refreshHistoryForExercise(exerciseId)
       setMessage('Set saved.')
       setError('')
       showSavedFeedback()
+      return true
     } catch {
       setError('Could not save set.')
+      return false
     }
+  }
+
+  async function handleToggleExerciseComplete(exerciseId: string): Promise<void> {
+    if (completedByExercise[exerciseId]) {
+      setCompletedExerciseIds((current) => ({
+        ...current,
+        [exerciseId]: false,
+      }))
+      return
+    }
+
+    await handleSaveQuickEntry(exerciseId)
   }
 
   function handleNoteChange(exerciseId: string, value: string): void {
@@ -832,43 +851,53 @@ export function RoutinesScreen() {
 
   return (
     <section className="page">
-      <header className="page-header">
-        <div className="row row--between row--center">
-          <h1>Routines</h1>
-          <span className={savedVisible ? 'saved-pill saved-pill--visible' : 'saved-pill'}>
-            Saved
-          </span>
+      <header className="page-header routines-header">
+        <div className="routines-header__row">
+          <div className="routines-header__title">
+            <p className="routines-header__split">{formatSplitHeaderLabel(activeSplit.label)}</p>
+            <h1>Routines</h1>
+          </div>
+          <div className="pill-toggle" role="tablist" aria-label="Routine modes">
+            <button
+              type="button"
+              className={
+                mode === 'today'
+                  ? 'pill-toggle__button pill-toggle__button--active'
+                  : 'pill-toggle__button'
+              }
+              onClick={() => setMode('today')}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              className={
+                mode === 'edit'
+                  ? 'pill-toggle__button pill-toggle__button--active'
+                  : 'pill-toggle__button'
+              }
+              onClick={() => setMode('edit')}
+            >
+              Edit
+            </button>
+          </div>
         </div>
-        <p>Today mode is built for fast logging. Edit mode handles setup.</p>
+        <div className="routines-header__rule" aria-hidden="true" />
       </header>
 
       {message ? <p className="success-banner">{message}</p> : null}
       {error ? <p className="error-banner">{error}</p> : null}
 
-      <div className="panel panel--compact">
-        <div className="mode-toggle" role="tablist" aria-label="Routine modes">
-          <button
-            type="button"
-            className={mode === 'today' ? 'mode-toggle__button mode-toggle__button--active' : 'mode-toggle__button'}
-            onClick={() => setMode('today')}
-          >
-            Today
-          </button>
-          <button
-            type="button"
-            className={mode === 'edit' ? 'mode-toggle__button mode-toggle__button--active' : 'mode-toggle__button'}
-            onClick={() => setMode('edit')}
-          >
-            Edit routine
-          </button>
-        </div>
-      </div>
-
       {mode === 'today' ? (
         <div className="today-mode">
           <header className="today-active-day-header">
-            <h2>{selectedRoutine?.name ?? 'No active day selected'}</h2>
-            {selectedRoutine ? <p className="muted">{selectedExerciseIds.length} exercises</p> : null}
+            <div className="today-active-day-header__meta">
+              <p className="today-active-day-header__day">{dayHeading.dayLabel}</p>
+              <p className="today-active-day-header__count">
+                {selectedRoutine ? `${selectedExerciseIds.length} exercises` : '0 exercises'}
+              </p>
+            </div>
+            <h2>{dayHeading.title}</h2>
           </header>
 
           {selectedRoutine ? (
@@ -885,140 +914,148 @@ export function RoutinesScreen() {
                 const historyRows = historyByExercise[exercise.id] ?? []
                 const lastSummary = formatLastSummary(historyRows[0]?.sets)
                 const suggestionSummary = formatSuggestedSummary(exercise, historyRows[0]?.sets)
+                const isCompleted = completedByExercise[exercise.id]
 
                 return (
                   <article
                     key={exercise.id}
-                    className={isExpanded ? 'today-card today-card--expanded' : 'today-card'}
+                    className={
+                      isCompleted
+                        ? 'today-card today-card--complete'
+                        : isExpanded
+                          ? 'today-card today-card--expanded'
+                          : 'today-card'
+                    }
                     onClick={() => handleCardClick(exercise.id)}
                   >
                     <div className="today-card__top">
                       <div>
+                        <p className="today-card__group">{routineFocusLabel}</p>
                         <h3>{exercise.name}</h3>
-                        <p className="muted">Last: {lastSummary}</p>
-                        <p className="muted">Suggested: {suggestionSummary}</p>
                       </div>
-                      <div className="today-card__icon-actions">
-                        <button
-                          type="button"
-                          className="icon-circle"
-                          aria-label={`Open history for ${exercise.name}`}
-                          onClick={(event) => {
-                            stopCardToggle(event)
-                            void handleOpenHistorySheet(exercise, event.timeStamp)
-                          }}
-                        >
-                          🕘
-                        </button>
-                        <button
-                          type="button"
-                          className="icon-circle"
-                          aria-label={`Save set for ${exercise.name}`}
-                          onClick={(event) => {
-                            stopCardToggle(event)
-                            void handleSaveQuickEntry(exercise.id)
-                          }}
-                        >
-                          ✓
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        className={
+                          isCompleted ? 'today-card__complete-button today-card__complete-button--active' : 'today-card__complete-button'
+                        }
+                        aria-label={`${isCompleted ? 'Unmark' : 'Mark'} ${exercise.name} complete`}
+                        onClick={(event) => {
+                          stopCardToggle(event)
+                          void handleToggleExerciseComplete(exercise.id)
+                        }}
+                      >
+                        ✓
+                      </button>
                     </div>
 
-                    <div className="today-card__quick" onClick={stopCardToggle}>
-                      <StepperField
-                        label="Weight"
-                        inputMode="decimal"
-                        value={setDrafts[0].weight}
-                        step={exercise.progressionSettings.weightIncrement}
-                        onValueChange={(value) =>
-                          handleSetDraftChange(exercise.id, 0, 'weight', value)
-                        }
-                        onStepAdjust={(direction) =>
-                          handleSetStepAdjust(
-                            exercise.id,
-                            0,
-                            'weight',
-                            exercise.progressionSettings.weightIncrement,
-                            direction,
-                          )
-                        }
-                      />
-                      <StepperField
-                        label="Reps"
-                        inputMode="numeric"
-                        value={setDrafts[0].reps}
-                        step={1}
-                        onValueChange={(value) =>
-                          handleSetDraftChange(exercise.id, 0, 'reps', value)
-                        }
-                        onStepAdjust={(direction) =>
-                          handleSetStepAdjust(exercise.id, 0, 'reps', 1, direction)
-                        }
-                      />
-                    </div>
-
-                    {isExpanded ? (
-                      <div className="today-card__expanded" onClick={stopCardToggle}>
-                        <div className="set-editor-list">
-                          {Array.from({ length: targetSets }).map((_, index) => (
-                            <div key={`${exercise.id}-${index}`} className="set-editor-row">
-                              <span className="set-editor-row__label">Set {index + 1}</span>
-                              <StepperField
-                                label={`Set ${index + 1} weight`}
-                                inputMode="decimal"
-                                value={setDrafts[index].weight}
-                                step={exercise.progressionSettings.weightIncrement}
-                                onValueChange={(value) =>
-                                  handleSetDraftChange(exercise.id, index, 'weight', value)
-                                }
-                                onStepAdjust={(direction) =>
-                                  handleSetStepAdjust(
-                                    exercise.id,
-                                    index,
-                                    'weight',
-                                    exercise.progressionSettings.weightIncrement,
-                                    direction,
-                                  )
-                                }
-                              />
-                              <StepperField
-                                label={`Set ${index + 1} reps`}
-                                inputMode="numeric"
-                                value={setDrafts[index].reps}
-                                step={1}
-                                onValueChange={(value) =>
-                                  handleSetDraftChange(exercise.id, index, 'reps', value)
-                                }
-                                onStepAdjust={(direction) =>
-                                  handleSetStepAdjust(exercise.id, index, 'reps', 1, direction)
-                                }
-                              />
-                            </div>
-                          ))}
+                    {isCompleted ? null : (
+                      <>
+                        <div className="today-card__stats">
+                          <span className="today-card__stats-label">Last</span>
+                          <span className="today-card__stats-value">{lastSummary}</span>
+                          <span className="today-card__stats-dot" aria-hidden="true">
+                            •
+                          </span>
+                          <span className="today-card__stats-label">Goal</span>
+                          <span className="today-card__stats-goal">{suggestionSummary}</span>
                         </div>
 
-                        <button
-                          type="button"
-                          className="button button--small"
-                          onClick={() =>
-                            void handleUseTemplate(exercise.id, historyRows[0]?.sets ?? [])
-                          }
-                          disabled={!historyRows[0]?.sets.length}
-                        >
-                          Use last session as template
-                        </button>
-
-                        <label className="stack stack--tight">
-                          <span>Notes</span>
-                          <textarea
-                            className="notes-input"
-                            value={notesByExercise[exercise.id] ?? ''}
-                            onChange={(event) => handleNoteChange(exercise.id, event.target.value)}
-                            rows={2}
+                        <div className="today-input-row" onClick={stopCardToggle}>
+                          <CompactField
+                            label="Weight"
+                            inputMode="decimal"
+                            value={setDrafts[0].weight}
+                            step={exercise.progressionSettings.weightIncrement}
+                            onValueChange={(value) =>
+                              handleSetDraftChange(exercise.id, 0, 'weight', value)
+                            }
                           />
-                        </label>
-                      </div>
-                    ) : null}
+                          <CompactField
+                            label="Reps"
+                            inputMode="numeric"
+                            value={setDrafts[0].reps}
+                            step={1}
+                            onValueChange={(value) =>
+                              handleSetDraftChange(exercise.id, 0, 'reps', value)
+                            }
+                          />
+                          <button
+                            type="button"
+                            className="today-input-row__timer"
+                            aria-label={`Open history for ${exercise.name}`}
+                            onClick={(event) => {
+                              stopCardToggle(event)
+                              void handleOpenHistorySheet(exercise, event.timeStamp)
+                            }}
+                          >
+                            ⏱
+                          </button>
+                        </div>
+
+                        {isExpanded ? (
+                          <div className="today-card__expanded" onClick={stopCardToggle}>
+                            <div className="set-editor-list">
+                              {Array.from({ length: targetSets }).map((_, index) => (
+                                <div key={`${exercise.id}-${index}`} className="set-editor-row">
+                                  <span className="set-editor-row__label">Set {index + 1}</span>
+                                  <StepperField
+                                    label={`Set ${index + 1} weight`}
+                                    inputMode="decimal"
+                                    value={setDrafts[index].weight}
+                                    step={exercise.progressionSettings.weightIncrement}
+                                    onValueChange={(value) =>
+                                      handleSetDraftChange(exercise.id, index, 'weight', value)
+                                    }
+                                    onStepAdjust={(direction) =>
+                                      handleSetStepAdjust(
+                                        exercise.id,
+                                        index,
+                                        'weight',
+                                        exercise.progressionSettings.weightIncrement,
+                                        direction,
+                                      )
+                                    }
+                                  />
+                                  <StepperField
+                                    label={`Set ${index + 1} reps`}
+                                    inputMode="numeric"
+                                    value={setDrafts[index].reps}
+                                    step={1}
+                                    onValueChange={(value) =>
+                                      handleSetDraftChange(exercise.id, index, 'reps', value)
+                                    }
+                                    onStepAdjust={(direction) =>
+                                      handleSetStepAdjust(exercise.id, index, 'reps', 1, direction)
+                                    }
+                                  />
+                                </div>
+                              ))}
+                            </div>
+
+                            <button
+                              type="button"
+                              className="button button--small"
+                              onClick={() =>
+                                void handleUseTemplate(exercise.id, historyRows[0]?.sets ?? [])
+                              }
+                              disabled={!historyRows[0]?.sets.length}
+                            >
+                              Use last session as template
+                            </button>
+
+                            <label className="stack stack--tight">
+                              <span>Notes</span>
+                              <textarea
+                                className="notes-input"
+                                value={notesByExercise[exercise.id] ?? ''}
+                                onChange={(event) => handleNoteChange(exercise.id, event.target.value)}
+                                rows={2}
+                              />
+                            </label>
+                          </div>
+                        ) : null}
+                      </>
+                    )}
                   </article>
                 )
               })}
@@ -1029,7 +1066,7 @@ export function RoutinesScreen() {
               className="button button--primary"
               onClick={() => setSelectedRoutineId(orderedRoutines[0].id)}
             >
-              Start {orderedRoutines[0].name}
+              Start {dayHeading.dayLabel}
             </button>
           ) : (
             <p className="muted">Create a routine in edit mode to start logging.</p>
@@ -1052,16 +1089,18 @@ export function RoutinesScreen() {
                     }
                     onClick={() => setActiveSplitId(split.id)}
                   >
-                    {split.label}
+                    {formatSplitOptionLabel(split.id)}
                   </button>
                 ))}
               </div>
             </div>
+            <hr className="edit-split-divider" />
 
             <div className="day-picker">
               {orderedRoutines.map((routine, index) => {
                 const cardState = getRoutineCardState(index, selectedRoutineIndex)
                 const cardClassName = getDayButtonClassName(cardState)
+                const badgeText = cardState === 'completed' ? '✓' : getRoutineDayNumber(routine.name, index)
 
                 return (
                   <button
@@ -1070,13 +1109,23 @@ export function RoutinesScreen() {
                     className={cardClassName}
                     onClick={() => setSelectedRoutineId(routine.id)}
                   >
-                    <span className="day-button__name">{routine.name}</span>
-                    <small className="day-button__meta">{routine.exerciseIds.length} exercises</small>
-                    {cardState === 'completed' ? (
-                      <span className="day-button__check" aria-hidden="true">
-                        ✓
+                    <span className={getDayBadgeClassName(cardState)} aria-hidden="true">
+                      {badgeText}
+                    </span>
+                    <span className="day-button__content">
+                      <span className="day-button__name">{routine.name}</span>
+                      <span className="day-button__meta">
+                        <span>{routine.exerciseIds.length} exercises</span>
+                        {cardState === 'active' ? (
+                          <span className="day-button__status day-button__status--today">TODAY</span>
+                        ) : cardState === 'completed' ? (
+                          <span className="day-button__status day-button__status--done">DONE</span>
+                        ) : null}
                       </span>
-                    ) : null}
+                    </span>
+                    <span className="day-button__chevron" aria-hidden="true">
+                      ›
+                    </span>
                   </button>
                 )
               })}
@@ -1344,6 +1393,14 @@ export function RoutinesScreen() {
 
 type RoutineCardState = 'active' | 'completed' | 'upcoming'
 
+interface CompactFieldProps {
+  label: string
+  inputMode: 'decimal' | 'numeric'
+  value: string
+  step: number
+  onValueChange: (value: string) => void
+}
+
 interface StepperFieldProps {
   label: string
   inputMode: 'decimal' | 'numeric'
@@ -1351,6 +1408,22 @@ interface StepperFieldProps {
   step: number
   onValueChange: (value: string) => void
   onStepAdjust: (direction: -1 | 1) => void
+}
+
+function CompactField(props: CompactFieldProps) {
+  return (
+    <label className="compact-field">
+      <span>{props.label}</span>
+      <input
+        type="number"
+        inputMode={props.inputMode}
+        min="0"
+        step={props.step}
+        value={props.value}
+        onChange={(event) => props.onValueChange(event.target.value)}
+      />
+    </label>
+  )
 }
 
 function StepperField(props: StepperFieldProps) {
@@ -1493,6 +1566,66 @@ function getDayButtonClassName(state: RoutineCardState): string {
   }
 
   return 'day-button day-button--upcoming'
+}
+
+function getDayBadgeClassName(state: RoutineCardState): string {
+  if (state === 'active') {
+    return 'day-button__badge day-button__badge--active'
+  }
+
+  if (state === 'completed') {
+    return 'day-button__badge day-button__badge--completed'
+  }
+
+  return 'day-button__badge day-button__badge--upcoming'
+}
+
+function getRoutineDayNumber(routineName: string, index: number): string {
+  const matched = routineName.match(/day\s*(\d+)/i)
+  return matched?.[1] ?? String(index + 1)
+}
+
+function formatSplitHeaderLabel(label: string): string {
+  return label
+    .replace(/^(\d)\s+day/i, '$1-Day')
+    .replace('split', 'Split')
+    .toUpperCase()
+}
+
+function formatSplitOptionLabel(splitId: RoutineSplitId): string {
+  return splitId === '4-day-split' ? '4 day' : '3 day'
+}
+
+function buildDayHeading(
+  routineName: string | undefined,
+  selectedRoutineIndex: number,
+): { dayLabel: string; title: string } {
+  if (!routineName) {
+    const fallbackIndex = Math.max(1, selectedRoutineIndex + 1)
+    return {
+      dayLabel: `DAY ${fallbackIndex}`,
+      title: `Day ${fallbackIndex}`,
+    }
+  }
+
+  const dayNumber = getRoutineDayNumber(routineName, selectedRoutineIndex)
+  const titleSource = routineName.replace(/^day\s*\d+\s*[–-]\s*/i, '').trim() || routineName
+  const title = titleSource.replace(/\s*\/\s*/g, ' · ')
+
+  return {
+    dayLabel: `DAY ${dayNumber}`,
+    title,
+  }
+}
+
+function getRoutineFocusLabel(routineName: string | undefined): string {
+  if (!routineName) {
+    return 'WORKING SET'
+  }
+
+  const source = routineName.replace(/^day\s*\d+\s*[–-]\s*/i, '').trim() || routineName
+  const normalized = source.replace(/\s+/g, ' ').trim()
+  return normalized ? normalized.toUpperCase() : 'WORKING SET'
 }
 
 function formatLastSummary(lastSets: SetEntry[] | undefined): string {
