@@ -50,4 +50,13 @@ describe('RoutinesScreen edit actions', () => {
     expect(css).toContain('.bottom-nav')
     expect(css).toContain('background: var(--bg)')
   })
+
+  it('normalizes number textbox formatting and removes native spinner controls', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
+
+    expect(css).toContain("input[type='number']")
+    expect(css).toContain('appearance: textfield')
+    expect(css).toContain("input[type='number']::-webkit-inner-spin-button")
+    expect(css).toContain('-webkit-appearance: none')
+  })
 })
