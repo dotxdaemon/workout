@@ -134,10 +134,11 @@ a {
 }
 
 .day-button {
-  border: 1px solid #99f6e4;
-  background: #f0fdfa;
+  position: relative;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
   border-radius: 0.75rem;
-  color: #134e4a;
+  color: #1f2937;
   min-height: 3.6rem;
   padding: 0.7rem 0.9rem;
   font-size: 1.1rem;
@@ -149,15 +150,52 @@ a {
   touch-action: manipulation;
 }
 
-.day-button small {
-  color: #0f766e;
+.day-button__name {
+  padding-right: 1.4rem;
+}
+
+.day-button__meta {
+  color: #475569;
   font-size: 0.8rem;
   font-weight: 600;
 }
 
 .day-button--active {
   border-color: var(--accent);
-  background: #ccfbf1;
+  background: #cffaf0;
+  color: #115e59;
+}
+
+.day-button--active .day-button__meta {
+  color: #0f766e;
+}
+
+.day-button--upcoming {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+}
+
+.day-button--upcoming .day-button__meta {
+  color: #475569;
+}
+
+.day-button--completed {
+  border-color: #e2e8f0;
+  background: #f0f0f0;
+  color: #64748b;
+}
+
+.day-button--completed .day-button__meta {
+  color: #94a3b8;
+}
+
+.day-button__check {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.65rem;
+  font-size: 0.8rem;
+  color: #64748b;
 }
 
 .button,
@@ -183,7 +221,9 @@ input:focus-visible,
 select:focus-visible,
 .nav-link:focus-visible,
 .chip:focus-visible,
-.text-link:focus-visible {
+.text-link:focus-visible,
+.create-routine-button:focus-visible,
+.split-toggle-small__button:focus-visible {
   outline: 3px solid rgba(3, 105, 161, 0.35);
   outline-offset: 2px;
 }
@@ -683,6 +723,92 @@ textarea {
   border-color: var(--accent);
   background: #ccfbf1;
   color: #0f766e;
+}
+
+.edit-mode {
+  gap: 0.8rem;
+}
+
+.edit-split-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #ffffff;
+  padding: 0.5rem 0.6rem;
+}
+
+.edit-split-row__label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.split-toggle-small {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.split-toggle-small__button {
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: #ffffff;
+  color: #475569;
+  min-height: 2rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.split-toggle-small__button--active {
+  border-color: var(--accent);
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
+.create-routine-button {
+  width: 100%;
+  margin-top: 1.3rem;
+  min-height: 2.35rem;
+  border: 1px dashed #94a3b8;
+  border-radius: 0.65rem;
+  background: rgba(248, 250, 252, 0.65);
+  color: #64748b;
+  font-size: 0.98rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.create-routine-button__icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.today-mode {
+  display: grid;
+  gap: 0.62rem;
+}
+
+.today-active-day-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.45rem;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.today-active-day-header h2 {
+  font-size: 1.2rem;
+  line-height: 1.2;
 }
 
 .today-list {

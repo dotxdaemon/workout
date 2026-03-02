@@ -150,6 +150,14 @@ export function RoutinesScreen() {
     [selectedRoutine],
   )
 
+  const selectedRoutineIndex = useMemo(
+    () =>
+      selectedRoutine
+        ? orderedRoutines.findIndex((routine) => routine.id === selectedRoutine.id)
+        : -1,
+    [orderedRoutines, selectedRoutine],
+  )
+
   const loadData = useCallback(async () => {
     const preferences = readPreferences()
     await ensureCoreRoutines(preferences.defaultUnit)
@@ -854,391 +862,430 @@ export function RoutinesScreen() {
             Edit routine
           </button>
         </div>
-
-        <div className="mode-toggle" role="tablist" aria-label="Routine split">
-          {routineSplitOptions.map((split) => (
-            <button
-              key={split.id}
-              type="button"
-              className={activeSplit.id === split.id ? 'mode-toggle__button mode-toggle__button--active' : 'mode-toggle__button'}
-              onClick={() => {
-                setActiveSplitId(split.id)
-                setMode('today')
-              }}
-            >
-              {split.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="day-picker">
-          {orderedRoutines.map((routine) => {
-            const isActive = selectedRoutine?.id === routine.id
-            return (
-              <button
-                key={routine.id}
-                type="button"
-                className={isActive ? 'day-button day-button--active' : 'day-button'}
-                onClick={() => setSelectedRoutineId(routine.id)}
-              >
-                <span>{routine.name}</span>
-                <small>{routine.exerciseIds.length} exercises</small>
-              </button>
-            )
-          })}
-        </div>
-
-        <button type="button" className="button" onClick={() => void handleCreateRoutine()}>
-          Create routine
-        </button>
       </div>
 
       {mode === 'today' ? (
-        <div className="today-list">
-          {selectedExerciseIds.map((exerciseId) => {
-            const exercise = exerciseMap[exerciseId]
-            if (!exercise) {
-              return null
-            }
+        <div className="today-mode">
+          <header className="today-active-day-header">
+            <h2>{selectedRoutine?.name ?? 'No active day selected'}</h2>
+            {selectedRoutine ? <p className="muted">{selectedExerciseIds.length} exercises</p> : null}
+          </header>
 
-            const isExpanded = expandedExerciseId === exercise.id
-            const targetSets = exercise.progressionSettings.workSetsTarget
-            const setDrafts = ensureSetDraftLength(draftsByExercise[exercise.id] ?? [], targetSets)
-            const historyRows = historyByExercise[exercise.id] ?? []
-            const lastSummary = formatLastSummary(historyRows[0]?.sets)
-            const suggestionSummary = formatSuggestedSummary(exercise, historyRows[0]?.sets)
+          {selectedRoutine ? (
+            <div className="today-list">
+              {selectedExerciseIds.map((exerciseId) => {
+                const exercise = exerciseMap[exerciseId]
+                if (!exercise) {
+                  return null
+                }
 
-            return (
-              <article
-                key={exercise.id}
-                className={isExpanded ? 'today-card today-card--expanded' : 'today-card'}
-                onClick={() => handleCardClick(exercise.id)}
-              >
-                <div className="today-card__top">
-                  <div>
-                    <h3>{exercise.name}</h3>
-                    <p className="muted">Last: {lastSummary}</p>
-                    <p className="muted">Suggested: {suggestionSummary}</p>
-                  </div>
-                  <div className="today-card__icon-actions">
-                    <button
-                      type="button"
-                      className="icon-circle"
-                      aria-label={`Open history for ${exercise.name}`}
-                      onClick={(event) => {
-                        stopCardToggle(event)
-                        void handleOpenHistorySheet(exercise, event.timeStamp)
-                      }}
-                    >
-                      🕘
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-circle"
-                      aria-label={`Save set for ${exercise.name}`}
-                      onClick={(event) => {
-                        stopCardToggle(event)
-                        void handleSaveQuickEntry(exercise.id)
-                      }}
-                    >
-                      ✓
-                    </button>
-                  </div>
-                </div>
+                const isExpanded = expandedExerciseId === exercise.id
+                const targetSets = exercise.progressionSettings.workSetsTarget
+                const setDrafts = ensureSetDraftLength(draftsByExercise[exercise.id] ?? [], targetSets)
+                const historyRows = historyByExercise[exercise.id] ?? []
+                const lastSummary = formatLastSummary(historyRows[0]?.sets)
+                const suggestionSummary = formatSuggestedSummary(exercise, historyRows[0]?.sets)
 
-                <div className="today-card__quick" onClick={stopCardToggle}>
-                  <StepperField
-                    label="Weight"
-                    inputMode="decimal"
-                    value={setDrafts[0].weight}
-                    step={exercise.progressionSettings.weightIncrement}
-                    onValueChange={(value) =>
-                      handleSetDraftChange(exercise.id, 0, 'weight', value)
-                    }
-                    onStepAdjust={(direction) =>
-                      handleSetStepAdjust(
-                        exercise.id,
-                        0,
-                        'weight',
-                        exercise.progressionSettings.weightIncrement,
-                        direction,
-                      )
-                    }
-                  />
-                  <StepperField
-                    label="Reps"
-                    inputMode="numeric"
-                    value={setDrafts[0].reps}
-                    step={1}
-                    onValueChange={(value) =>
-                      handleSetDraftChange(exercise.id, 0, 'reps', value)
-                    }
-                    onStepAdjust={(direction) =>
-                      handleSetStepAdjust(exercise.id, 0, 'reps', 1, direction)
-                    }
-                  />
-                </div>
-
-                {isExpanded ? (
-                  <div className="today-card__expanded" onClick={stopCardToggle}>
-                    <div className="set-editor-list">
-                      {Array.from({ length: targetSets }).map((_, index) => (
-                        <div key={`${exercise.id}-${index}`} className="set-editor-row">
-                          <span className="set-editor-row__label">Set {index + 1}</span>
-                          <StepperField
-                            label={`Set ${index + 1} weight`}
-                            inputMode="decimal"
-                            value={setDrafts[index].weight}
-                            step={exercise.progressionSettings.weightIncrement}
-                            onValueChange={(value) =>
-                              handleSetDraftChange(exercise.id, index, 'weight', value)
-                            }
-                            onStepAdjust={(direction) =>
-                              handleSetStepAdjust(
-                                exercise.id,
-                                index,
-                                'weight',
-                                exercise.progressionSettings.weightIncrement,
-                                direction,
-                              )
-                            }
-                          />
-                          <StepperField
-                            label={`Set ${index + 1} reps`}
-                            inputMode="numeric"
-                            value={setDrafts[index].reps}
-                            step={1}
-                            onValueChange={(value) =>
-                              handleSetDraftChange(exercise.id, index, 'reps', value)
-                            }
-                            onStepAdjust={(direction) =>
-                              handleSetStepAdjust(exercise.id, index, 'reps', 1, direction)
-                            }
-                          />
-                        </div>
-                      ))}
+                return (
+                  <article
+                    key={exercise.id}
+                    className={isExpanded ? 'today-card today-card--expanded' : 'today-card'}
+                    onClick={() => handleCardClick(exercise.id)}
+                  >
+                    <div className="today-card__top">
+                      <div>
+                        <h3>{exercise.name}</h3>
+                        <p className="muted">Last: {lastSummary}</p>
+                        <p className="muted">Suggested: {suggestionSummary}</p>
+                      </div>
+                      <div className="today-card__icon-actions">
+                        <button
+                          type="button"
+                          className="icon-circle"
+                          aria-label={`Open history for ${exercise.name}`}
+                          onClick={(event) => {
+                            stopCardToggle(event)
+                            void handleOpenHistorySheet(exercise, event.timeStamp)
+                          }}
+                        >
+                          🕘
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-circle"
+                          aria-label={`Save set for ${exercise.name}`}
+                          onClick={(event) => {
+                            stopCardToggle(event)
+                            void handleSaveQuickEntry(exercise.id)
+                          }}
+                        >
+                          ✓
+                        </button>
+                      </div>
                     </div>
 
-                    <button
-                      type="button"
-                      className="button button--small"
-                      onClick={() =>
-                        void handleUseTemplate(exercise.id, historyRows[0]?.sets ?? [])
-                      }
-                      disabled={!historyRows[0]?.sets.length}
-                    >
-                      Use last session as template
-                    </button>
-
-                    <label className="stack stack--tight">
-                      <span>Notes</span>
-                      <textarea
-                        className="notes-input"
-                        value={notesByExercise[exercise.id] ?? ''}
-                        onChange={(event) => handleNoteChange(exercise.id, event.target.value)}
-                        rows={2}
+                    <div className="today-card__quick" onClick={stopCardToggle}>
+                      <StepperField
+                        label="Weight"
+                        inputMode="decimal"
+                        value={setDrafts[0].weight}
+                        step={exercise.progressionSettings.weightIncrement}
+                        onValueChange={(value) =>
+                          handleSetDraftChange(exercise.id, 0, 'weight', value)
+                        }
+                        onStepAdjust={(direction) =>
+                          handleSetStepAdjust(
+                            exercise.id,
+                            0,
+                            'weight',
+                            exercise.progressionSettings.weightIncrement,
+                            direction,
+                          )
+                        }
                       />
-                    </label>
-                  </div>
-                ) : null}
-              </article>
-            )
-          })}
+                      <StepperField
+                        label="Reps"
+                        inputMode="numeric"
+                        value={setDrafts[0].reps}
+                        step={1}
+                        onValueChange={(value) =>
+                          handleSetDraftChange(exercise.id, 0, 'reps', value)
+                        }
+                        onStepAdjust={(direction) =>
+                          handleSetStepAdjust(exercise.id, 0, 'reps', 1, direction)
+                        }
+                      />
+                    </div>
 
-        </div>
-      ) : (
-        <div className="panel panel--compact">
-          <h2>Edit routine</h2>
+                    {isExpanded ? (
+                      <div className="today-card__expanded" onClick={stopCardToggle}>
+                        <div className="set-editor-list">
+                          {Array.from({ length: targetSets }).map((_, index) => (
+                            <div key={`${exercise.id}-${index}`} className="set-editor-row">
+                              <span className="set-editor-row__label">Set {index + 1}</span>
+                              <StepperField
+                                label={`Set ${index + 1} weight`}
+                                inputMode="decimal"
+                                value={setDrafts[index].weight}
+                                step={exercise.progressionSettings.weightIncrement}
+                                onValueChange={(value) =>
+                                  handleSetDraftChange(exercise.id, index, 'weight', value)
+                                }
+                                onStepAdjust={(direction) =>
+                                  handleSetStepAdjust(
+                                    exercise.id,
+                                    index,
+                                    'weight',
+                                    exercise.progressionSettings.weightIncrement,
+                                    direction,
+                                  )
+                                }
+                              />
+                              <StepperField
+                                label={`Set ${index + 1} reps`}
+                                inputMode="numeric"
+                                value={setDrafts[index].reps}
+                                step={1}
+                                onValueChange={(value) =>
+                                  handleSetDraftChange(exercise.id, index, 'reps', value)
+                                }
+                                onStepAdjust={(direction) =>
+                                  handleSetStepAdjust(exercise.id, index, 'reps', 1, direction)
+                                }
+                              />
+                            </div>
+                          ))}
+                        </div>
 
-          <label className="stack stack--tight">
-            <span>Routine name</span>
-            <input
-              value={routineNameDraft}
-              onChange={(event) => setRoutineNameDraft(event.target.value)}
-            />
-          </label>
+                        <button
+                          type="button"
+                          className="button button--small"
+                          onClick={() =>
+                            void handleUseTemplate(exercise.id, historyRows[0]?.sets ?? [])
+                          }
+                          disabled={!historyRows[0]?.sets.length}
+                        >
+                          Use last session as template
+                        </button>
 
-          <div className="add-row">
-            <input
-              value={addExerciseName}
-              onChange={(event) => setAddExerciseName(event.target.value)}
-              placeholder="Add exercise"
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  void handleAddExerciseToDraft()
-                }
-              }}
-            />
-            <button
-              type="button"
-              className="button button--small"
-              onClick={() => void handleAddExerciseToDraft()}
-            >
-              Add
-            </button>
-          </div>
-
-          <div className="button-row edit-actions-sticky">
+                        <label className="stack stack--tight">
+                          <span>Notes</span>
+                          <textarea
+                            className="notes-input"
+                            value={notesByExercise[exercise.id] ?? ''}
+                            onChange={(event) => handleNoteChange(exercise.id, event.target.value)}
+                            rows={2}
+                          />
+                        </label>
+                      </div>
+                    ) : null}
+                  </article>
+                )
+              })}
+            </div>
+          ) : orderedRoutines[0] ? (
             <button
               type="button"
               className="button button--primary"
-              onClick={() => void handleSaveRoutineEdits()}
+              onClick={() => setSelectedRoutineId(orderedRoutines[0].id)}
             >
-              Save routine
+              Start {orderedRoutines[0].name}
             </button>
+          ) : (
+            <p className="muted">Create a routine in edit mode to start logging.</p>
+          )}
+        </div>
+      ) : (
+        <div className="edit-mode stack">
+          <div className="panel panel--compact">
+            <div className="edit-split-row">
+              <span className="edit-split-row__label">Split type</span>
+              <div className="split-toggle-small" role="tablist" aria-label="Routine split">
+                {routineSplitOptions.map((split) => (
+                  <button
+                    key={split.id}
+                    type="button"
+                    className={
+                      activeSplit.id === split.id
+                        ? 'split-toggle-small__button split-toggle-small__button--active'
+                        : 'split-toggle-small__button'
+                    }
+                    onClick={() => setActiveSplitId(split.id)}
+                  >
+                    {split.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="day-picker">
+              {orderedRoutines.map((routine, index) => {
+                const cardState = getRoutineCardState(index, selectedRoutineIndex)
+                const cardClassName = getDayButtonClassName(cardState)
+
+                return (
+                  <button
+                    key={routine.id}
+                    type="button"
+                    className={cardClassName}
+                    onClick={() => setSelectedRoutineId(routine.id)}
+                  >
+                    <span className="day-button__name">{routine.name}</span>
+                    <small className="day-button__meta">{routine.exerciseIds.length} exercises</small>
+                    {cardState === 'completed' ? (
+                      <span className="day-button__check" aria-hidden="true">
+                        ✓
+                      </span>
+                    ) : null}
+                  </button>
+                )
+              })}
+            </div>
+
             <button
               type="button"
-              className="button button--danger"
-              onClick={() => void handleDeleteRoutine()}
+              className="create-routine-button"
+              onClick={() => void handleCreateRoutine()}
             >
-              Delete routine
+              <span className="create-routine-button__icon" aria-hidden="true">
+                +
+              </span>
+              <span>Create routine</span>
             </button>
           </div>
 
-          <div className="edit-exercise-list">
-            {exerciseDrafts.map((draft, index) => (
-              <article
-                key={draft.id}
-                className="list-card edit-exercise-row"
+          <div className="panel panel--compact">
+            <h2>Edit routine</h2>
+
+            <label className="stack stack--tight">
+              <span>Routine name</span>
+              <input
+                value={routineNameDraft}
+                onChange={(event) => setRoutineNameDraft(event.target.value)}
+              />
+            </label>
+
+            <div className="add-row">
+              <input
+                value={addExerciseName}
+                onChange={(event) => setAddExerciseName(event.target.value)}
+                placeholder="Add exercise"
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    void handleAddExerciseToDraft()
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="button button--small"
+                onClick={() => void handleAddExerciseToDraft()}
               >
-                <div className="edit-exercise-row__header">
-                  <div className="row row--center edit-exercise-row__title">
-                    <span className="drag-handle" aria-hidden="true">
-                      ⋮⋮
-                    </span>
-                    <h3>{draft.name || 'Exercise'}</h3>
+                Add
+              </button>
+            </div>
+
+            <div className="button-row edit-actions-sticky">
+              <button
+                type="button"
+                className="button button--primary"
+                onClick={() => void handleSaveRoutineEdits()}
+              >
+                Save routine
+              </button>
+              <button
+                type="button"
+                className="button button--danger"
+                onClick={() => void handleDeleteRoutine()}
+              >
+                Delete routine
+              </button>
+            </div>
+
+            <div className="edit-exercise-list">
+              {exerciseDrafts.map((draft, index) => (
+                <article
+                  key={draft.id}
+                  className="list-card edit-exercise-row"
+                >
+                  <div className="edit-exercise-row__header">
+                    <div className="row row--center edit-exercise-row__title">
+                      <span className="drag-handle" aria-hidden="true">
+                        ⋮⋮
+                      </span>
+                      <h3>{draft.name || 'Exercise'}</h3>
+                    </div>
+                    <div className="edit-exercise-row__actions">
+                      <button
+                        type="button"
+                        className="icon-link"
+                        onClick={() => moveExerciseDraft(draft.id, -1)}
+                        disabled={index === 0}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-link"
+                        onClick={() => moveExerciseDraft(draft.id, 1)}
+                        disabled={index === exerciseDrafts.length - 1}
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-link icon-link--danger"
+                        onClick={() =>
+                          setExerciseDrafts((current) =>
+                            current.filter((item) => item.id !== draft.id),
+                          )
+                        }
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                  <div className="edit-exercise-row__actions">
-                    <button
-                      type="button"
-                      className="icon-link"
-                      onClick={() => moveExerciseDraft(draft.id, -1)}
-                      disabled={index === 0}
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-link"
-                      onClick={() => moveExerciseDraft(draft.id, 1)}
-                      disabled={index === exerciseDrafts.length - 1}
-                    >
-                      ↓
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-link icon-link--danger"
-                      onClick={() =>
-                        setExerciseDrafts((current) =>
-                          current.filter((item) => item.id !== draft.id),
-                        )
+
+                  <label className="stack stack--tight">
+                    <span>Name</span>
+                    <input
+                      value={draft.name}
+                      onChange={(event) =>
+                        updateExerciseDraft(draft.id, (current) => ({
+                          ...current,
+                          name: event.target.value,
+                        }))
                       }
-                    >
-                      Delete
-                    </button>
+                    />
+                  </label>
+
+                  <div className="input-grid">
+                    <label className="stack stack--tight">
+                      <span>Unit</span>
+                      <select
+                        value={draft.unit}
+                        onChange={(event) =>
+                          updateExerciseDraft(draft.id, (current) => ({
+                            ...current,
+                            unit: event.target.value as Unit,
+                          }))
+                        }
+                      >
+                        <option value="lb">lb</option>
+                        <option value="kg">kg</option>
+                      </select>
+                    </label>
+
+                    <label className="stack stack--tight">
+                      <span>Sets</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min="1"
+                        value={draft.workSetsTarget}
+                        onChange={(event) =>
+                          updateExerciseDraft(draft.id, (current) => ({
+                            ...current,
+                            workSetsTarget: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+
+                    <label className="stack stack--tight">
+                      <span>Rep min</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min="1"
+                        value={draft.repMin}
+                        onChange={(event) =>
+                          updateExerciseDraft(draft.id, (current) => ({
+                            ...current,
+                            repMin: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+
+                    <label className="stack stack--tight">
+                      <span>Rep max</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min="1"
+                        value={draft.repMax}
+                        onChange={(event) =>
+                          updateExerciseDraft(draft.id, (current) => ({
+                            ...current,
+                            repMax: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+
+                    <label className="stack stack--tight">
+                      <span>Weight increment</span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min="0.1"
+                        step="0.1"
+                        value={draft.weightIncrement}
+                        onChange={(event) =>
+                          updateExerciseDraft(draft.id, (current) => ({
+                            ...current,
+                            weightIncrement: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
                   </div>
-                </div>
-
-                <label className="stack stack--tight">
-                  <span>Name</span>
-                  <input
-                    value={draft.name}
-                    onChange={(event) =>
-                      updateExerciseDraft(draft.id, (current) => ({
-                        ...current,
-                        name: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-
-                <div className="input-grid">
-                  <label className="stack stack--tight">
-                    <span>Unit</span>
-                    <select
-                      value={draft.unit}
-                      onChange={(event) =>
-                        updateExerciseDraft(draft.id, (current) => ({
-                          ...current,
-                          unit: event.target.value as Unit,
-                        }))
-                      }
-                    >
-                      <option value="lb">lb</option>
-                      <option value="kg">kg</option>
-                    </select>
-                  </label>
-
-                  <label className="stack stack--tight">
-                    <span>Sets</span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min="1"
-                      value={draft.workSetsTarget}
-                      onChange={(event) =>
-                        updateExerciseDraft(draft.id, (current) => ({
-                          ...current,
-                          workSetsTarget: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-
-                  <label className="stack stack--tight">
-                    <span>Rep min</span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min="1"
-                      value={draft.repMin}
-                      onChange={(event) =>
-                        updateExerciseDraft(draft.id, (current) => ({
-                          ...current,
-                          repMin: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-
-                  <label className="stack stack--tight">
-                    <span>Rep max</span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min="1"
-                      value={draft.repMax}
-                      onChange={(event) =>
-                        updateExerciseDraft(draft.id, (current) => ({
-                          ...current,
-                          repMax: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-
-                  <label className="stack stack--tight">
-                    <span>Weight increment</span>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      min="0.1"
-                      step="0.1"
-                      value={draft.weightIncrement}
-                      onChange={(event) =>
-                        updateExerciseDraft(draft.id, (current) => ({
-                          ...current,
-                          weightIncrement: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-                </div>
-              </article>
-            ))}
+                </article>
+              ))}
+            </div>
           </div>
-
         </div>
       )}
 
@@ -1294,6 +1341,8 @@ export function RoutinesScreen() {
     </section>
   )
 }
+
+type RoutineCardState = 'active' | 'completed' | 'upcoming'
 
 interface StepperFieldProps {
   label: string
@@ -1416,6 +1465,34 @@ function parseReps(value: string): number {
   }
 
   return Math.round(numeric)
+}
+
+function getRoutineCardState(index: number, activeIndex: number): RoutineCardState {
+  if (activeIndex < 0) {
+    return 'upcoming'
+  }
+
+  if (index === activeIndex) {
+    return 'active'
+  }
+
+  if (index < activeIndex) {
+    return 'completed'
+  }
+
+  return 'upcoming'
+}
+
+function getDayButtonClassName(state: RoutineCardState): string {
+  if (state === 'active') {
+    return 'day-button day-button--active'
+  }
+
+  if (state === 'completed') {
+    return 'day-button day-button--completed'
+  }
+
+  return 'day-button day-button--upcoming'
 }
 
 function formatLastSummary(lastSets: SetEntry[] | undefined): string {

@@ -12,4 +12,25 @@ describe('RoutinesScreen edit actions', () => {
 
     expect(matches).toHaveLength(1)
   })
+
+  it('places split selection in edit mode settings row', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/screens/RoutinesScreen.tsx'), 'utf8')
+
+    expect(source).toContain('Split type')
+    expect(source).toContain('edit-split-row')
+  })
+
+  it('does not force switching to today mode when changing split type', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/screens/RoutinesScreen.tsx'), 'utf8')
+
+    expect(source).not.toContain('setActiveSplitId(split.id)\n                setMode(\'today\')')
+  })
+
+  it('defines explicit day card state classes and today header anchor', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/screens/RoutinesScreen.tsx'), 'utf8')
+
+    expect(source).toContain('day-button--completed')
+    expect(source).toContain('day-button--upcoming')
+    expect(source).toContain('today-active-day-header')
+  })
 })
