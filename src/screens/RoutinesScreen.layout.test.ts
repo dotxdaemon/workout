@@ -80,11 +80,12 @@ describe('RoutinesScreen edit actions', () => {
     expect(css).toContain('max-width: 38px')
   })
 
-  it('replaces Goal with Next in today card stats', () => {
+  it('does not render Goal or Next in today card stats', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/screens/RoutinesScreen.tsx'), 'utf8')
 
-    expect(source).toContain('Next')
-    expect(source).not.toContain('Goal')
+    expect(source).not.toContain('<span className="today-card__stats-label">Next</span>')
+    expect(source).not.toContain('<span className="today-card__stats-label">Goal</span>')
+    expect(source).not.toContain('today-card__stats-next')
   })
 
   it('keeps edit mode focused on add/reorder/delete without advanced progression fields', () => {

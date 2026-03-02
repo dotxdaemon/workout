@@ -28,7 +28,6 @@ import {
   shouldCloseHistorySheetAfterDrag,
 } from '../lib/historySheet'
 import { readPreferences } from '../lib/preferences'
-import { buildProgressionSuggestion } from '../lib/progression'
 import {
   readActiveRoutineSplitId,
   readSelectedRoutineId,
@@ -913,7 +912,6 @@ export function RoutinesScreen() {
                 const setDrafts = ensureSetDraftLength(draftsByExercise[exercise.id] ?? [], targetSets)
                 const historyRows = historyByExercise[exercise.id] ?? []
                 const lastSummary = formatLastSummary(historyRows[0]?.sets)
-                const nextStepSummary = formatNextStepSummary(exercise, historyRows[0]?.sets)
                 const isCompleted = completedByExercise[exercise.id]
 
                 return (
@@ -953,11 +951,6 @@ export function RoutinesScreen() {
                         <div className="today-card__stats">
                           <span className="today-card__stats-label">Last</span>
                           <span className="today-card__stats-value">{lastSummary}</span>
-                          <span className="today-card__stats-dot" aria-hidden="true">
-                            •
-                          </span>
-                          <span className="today-card__stats-label">Next</span>
-                          <span className="today-card__stats-next">{nextStepSummary}</span>
                         </div>
 
                         <div className="today-input-row" onClick={stopCardToggle}>
@@ -1557,34 +1550,6 @@ function formatLastSummary(lastSets: SetEntry[] | undefined): string {
   }
 
   return `${formatNumber(latestWorkSet.weight)} x ${latestWorkSet.reps}`
-}
-
-function formatNextStepSummary(exercise: Exercise, lastSets: SetEntry[] | undefined): string {
-  if (!lastSets || lastSets.length === 0) {
-    return 'none'
-  }
-
-  const suggestion = buildProgressionSuggestion(exercise.progressionSettings, lastSets)
-  if (!suggestion) {
-    return 'none'
-  }
-
-  if (suggestion.kind === 'collect_more_sets') {
-    return 'finish remaining sets'
-  }
-
-  if (suggestion.kind === 'increase_weight') {
-    const { repMin, unit, weightIncrement } = exercise.progressionSettings
-    return `+${formatNumber(weightIncrement)} ${unit}, reset to ${repMin} reps`
-  }
-
-  const previousReps = lastSets.filter((set) => !set.isWarmup).map((set) => set.reps)
-  const changedIndex = suggestion.nextReps.findIndex((reps, index) => reps !== previousReps[index])
-  if (changedIndex >= 0) {
-    return `+1 rep (set ${changedIndex + 1})`
-  }
-
-  return 'match last reps'
 }
 
 function formatSetList(sets: SetEntry[]): string {
