@@ -299,3 +299,5 @@ For any reported bug, do not implement anything until all of the following are d
 10. Include before/after screenshots at the same viewport proving the specific bug is fixed.
 11. Do not provide PR links or claim completion until all gates pass.
 12. End with: root cause, files changed, what was removed/neutralized, acceptance checklist PASS/FAIL, exact commands run with exit codes.
+
+Reference SKILL.md before every change. If there is frontend design work, use the appropriate skill
