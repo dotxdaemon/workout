@@ -21,6 +21,7 @@ import {
 } from '../lib/db'
 import { formatDateTime, formatNumber } from '../lib/format'
 import {
+  applyHistorySheetOverlayLock,
   getHistorySheetDragOffset,
   shouldIgnoreHistorySheetBackdropClose,
   shouldAllowHistorySheetDrag,
@@ -328,12 +329,9 @@ export function RoutinesScreen() {
       return
     }
 
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    return () => {
-      document.body.style.overflow = previousOverflow
-    }
+    const screenArea = document.querySelector<HTMLElement>('.screen-area')
+    const bottomNav = document.querySelector<HTMLElement>('.bottom-nav')
+    return applyHistorySheetOverlayLock(screenArea, bottomNav)
   }, [historySheet])
 
   function showSavedFeedback(): void {
