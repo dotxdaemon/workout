@@ -101,4 +101,10 @@ describe('RoutinesScreen edit actions', () => {
     expect(source).not.toContain('Rep max')
     expect(source).not.toContain('Weight increment')
   })
+
+  it('does not keep stale input-grid edit styles after removing advanced edit fields', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
+
+    expect(css).not.toContain('.input-grid')
+  })
 })
