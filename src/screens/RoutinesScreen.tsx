@@ -342,6 +342,19 @@ export function RoutinesScreen() {
     return applyHistorySheetOverlayLock(screenArea, bottomNav)
   }, [historySheet])
 
+  function resetScreenAreaScrollToTop(): void {
+    const screenArea = document.querySelector<HTMLElement>('.screen-area')
+    if (!screenArea) {
+      return
+    }
+
+    screenArea.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }
+
+  useEffect(() => {
+    resetScreenAreaScrollToTop()
+  }, [mode])
+
   function showSavedFeedback(): void {}
 
   async function refreshHistoryForExercise(exerciseId: string): Promise<void> {

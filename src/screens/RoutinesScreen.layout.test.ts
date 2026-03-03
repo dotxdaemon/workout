@@ -119,6 +119,14 @@ describe('RoutinesScreen edit actions', () => {
     expect(source).not.toContain('isCompleted ? null :')
   })
 
+  it('resets screen-area scroll when switching between today and edit modes', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/screens/RoutinesScreen.tsx'), 'utf8')
+
+    expect(source).toContain('function resetScreenAreaScrollToTop(): void {')
+    expect(source).toContain('screenArea.scrollTo({ top: 0, left: 0, behavior: \'auto\' })')
+    expect(source).toContain('useEffect(() => {\n    resetScreenAreaScrollToTop()\n  }, [mode])')
+  })
+
   it('keeps edit row identity separate from exercise identity for name edits', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/screens/RoutinesScreen.tsx'), 'utf8')
 
