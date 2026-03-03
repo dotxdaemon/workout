@@ -230,4 +230,39 @@ describe('IndexedDB integration', () => {
     expect(history[0].session.endedAt).toBeUndefined()
     expect(history[0].sets.map((set) => [set.weight, set.reps])).toEqual([[165, 6]])
   })
+
+  it('keeps same-name exercises isolated for history and routine references', async () => {
+    const first = await createExercise({
+      name: 'Leg Press',
+      unitDefault: 'lb',
+    })
+    const second = await createExercise({
+      name: 'Leg Press',
+      unitDefault: 'lb',
+    })
+
+    const session = await startSession()
+    await addSetEntry(session.id, first.id, {
+      weight: 315,
+      reps: 10,
+      completed: true,
+    })
+    await addSetEntry(session.id, second.id, {
+      weight: 405,
+      reps: 6,
+      completed: true,
+    })
+
+    const firstHistory = await listExerciseHistory(first.id, 5)
+    const secondHistory = await listExerciseHistory(second.id, 5)
+
+    expect(firstHistory).toHaveLength(1)
+    expect(secondHistory).toHaveLength(1)
+    expect(firstHistory[0].sets.map((set) => [set.exerciseId, set.weight, set.reps])).toEqual([
+      [first.id, 315, 10],
+    ])
+    expect(secondHistory[0].sets.map((set) => [set.exerciseId, set.weight, set.reps])).toEqual([
+      [second.id, 405, 6],
+    ])
+  })
 })

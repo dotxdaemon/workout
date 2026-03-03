@@ -729,73 +729,17 @@ function normalizeRoutineSplitId(splitId: unknown, name: string): RoutineSplitId
 
 async function repairSeedDuplicates(): Promise<void> {
   await db.transaction('rw', db.exercises, db.routines, db.sessions, db.setEntries, async () => {
-    const [exercises, routines, sessions, setEntries] = await Promise.all([
+    const [exercises, routines, sessions] = await Promise.all([
       db.exercises.toArray(),
       db.routines.toArray(),
       db.sessions.toArray(),
-      db.setEntries.toArray(),
     ])
 
     if (exercises.length === 0 && routines.length === 0) {
       return
     }
 
-    const setCountByExerciseId = new Map<string, number>()
-    for (const entry of setEntries) {
-      setCountByExerciseId.set(
-        entry.exerciseId,
-        (setCountByExerciseId.get(entry.exerciseId) ?? 0) + 1,
-      )
-    }
-
     const routineById = new Map(routines.map((routine) => [routine.id, routine]))
-    const exercisesByName = new Map<string, Exercise[]>()
-    for (const exercise of exercises) {
-      const key = exercise.name.toLowerCase()
-      const list = exercisesByName.get(key) ?? []
-      list.push(exercise)
-      exercisesByName.set(key, list)
-    }
-
-    for (const duplicateExercises of exercisesByName.values()) {
-      if (duplicateExercises.length <= 1) {
-        continue
-      }
-
-      const [canonical, ...duplicates] = [...duplicateExercises].sort((left, right) => {
-        const leftCount = setCountByExerciseId.get(left.id) ?? 0
-        const rightCount = setCountByExerciseId.get(right.id) ?? 0
-        if (leftCount !== rightCount) {
-          return rightCount - leftCount
-        }
-        return left.id.localeCompare(right.id)
-      })
-
-      for (const duplicate of duplicates) {
-        await db.setEntries.where('exerciseId').equals(duplicate.id).modify({
-          exerciseId: canonical.id,
-        })
-
-        for (const routine of routineById.values()) {
-          if (!routine.exerciseIds.includes(duplicate.id)) {
-            continue
-          }
-
-          const nextExerciseIds = dedupeIdsInOrder(
-            routine.exerciseIds.map((exerciseId) =>
-              exerciseId === duplicate.id ? canonical.id : exerciseId,
-            ),
-          )
-
-          routine.exerciseIds = nextExerciseIds
-          await db.routines.update(routine.id, {
-            exerciseIds: nextExerciseIds,
-          })
-        }
-
-        await db.exercises.delete(duplicate.id)
-      }
-    }
 
     const routineGroups = new Map<string, Routine[]>()
     const routineUsage = new Map<string, { count: number; latestStartedAt: string }>()
@@ -862,37 +806,5 @@ async function repairSeedDuplicates(): Promise<void> {
 }
 
 async function getRelatedExerciseIds(exerciseId: string): Promise<string[]> {
-  const exercise = await db.exercises.get(exerciseId)
-  if (!exercise) {
-    return [exerciseId]
-  }
-
-  const matchingExercises = await db.exercises
-    .filter((item) => item.name.toLowerCase() === exercise.name.toLowerCase())
-    .toArray()
-  if (matchingExercises.length === 0) {
-    return [exerciseId]
-  }
-
-  const ids = matchingExercises.map((item) => item.id)
-  if (ids.includes(exerciseId)) {
-    return ids
-  }
-
-  return [exerciseId, ...ids]
-}
-
-function dedupeIdsInOrder(values: string[]): string[] {
-  const seen = new Set<string>()
-  const next: string[] = []
-
-  for (const value of values) {
-    if (seen.has(value)) {
-      continue
-    }
-    seen.add(value)
-    next.push(value)
-  }
-
-  return next
+  return [exerciseId]
 }

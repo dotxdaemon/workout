@@ -353,6 +353,14 @@ export function RoutinesScreen() {
 
   useEffect(() => {
     resetScreenAreaScrollToTop()
+
+    const frameId = window.requestAnimationFrame(() => {
+      resetScreenAreaScrollToTop()
+    })
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+    }
   }, [mode])
 
   function showSavedFeedback(): void {}
@@ -786,15 +794,6 @@ export function RoutinesScreen() {
       const normalizedExerciseName = currentExercise.name.trim().toLowerCase()
 
       if (normalizedDraftName !== normalizedExerciseName) {
-        const existingExercise = exercises.find(
-          (exercise) => exercise.name.trim().toLowerCase() === normalizedDraftName,
-        )
-
-        if (existingExercise) {
-          nextExerciseIds.push(existingExercise.id)
-          continue
-        }
-
         const createdExercise = await createExercise({
           name: draft.name,
           unitDefault: draft.unit,
