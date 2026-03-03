@@ -118,4 +118,23 @@ describe('RoutinesScreen edit actions', () => {
     expect(source).not.toContain('today-card today-card--complete')
     expect(source).not.toContain('isCompleted ? null :')
   })
+
+  it('keeps edit row identity separate from exercise identity for name edits', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/screens/RoutinesScreen.tsx'), 'utf8')
+
+    expect(source).toContain('draftId: string')
+    expect(source).toContain('exerciseId: string')
+    expect(source).toContain('updateExerciseDraft(\n    draftId: string,')
+    expect(source).toContain('item.draftId === draftId ? updater(item) : item')
+    expect(source).not.toContain('item.id === exerciseId ? updater(item) : item')
+  })
+
+  it('creates replacement exercises when a routine row name changes', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/screens/RoutinesScreen.tsx'), 'utf8')
+
+    expect(source).toContain('const nextExerciseIds: string[] = []')
+    expect(source).toContain('if (normalizedDraftName !== normalizedExerciseName)')
+    expect(source).toContain('const createdExercise = await createExercise({')
+    expect(source).toContain('exerciseIds: nextExerciseIds')
+  })
 })

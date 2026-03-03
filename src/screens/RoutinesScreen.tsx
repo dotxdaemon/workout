@@ -55,7 +55,8 @@ interface HistorySheetState {
 }
 
 interface RoutineExerciseDraft {
-  id: string
+  draftId: string
+  exerciseId: string
   name: string
   unit: Unit
   repMin: string
@@ -326,7 +327,7 @@ export function RoutinesScreen() {
       selectedRoutine.exerciseIds
         .map((exerciseId) => exerciseMap[exerciseId])
         .filter((exercise): exercise is Exercise => Boolean(exercise))
-        .map(toRoutineExerciseDraft),
+        .map((exercise) => toRoutineExerciseDraft(exercise, createRoutineDraftId(exercise.id))),
     )
     setAddExerciseName('')
   }, [exerciseMap, mode, selectedRoutine])
@@ -696,11 +697,11 @@ export function RoutinesScreen() {
     }
 
     setExerciseDrafts((current) => {
-      if (current.some((item) => item.id === exercise.id)) {
+      if (current.some((item) => item.exerciseId === exercise.id)) {
         return current
       }
 
-      return [...current, toRoutineExerciseDraft(exercise)]
+      return [...current, toRoutineExerciseDraft(exercise, createRoutineDraftId(exercise.id))]
     })
 
     setAddExerciseName('')
@@ -708,9 +709,9 @@ export function RoutinesScreen() {
     setError('')
   }
 
-  function moveExerciseDraft(exerciseId: string, direction: -1 | 1): void {
+  function moveExerciseDraft(draftId: string, direction: -1 | 1): void {
     setExerciseDrafts((current) => {
-      const index = current.findIndex((item) => item.id === exerciseId)
+      const index = current.findIndex((item) => item.draftId === draftId)
       if (index < 0) {
         return current
       }
@@ -758,13 +759,58 @@ export function RoutinesScreen() {
       return
     }
 
+    const nextExerciseIds: string[] = []
+    const createdExercises: Exercise[] = []
+
     for (const draft of sanitized) {
-      const currentExercise = exerciseMap[draft.id]
+      const currentExercise = exerciseMap[draft.exerciseId]
       if (!currentExercise) {
+        nextExerciseIds.push(draft.exerciseId)
         continue
       }
 
-      await updateExercise(draft.id, {
+      const normalizedDraftName = draft.name.trim().toLowerCase()
+      const normalizedExerciseName = currentExercise.name.trim().toLowerCase()
+
+      if (normalizedDraftName !== normalizedExerciseName) {
+        const existingExercise = exercises.find(
+          (exercise) => exercise.name.trim().toLowerCase() === normalizedDraftName,
+        )
+
+        if (existingExercise) {
+          nextExerciseIds.push(existingExercise.id)
+          continue
+        }
+
+        const createdExercise = await createExercise({
+          name: draft.name,
+          unitDefault: draft.unit,
+        })
+
+        const progressionSettings = {
+          ...currentExercise.progressionSettings,
+          unit: draft.unit,
+          repMin: draft.repMin,
+          repMax: draft.repMax,
+          workSetsTarget: draft.workSetsTarget,
+          weightIncrement: draft.weightIncrement,
+        }
+
+        await updateExercise(createdExercise.id, {
+          progressionSettings,
+          unitDefault: draft.unit,
+        })
+
+        createdExercises.push({
+          ...createdExercise,
+          progressionSettings,
+          unitDefault: draft.unit,
+        })
+        nextExerciseIds.push(createdExercise.id)
+        continue
+      }
+
+      await updateExercise(draft.exerciseId, {
         name: draft.name,
         unitDefault: draft.unit,
         progressionSettings: {
@@ -776,11 +822,17 @@ export function RoutinesScreen() {
           weightIncrement: draft.weightIncrement,
         },
       })
+
+      nextExerciseIds.push(draft.exerciseId)
+    }
+
+    if (createdExercises.length > 0) {
+      setExercises((current) => [...current, ...createdExercises])
     }
 
     await updateRoutine(selectedRoutine.id, {
       name: routineName,
-      exerciseIds: sanitized.map((draft) => draft.id),
+      exerciseIds: nextExerciseIds,
     })
 
     setMode('today')
@@ -812,11 +864,11 @@ export function RoutinesScreen() {
   }
 
   function updateExerciseDraft(
-    exerciseId: string,
+    draftId: string,
     updater: (current: RoutineExerciseDraft) => RoutineExerciseDraft,
   ): void {
     setExerciseDrafts((current) =>
-      current.map((item) => (item.id === exerciseId ? updater(item) : item)),
+      current.map((item) => (item.draftId === draftId ? updater(item) : item)),
     )
   }
 
@@ -1147,7 +1199,7 @@ export function RoutinesScreen() {
             <div className="edit-exercise-list">
               {exerciseDrafts.map((draft, index) => (
                 <article
-                  key={draft.id}
+                  key={draft.draftId}
                   className="list-card edit-exercise-row"
                 >
                   <div className="edit-exercise-row__header">
@@ -1161,7 +1213,7 @@ export function RoutinesScreen() {
                       <button
                         type="button"
                         className="icon-link"
-                        onClick={() => moveExerciseDraft(draft.id, -1)}
+                        onClick={() => moveExerciseDraft(draft.draftId, -1)}
                         disabled={index === 0}
                       >
                         ↑
@@ -1169,7 +1221,7 @@ export function RoutinesScreen() {
                       <button
                         type="button"
                         className="icon-link"
-                        onClick={() => moveExerciseDraft(draft.id, 1)}
+                        onClick={() => moveExerciseDraft(draft.draftId, 1)}
                         disabled={index === exerciseDrafts.length - 1}
                       >
                         ↓
@@ -1179,7 +1231,7 @@ export function RoutinesScreen() {
                         className="icon-link icon-link--danger"
                         onClick={() =>
                           setExerciseDrafts((current) =>
-                            current.filter((item) => item.id !== draft.id),
+                            current.filter((item) => item.draftId !== draft.draftId),
                           )
                         }
                       >
@@ -1193,7 +1245,7 @@ export function RoutinesScreen() {
                     <input
                       value={draft.name}
                       onChange={(event) =>
-                        updateExerciseDraft(draft.id, (current) => ({
+                        updateExerciseDraft(draft.draftId, (current) => ({
                           ...current,
                           name: event.target.value,
                         }))
@@ -1380,9 +1432,10 @@ function buildSetDraftsFromEntries(
   return next
 }
 
-function toRoutineExerciseDraft(exercise: Exercise): RoutineExerciseDraft {
+function toRoutineExerciseDraft(exercise: Exercise, draftId: string): RoutineExerciseDraft {
   return {
-    id: exercise.id,
+    draftId,
+    exerciseId: exercise.id,
     name: exercise.name,
     unit: exercise.progressionSettings.unit,
     repMin: String(exercise.progressionSettings.repMin),
@@ -1390,6 +1443,13 @@ function toRoutineExerciseDraft(exercise: Exercise): RoutineExerciseDraft {
     workSetsTarget: String(exercise.progressionSettings.workSetsTarget),
     weightIncrement: formatNumber(exercise.progressionSettings.weightIncrement),
   }
+}
+
+function createRoutineDraftId(exerciseId: string): string {
+  const token =
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now()}-${Math.round(Math.random() * 1_000_000_000)}`
+  return `${exerciseId}:${token}`
 }
 
 function parseWeight(value: string): number {
