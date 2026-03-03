@@ -301,3 +301,51 @@ For any reported bug, do not implement anything until all of the following are d
 12. End with: root cause, files changed, what was removed/neutralized, acceptance checklist PASS/FAIL, exact commands run with exit codes.
 
 Reference SKILL.md before every change. If there is frontend design work, use the appropriate skill
+
+## Bugfix Reliability Rules (10 Required Fixes)
+
+1. Replace source-string UI tests with rendered behavior tests.
+2. Add explicit regression tests for mode-switch scroll reset behavior.
+3. Add mobile E2E tests for history sheet lifecycle (open, internal scroll, swipe-down close, backdrop close, bottom-nav non-interference) at 390x844.
+4. Add data-layer integration tests to guarantee exercise rename isolation across routines.
+5. Enforce a CI gate that requires a failing test first for every bugfix.
+6. Require exact user-flow replay evidence for UI bugs: before screenshot and after screenshot at the same viewport.
+7. Require touch-capability validation for gesture bugs; if the environment lacks Touch/TouchEvent, require simulator/device verification before claiming fixed.
+8. Enforce minimal bugfix scope; avoid mixed multi-domain commits unless explicitly required.
+9. Require paired validation for layout fixes: CSS intent checks and runtime behavior checks.
+10. Maintain a persistent bug regression map with root cause, failing test name, fix commit, and acceptance checks.
+
+## Bugfix Response Contract (Fail-Closed)
+
+For every bug ticket, use this mandatory 9-point contract:
+
+1. Reproduce exact user steps first and write them back verbatim.
+2. State one concrete root cause in one sentence.
+3. Add one failing regression test first and show it failing.
+4. Implement the smallest fix tied only to that root cause.
+5. Re-run the same test and show it passing.
+6. Run `npm test`, `npm run lint`, and `npm run typecheck`.
+7. For mobile UI bugs, verify at 390x844 and provide before/after screenshots at the same viewport.
+8. Do not provide a PR link or claim done until all gates pass.
+9. Use the required final response schema.
+
+Required final response schema:
+
+1. Root cause
+2. Reproduction steps
+3. Files changed
+4. What was removed/neutralized
+5. Acceptance checklist PASS/FAIL
+6. Exact commands + exit codes
+7. Screenshot paths
+8. PR link (last, only when all pass)
+
+Reject macro for any missing requirement:
+
+`Rejected: missing gate <N>. Continue from that gate only.`
+
+Mobile verification policy for mobile-tagged bugs:
+
+- Use viewport 390x844 unless Sean explicitly overrides.
+- Verify open/close behavior, internal sheet scroll, swipe-down close, backdrop close, bottom-nav non-interference, and no input-focus zoom/layout jump.
+- Missing any required check is an automatic rejection.
