@@ -650,7 +650,7 @@ export function RoutinesScreen() {
       }))
 
       await refreshHistoryForExercise(exerciseId)
-      setMessage('Set saved.')
+      setMessage('')
       setError('')
       showSavedFeedback()
       return true

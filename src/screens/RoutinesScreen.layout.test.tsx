@@ -56,6 +56,39 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
+  it('does not insert a global success banner when saving a quick-entry set', async () => {
+    const harness = await renderScreen()
+    const firstCard = harness.host.querySelector('.today-card') as HTMLElement | null
+
+    expect(firstCard).not.toBeNull()
+
+    const weightInput = firstCard?.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement | null
+    const repsInput = firstCard?.querySelector(
+      'input[inputmode="numeric"]',
+    ) as HTMLInputElement | null
+    const saveButton = firstCard?.querySelector(
+      '.today-card__complete-button',
+    ) as HTMLButtonElement | null
+
+    expect(weightInput).not.toBeNull()
+    expect(repsInput).not.toBeNull()
+    expect(saveButton).not.toBeNull()
+
+    await setInputValue(weightInput!, '95')
+    await setInputValue(repsInput!, '8')
+    await click(saveButton!)
+
+    await waitFor(
+      () => (harness.host.querySelector('.today-card__stats-value')?.textContent ?? '').includes('95 x 8'),
+      'Saved set was not reflected in last-set stats.',
+    )
+
+    expect(harness.host.querySelector('.success-banner')).toBeNull()
+    await harness.cleanup()
+  })
+
   it('resets screen-area scroll when switching modes', async () => {
     const harness = await renderScreen()
     const scrollSpy = vi.fn()
