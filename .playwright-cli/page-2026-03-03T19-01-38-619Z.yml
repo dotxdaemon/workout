@@ -1,0 +1,137 @@
+- generic [ref=e3]:
+  - generic [ref=e5]:
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - paragraph [ref=e9]: 4-DAY SPLIT
+        - heading "Routines" [level=1] [ref=e10]
+      - tablist "Routine modes" [ref=e11]:
+        - button "Today" [ref=e12]
+        - button "Edit" [active] [ref=e13]
+    - paragraph [ref=e318]: Routine saved.
+    - generic [ref=e15]:
+      - generic [ref=e426]:
+        - generic [ref=e427]:
+          - generic [ref=e428]: Split type
+          - tablist "Routine split" [ref=e429]:
+            - button "3 day" [ref=e430]
+            - button "4 day" [ref=e431]
+        - separator
+        - generic [ref=e432]:
+          - button "Day 1 – Chest / Back / Biceps 1 6 exercises TODAY" [ref=e433] [cursor=pointer]:
+            - generic [ref=e434]: "1"
+            - generic [ref=e435]:
+              - generic [ref=e436]: Day 1 – Chest / Back / Biceps 1
+              - generic [ref=e437]:
+                - generic [ref=e438]: 6 exercises
+                - generic [ref=e439]: TODAY
+            - generic [ref=e440]: ›
+          - button "Day 2 – Shoulders / Legs / Triceps 1 6 exercises" [ref=e441] [cursor=pointer]:
+            - generic [ref=e442]: "2"
+            - generic [ref=e443]:
+              - generic [ref=e444]: Day 2 – Shoulders / Legs / Triceps 1
+              - generic [ref=e446]: 6 exercises
+            - generic [ref=e447]: ›
+          - button "Day 3 – Chest / Back / Biceps 2 6 exercises" [ref=e448] [cursor=pointer]:
+            - generic [ref=e449]: "3"
+            - generic [ref=e450]:
+              - generic [ref=e451]: Day 3 – Chest / Back / Biceps 2
+              - generic [ref=e453]: 6 exercises
+            - generic [ref=e454]: ›
+          - button "Day 4 – Shoulders / Legs / Triceps 2 6 exercises" [ref=e455] [cursor=pointer]:
+            - generic [ref=e456]: "4"
+            - generic [ref=e457]:
+              - generic [ref=e458]: Day 4 – Shoulders / Legs / Triceps 2
+              - generic [ref=e460]: 6 exercises
+            - generic [ref=e461]: ›
+        - button "Create routine" [ref=e462]:
+          - generic [ref=e463]: +
+          - generic [ref=e464]: Create routine
+      - generic [ref=e26]:
+        - heading "Edit routine" [level=2] [ref=e465]
+        - generic [ref=e466]:
+          - generic [ref=e467]: Routine name
+          - textbox "Routine name" [ref=e468]: Day 1 – Chest / Back / Biceps 1
+        - generic [ref=e469]:
+          - textbox "Add exercise" [ref=e470]
+          - button "Add" [ref=e471] [cursor=pointer]
+        - generic [ref=e472]:
+          - button "Save routine" [ref=e473] [cursor=pointer]
+          - button "Delete routine" [ref=e474] [cursor=pointer]
+        - generic [ref=e475]:
+          - article [ref=e476]:
+            - generic [ref=e477]:
+              - generic [ref=e478]:
+                - generic [ref=e479]: ⋮⋮
+                - heading "Hamstring Curl" [level=3] [ref=e480]
+              - generic [ref=e481]:
+                - button "↑" [disabled] [ref=e482] [cursor=pointer]
+                - button "↓" [ref=e483] [cursor=pointer]
+                - button "Delete" [ref=e484] [cursor=pointer]
+            - generic [ref=e485]:
+              - generic [ref=e486]: Name
+              - textbox "Name" [ref=e487]: Hamstring Curl
+          - article [ref=e488]:
+            - generic [ref=e489]:
+              - generic [ref=e490]:
+                - generic [ref=e491]: ⋮⋮
+                - heading "Machine Row" [level=3] [ref=e492]
+              - generic [ref=e493]:
+                - button "↑" [ref=e494] [cursor=pointer]
+                - button "↓" [ref=e495] [cursor=pointer]
+                - button "Delete" [ref=e496] [cursor=pointer]
+            - generic [ref=e497]:
+              - generic [ref=e498]: Name
+              - textbox "Name" [ref=e499]: Machine Row
+          - article [ref=e500]:
+            - generic [ref=e501]:
+              - generic [ref=e502]:
+                - generic [ref=e503]: ⋮⋮
+                - heading "Incline Dumbbell Press" [level=3] [ref=e504]
+              - generic [ref=e505]:
+                - button "↑" [ref=e506] [cursor=pointer]
+                - button "↓" [ref=e507] [cursor=pointer]
+                - button "Delete" [ref=e508] [cursor=pointer]
+            - generic [ref=e509]:
+              - generic [ref=e510]: Name
+              - textbox "Name" [ref=e511]: Incline Dumbbell Press
+          - article [ref=e512]:
+            - generic [ref=e513]:
+              - generic [ref=e514]:
+                - generic [ref=e515]: ⋮⋮
+                - heading "Lat Pulldown" [level=3] [ref=e516]
+              - generic [ref=e517]:
+                - button "↑" [ref=e518] [cursor=pointer]
+                - button "↓" [ref=e519] [cursor=pointer]
+                - button "Delete" [ref=e520] [cursor=pointer]
+            - generic [ref=e521]:
+              - generic [ref=e522]: Name
+              - textbox "Name" [ref=e523]: Lat Pulldown
+          - article [ref=e524]:
+            - generic [ref=e525]:
+              - generic [ref=e526]:
+                - generic [ref=e527]: ⋮⋮
+                - heading "Cable Row" [level=3] [ref=e528]
+              - generic [ref=e529]:
+                - button "↑" [ref=e530] [cursor=pointer]
+                - button "↓" [ref=e531] [cursor=pointer]
+                - button "Delete" [ref=e532] [cursor=pointer]
+            - generic [ref=e533]:
+              - generic [ref=e534]: Name
+              - textbox "Name" [ref=e535]: Cable Row
+          - article [ref=e536]:
+            - generic [ref=e537]:
+              - generic [ref=e538]:
+                - generic [ref=e539]: ⋮⋮
+                - heading "Barbell OR Dumbbell Curl" [level=3] [ref=e540]
+              - generic [ref=e541]:
+                - button "↑" [ref=e542] [cursor=pointer]
+                - button "↓" [disabled] [ref=e543] [cursor=pointer]
+                - button "Delete" [ref=e544] [cursor=pointer]
+            - generic [ref=e545]:
+              - generic [ref=e546]: Name
+              - textbox "Name" [ref=e547]: Barbell OR Dumbbell Curl
+  - navigation "Primary navigation" [ref=e22]:
+    - link "Routines" [ref=e23] [cursor=pointer]:
+      - /url: "#/routines"
+    - link "Settings" [ref=e24] [cursor=pointer]:
+      - /url: "#/settings"

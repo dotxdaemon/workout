@@ -1,0 +1,124 @@
+- generic [ref=e3]:
+  - generic [ref=e5]:
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - paragraph [ref=e9]: 4-DAY SPLIT
+        - heading "Routines" [level=1] [ref=e10]
+      - tablist "Routine modes" [ref=e11]:
+        - button "Today" [ref=e12]
+        - button "Edit" [ref=e13]
+    - paragraph [ref=e318]: Routine saved.
+    - generic [ref=e15]:
+      - generic [ref=e319]:
+        - generic [ref=e320]:
+          - paragraph [ref=e321]: DAY 1
+          - paragraph [ref=e322]: 6 exercises
+        - heading "Chest · Back · Biceps 1" [level=2] [ref=e323]
+      - generic [ref=e26]:
+        - article [ref=e324]:
+          - generic [ref=e325]:
+            - generic [ref=e326]:
+              - paragraph [ref=e327]: CHEST / BACK / BICEPS 1
+              - heading "Hamstring Curl" [level=3] [ref=e328]
+            - button "Save set for Hamstring Curl" [ref=e329]: ✓
+          - generic [ref=e330]:
+            - generic [ref=e331]: Last
+            - generic [ref=e332]: none
+          - generic [ref=e333]:
+            - generic [ref=e334]:
+              - generic [ref=e335]: Weight
+              - spinbutton "Weight" [ref=e336]
+            - generic [ref=e337]:
+              - generic [ref=e338]: Reps
+              - spinbutton "Reps" [ref=e339]
+            - button "Open history for Hamstring Curl" [ref=e340]: ⏱
+        - article [ref=e341]:
+          - generic [ref=e342]:
+            - generic [ref=e343]:
+              - paragraph [ref=e344]: CHEST / BACK / BICEPS 1
+              - heading "Machine Row" [level=3] [ref=e345]
+            - button "Save set for Machine Row" [ref=e346]: ✓
+          - generic [ref=e347]:
+            - generic [ref=e348]: Last
+            - generic [ref=e349]: none
+          - generic [ref=e350]:
+            - generic [ref=e351]:
+              - generic [ref=e352]: Weight
+              - spinbutton "Weight" [ref=e353]
+            - generic [ref=e354]:
+              - generic [ref=e355]: Reps
+              - spinbutton "Reps" [ref=e356]
+            - button "Open history for Machine Row" [ref=e357]: ⏱
+        - article [ref=e358]:
+          - generic [ref=e359]:
+            - generic [ref=e360]:
+              - paragraph [ref=e361]: CHEST / BACK / BICEPS 1
+              - heading "Incline Dumbbell Press" [level=3] [ref=e362]
+            - button "Save set for Incline Dumbbell Press" [ref=e363]: ✓
+          - generic [ref=e364]:
+            - generic [ref=e365]: Last
+            - generic [ref=e366]: none
+          - generic [ref=e367]:
+            - generic [ref=e368]:
+              - generic [ref=e369]: Weight
+              - spinbutton "Weight" [ref=e370]
+            - generic [ref=e371]:
+              - generic [ref=e372]: Reps
+              - spinbutton "Reps" [ref=e373]
+            - button "Open history for Incline Dumbbell Press" [ref=e374]: ⏱
+        - article [ref=e375]:
+          - generic [ref=e376]:
+            - generic [ref=e377]:
+              - paragraph [ref=e378]: CHEST / BACK / BICEPS 1
+              - heading "Lat Pulldown" [level=3] [ref=e379]
+            - button "Save set for Lat Pulldown" [ref=e380]: ✓
+          - generic [ref=e381]:
+            - generic [ref=e382]: Last
+            - generic [ref=e383]: none
+          - generic [ref=e384]:
+            - generic [ref=e385]:
+              - generic [ref=e386]: Weight
+              - spinbutton "Weight" [ref=e387]
+            - generic [ref=e388]:
+              - generic [ref=e389]: Reps
+              - spinbutton "Reps" [ref=e390]
+            - button "Open history for Lat Pulldown" [ref=e391]: ⏱
+        - article [ref=e392]:
+          - generic [ref=e393]:
+            - generic [ref=e394]:
+              - paragraph [ref=e395]: CHEST / BACK / BICEPS 1
+              - heading "Cable Row" [level=3] [ref=e396]
+            - button "Save set for Cable Row" [ref=e397]: ✓
+          - generic [ref=e398]:
+            - generic [ref=e399]: Last
+            - generic [ref=e400]: none
+          - generic [ref=e401]:
+            - generic [ref=e402]:
+              - generic [ref=e403]: Weight
+              - spinbutton "Weight" [ref=e404]
+            - generic [ref=e405]:
+              - generic [ref=e406]: Reps
+              - spinbutton "Reps" [ref=e407]
+            - button "Open history for Cable Row" [ref=e408]: ⏱
+        - article [ref=e409]:
+          - generic [ref=e410]:
+            - generic [ref=e411]:
+              - paragraph [ref=e412]: CHEST / BACK / BICEPS 1
+              - heading "Barbell OR Dumbbell Curl" [level=3] [ref=e413]
+            - button "Save set for Barbell OR Dumbbell Curl" [ref=e414]: ✓
+          - generic [ref=e415]:
+            - generic [ref=e416]: Last
+            - generic [ref=e417]: none
+          - generic [ref=e418]:
+            - generic [ref=e419]:
+              - generic [ref=e420]: Weight
+              - spinbutton "Weight" [ref=e421]
+            - generic [ref=e422]:
+              - generic [ref=e423]: Reps
+              - spinbutton "Reps" [ref=e424]
+            - button "Open history for Barbell OR Dumbbell Curl" [ref=e425]: ⏱
+  - navigation "Primary navigation" [ref=e22]:
+    - link "Routines" [ref=e23] [cursor=pointer]:
+      - /url: "#/routines"
+    - link "Settings" [ref=e24] [cursor=pointer]:
+      - /url: "#/settings"
