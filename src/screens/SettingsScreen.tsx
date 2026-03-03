@@ -74,7 +74,7 @@ export function SettingsScreen() {
   }
 
   return (
-    <section className="page">
+    <section className="page settings-page">
       <header className="page-header">
         <h1>Settings</h1>
         <p>Defaults and backup.</p>
@@ -140,6 +140,7 @@ export function SettingsScreen() {
         <label className="stack stack--tight">
           <span>Import JSON</span>
           <input
+            className="settings-file-input"
             type="file"
             accept="application/json"
             onChange={(event) => void handleImportJson(event)}
