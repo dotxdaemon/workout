@@ -107,4 +107,15 @@ describe('RoutinesScreen edit actions', () => {
 
     expect(css).not.toContain('.input-grid')
   })
+
+  it('uses save-only checkmark behavior without completion-fold wiring', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/screens/RoutinesScreen.tsx'), 'utf8')
+
+    expect(source).toContain('void handleSaveQuickEntry(exercise.id)')
+    expect(source).toContain('aria-label={`Save set for ${exercise.name}`}')
+    expect(source).not.toContain('function handleToggleExerciseComplete')
+    expect(source).not.toContain('void handleToggleExerciseComplete(exercise.id)')
+    expect(source).not.toContain('today-card today-card--complete')
+    expect(source).not.toContain('isCompleted ? null :')
+  })
 })

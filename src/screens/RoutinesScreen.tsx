@@ -91,7 +91,6 @@ export function RoutinesScreen() {
   const [historySheet, setHistorySheet] = useState<HistorySheetState | null>(null)
   const [historySheetDragOffset, setHistorySheetDragOffset] = useState(0)
   const [historySheetDragging, setHistorySheetDragging] = useState(false)
-  const [completedExerciseIds, setCompletedExerciseIds] = useState<Record<string, boolean>>({})
   const [defaultUnit, setDefaultUnit] = useState<Unit>('lb')
   const [defaultWeightIncrement, setDefaultWeightIncrement] = useState(5)
   const [routineNameDraft, setRoutineNameDraft] = useState('')
@@ -165,17 +164,6 @@ export function RoutinesScreen() {
     () => getRoutineFocusLabel(selectedRoutine?.name),
     [selectedRoutine?.name],
   )
-
-  const completedByExercise = useMemo(() => {
-    const next: Record<string, boolean> = {}
-
-    for (const exerciseId of selectedExerciseIds) {
-      const hasSavedSet = (setsByExercise[exerciseId] ?? []).length > 0
-      next[exerciseId] = completedExerciseIds[exerciseId] ?? hasSavedSet
-    }
-
-    return next
-  }, [completedExerciseIds, selectedExerciseIds, setsByExercise])
 
   const loadData = useCallback(async () => {
     const preferences = readPreferences()
@@ -639,10 +627,6 @@ export function RoutinesScreen() {
         [exerciseId]: [...(current[exerciseId] ?? []), entry],
       }))
 
-      setCompletedExerciseIds((current) => ({
-        ...current,
-        [exerciseId]: true,
-      }))
       await refreshHistoryForExercise(exerciseId)
       setMessage('Set saved.')
       setError('')
@@ -652,18 +636,6 @@ export function RoutinesScreen() {
       setError('Could not save set.')
       return false
     }
-  }
-
-  async function handleToggleExerciseComplete(exerciseId: string): Promise<void> {
-    if (completedByExercise[exerciseId]) {
-      setCompletedExerciseIds((current) => ({
-        ...current,
-        [exerciseId]: false,
-      }))
-      return
-    }
-
-    await handleSaveQuickEntry(exerciseId)
   }
 
   function handleNoteChange(exerciseId: string, value: string): void {
@@ -912,18 +884,11 @@ export function RoutinesScreen() {
                 const setDrafts = ensureSetDraftLength(draftsByExercise[exercise.id] ?? [], targetSets)
                 const historyRows = historyByExercise[exercise.id] ?? []
                 const lastSummary = formatLastSummary(historyRows[0]?.sets)
-                const isCompleted = completedByExercise[exercise.id]
 
                 return (
                   <article
                     key={exercise.id}
-                    className={
-                      isCompleted
-                        ? 'today-card today-card--complete'
-                        : isExpanded
-                          ? 'today-card today-card--expanded'
-                          : 'today-card'
-                    }
+                    className={isExpanded ? 'today-card today-card--expanded' : 'today-card'}
                     onClick={() => handleCardClick(exercise.id)}
                   >
                     <div className="today-card__top">
@@ -933,122 +898,116 @@ export function RoutinesScreen() {
                       </div>
                       <button
                         type="button"
-                        className={
-                          isCompleted ? 'today-card__complete-button today-card__complete-button--active' : 'today-card__complete-button'
-                        }
-                        aria-label={`${isCompleted ? 'Unmark' : 'Mark'} ${exercise.name} complete`}
+                        className="today-card__complete-button"
+                        aria-label={`Save set for ${exercise.name}`}
                         onClick={(event) => {
                           stopCardToggle(event)
-                          void handleToggleExerciseComplete(exercise.id)
+                          void handleSaveQuickEntry(exercise.id)
                         }}
                       >
                         ✓
                       </button>
                     </div>
 
-                    {isCompleted ? null : (
-                      <>
-                        <div className="today-card__stats">
-                          <span className="today-card__stats-label">Last</span>
-                          <span className="today-card__stats-value">{lastSummary}</span>
-                        </div>
+                    <div className="today-card__stats">
+                      <span className="today-card__stats-label">Last</span>
+                      <span className="today-card__stats-value">{lastSummary}</span>
+                    </div>
 
-                        <div className="today-input-row" onClick={stopCardToggle}>
-                          <CompactField
-                            label="Weight"
-                            inputMode="decimal"
-                            value={setDrafts[0].weight}
-                            step={exercise.progressionSettings.weightIncrement}
-                            onValueChange={(value) =>
-                              handleSetDraftChange(exercise.id, 0, 'weight', value)
-                            }
-                          />
-                          <CompactField
-                            label="Reps"
-                            inputMode="numeric"
-                            value={setDrafts[0].reps}
-                            step={1}
-                            onValueChange={(value) =>
-                              handleSetDraftChange(exercise.id, 0, 'reps', value)
-                            }
-                          />
-                          <button
-                            type="button"
-                            className="today-input-row__timer"
-                            aria-label={`Open history for ${exercise.name}`}
-                            onClick={(event) => {
-                              stopCardToggle(event)
-                              void handleOpenHistorySheet(exercise, event.timeStamp)
-                            }}
-                          >
-                            ⏱
-                          </button>
-                        </div>
+                    <div className="today-input-row" onClick={stopCardToggle}>
+                      <CompactField
+                        label="Weight"
+                        inputMode="decimal"
+                        value={setDrafts[0].weight}
+                        step={exercise.progressionSettings.weightIncrement}
+                        onValueChange={(value) =>
+                          handleSetDraftChange(exercise.id, 0, 'weight', value)
+                        }
+                      />
+                      <CompactField
+                        label="Reps"
+                        inputMode="numeric"
+                        value={setDrafts[0].reps}
+                        step={1}
+                        onValueChange={(value) =>
+                          handleSetDraftChange(exercise.id, 0, 'reps', value)
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="today-input-row__timer"
+                        aria-label={`Open history for ${exercise.name}`}
+                        onClick={(event) => {
+                          stopCardToggle(event)
+                          void handleOpenHistorySheet(exercise, event.timeStamp)
+                        }}
+                      >
+                        ⏱
+                      </button>
+                    </div>
 
-                        {isExpanded ? (
-                          <div className="today-card__expanded" onClick={stopCardToggle}>
-                            <div className="set-editor-list">
-                              {Array.from({ length: targetSets }).map((_, index) => (
-                                <div key={`${exercise.id}-${index}`} className="set-editor-row">
-                                  <span className="set-editor-row__label">Set {index + 1}</span>
-                                  <StepperField
-                                    label={`Set ${index + 1} weight`}
-                                    inputMode="decimal"
-                                    value={setDrafts[index].weight}
-                                    step={exercise.progressionSettings.weightIncrement}
-                                    onValueChange={(value) =>
-                                      handleSetDraftChange(exercise.id, index, 'weight', value)
-                                    }
-                                    onStepAdjust={(direction) =>
-                                      handleSetStepAdjust(
-                                        exercise.id,
-                                        index,
-                                        'weight',
-                                        exercise.progressionSettings.weightIncrement,
-                                        direction,
-                                      )
-                                    }
-                                  />
-                                  <StepperField
-                                    label={`Set ${index + 1} reps`}
-                                    inputMode="numeric"
-                                    value={setDrafts[index].reps}
-                                    step={1}
-                                    onValueChange={(value) =>
-                                      handleSetDraftChange(exercise.id, index, 'reps', value)
-                                    }
-                                    onStepAdjust={(direction) =>
-                                      handleSetStepAdjust(exercise.id, index, 'reps', 1, direction)
-                                    }
-                                  />
-                                </div>
-                              ))}
-                            </div>
-
-                            <button
-                              type="button"
-                              className="button button--small"
-                              onClick={() =>
-                                void handleUseTemplate(exercise.id, historyRows[0]?.sets ?? [])
-                              }
-                              disabled={!historyRows[0]?.sets.length}
-                            >
-                              Use last session as template
-                            </button>
-
-                            <label className="stack stack--tight">
-                              <span>Notes</span>
-                              <textarea
-                                className="notes-input"
-                                value={notesByExercise[exercise.id] ?? ''}
-                                onChange={(event) => handleNoteChange(exercise.id, event.target.value)}
-                                rows={2}
+                    {isExpanded ? (
+                      <div className="today-card__expanded" onClick={stopCardToggle}>
+                        <div className="set-editor-list">
+                          {Array.from({ length: targetSets }).map((_, index) => (
+                            <div key={`${exercise.id}-${index}`} className="set-editor-row">
+                              <span className="set-editor-row__label">Set {index + 1}</span>
+                              <StepperField
+                                label={`Set ${index + 1} weight`}
+                                inputMode="decimal"
+                                value={setDrafts[index].weight}
+                                step={exercise.progressionSettings.weightIncrement}
+                                onValueChange={(value) =>
+                                  handleSetDraftChange(exercise.id, index, 'weight', value)
+                                }
+                                onStepAdjust={(direction) =>
+                                  handleSetStepAdjust(
+                                    exercise.id,
+                                    index,
+                                    'weight',
+                                    exercise.progressionSettings.weightIncrement,
+                                    direction,
+                                  )
+                                }
                               />
-                            </label>
-                          </div>
-                        ) : null}
-                      </>
-                    )}
+                              <StepperField
+                                label={`Set ${index + 1} reps`}
+                                inputMode="numeric"
+                                value={setDrafts[index].reps}
+                                step={1}
+                                onValueChange={(value) =>
+                                  handleSetDraftChange(exercise.id, index, 'reps', value)
+                                }
+                                onStepAdjust={(direction) =>
+                                  handleSetStepAdjust(exercise.id, index, 'reps', 1, direction)
+                                }
+                              />
+                            </div>
+                          ))}
+                        </div>
+
+                        <button
+                          type="button"
+                          className="button button--small"
+                          onClick={() =>
+                            void handleUseTemplate(exercise.id, historyRows[0]?.sets ?? [])
+                          }
+                          disabled={!historyRows[0]?.sets.length}
+                        >
+                          Use last session as template
+                        </button>
+
+                        <label className="stack stack--tight">
+                          <span>Notes</span>
+                          <textarea
+                            className="notes-input"
+                            value={notesByExercise[exercise.id] ?? ''}
+                            onChange={(event) => handleNoteChange(exercise.id, event.target.value)}
+                            rows={2}
+                          />
+                        </label>
+                      </div>
+                    ) : null}
                   </article>
                 )
               })}
