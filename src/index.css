@@ -60,9 +60,8 @@ a {
 .app-shell {
   width: min(100%, 720px);
   margin: 0 auto;
-  min-height: 100svh;
-  height: 100svh;
-  max-height: 100svh;
+  min-height: 100dvh;
+  height: 100dvh;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
 }

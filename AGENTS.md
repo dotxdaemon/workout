@@ -349,3 +349,37 @@ Mobile verification policy for mobile-tagged bugs:
 - Use viewport 390x844 unless Sean explicitly overrides.
 - Verify open/close behavior, internal sheet scroll, swipe-down close, backdrop close, bottom-nav non-interference, and no input-focus zoom/layout jump.
 - Missing any required check is an automatic rejection.
+
+## Reliability Protocol (Global, Mandatory)
+
+For any bugfix, do not implement or claim completion until every gate below is satisfied.
+
+1. Reproduce first in the same environment as the report.
+2. Write exact reproduction steps from the user flow before code changes.
+3. Convert the user complaint into explicit symptom checks (example: “bottom nav does not jump”, “top toggle remains reachable”).
+4. State one root-cause hypothesis in one sentence.
+5. Add one failing regression test (or deterministic repro script for UI/device-only issues) that captures the reported symptom, not a proxy symptom.
+6. Confirm that failing check fails before editing.
+7. Make the smallest possible change tied only to that hypothesis.
+8. Re-run the same failing check and confirm pass.
+9. Run full verification gates: `npm test`, `npm run lint`, `npm run typecheck`.
+10. For mobile bugs, validate on real mobile behavior (or simulator with visual viewport emulation), including:
+- keyboard open/close
+- safe-area/bottom-nav stability
+- scroll continuity
+- modal/sheet open/close and backdrop interactions
+11. Do not mark fixed unless the original user-reported symptom is explicitly re-tested and passes.
+12. Required final report format:
+- root cause
+- exact reproduction steps
+- failing check used
+- files changed
+- what was removed/neutralized
+- acceptance checklist PASS/FAIL
+- exact commands + exit codes
+- before/after evidence paths (same viewport/device)
+- PR/commit link last
+
+Reject rule:
+If any gate is missing, respond exactly:
+`Rejected: missing gate <N>. Continue from that gate only.`
