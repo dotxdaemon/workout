@@ -76,6 +76,10 @@ describe('App visual viewport sync', () => {
       configurable: true,
       value: 390,
     })
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 390,
+    })
 
     host = document.createElement('div')
     document.body.append(host)
@@ -296,6 +300,10 @@ describe('App visual viewport sync', () => {
       configurable: true,
       value: 390,
     })
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 390,
+    })
 
     const resizeListener = listeners.get('resize')
     expect(resizeListener).toBeDefined()
@@ -339,6 +347,10 @@ describe('App visual viewport sync', () => {
     Object.defineProperty(window, 'innerHeight', {
       configurable: true,
       value: 700,
+    })
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 390,
     })
     Object.defineProperty(window, 'innerWidth', {
       configurable: true,
@@ -568,6 +580,10 @@ describe('App visual viewport sync', () => {
       configurable: true,
       value: 700,
     })
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 390,
+    })
 
     host = document.createElement('div')
     document.body.append(host)
@@ -594,6 +610,10 @@ describe('App visual viewport sync', () => {
       configurable: true,
       value: 500,
     })
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 390,
+    })
 
     await act(async () => {
       resizeListener?.(new Event('resize'))
@@ -608,6 +628,10 @@ describe('App visual viewport sync', () => {
     Object.defineProperty(window, 'innerHeight', {
       configurable: true,
       value: 700,
+    })
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 390,
     })
 
     await act(async () => {
