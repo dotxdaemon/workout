@@ -61,6 +61,12 @@ describe('app layout css', () => {
 describe('service worker cache strategy', () => {
   const workerSource = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8')
 
+  it('bumps shell cache revision and handles skip-waiting message for fast updates', () => {
+    expect(workerSource).toContain("const CACHE_NAME = 'workout-shell-v3'")
+    expect(workerSource).toContain("event.data?.type === 'SKIP_WAITING'")
+    expect(workerSource).toContain('self.skipWaiting()')
+  })
+
   it('uses network-first refresh for scripts and styles to avoid stale UI shell', () => {
     expect(workerSource).toContain("request.destination === 'script'")
     expect(workerSource).toContain("request.destination === 'style'")

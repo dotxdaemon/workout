@@ -628,6 +628,13 @@ export function RoutinesScreen() {
       return false
     }
 
+    const screenArea = document.querySelector<HTMLElement>('.screen-area')
+    const scrollTopBeforeSave = screenArea?.scrollTop ?? 0
+    const activeInput = document.activeElement
+    if (activeInput instanceof HTMLInputElement || activeInput instanceof HTMLTextAreaElement) {
+      activeInput.blur()
+    }
+
     const quickDraft = ensureSetDraftLength(draftsByExercise[exerciseId] ?? [], 1)[0]
     const weight = parseWeight(quickDraft.weight)
     const reps = parseReps(quickDraft.reps)
@@ -653,6 +660,11 @@ export function RoutinesScreen() {
       setMessage('')
       setError('')
       showSavedFeedback()
+      if (screenArea) {
+        window.requestAnimationFrame(() => {
+          screenArea.scrollTo({ top: scrollTopBeforeSave, left: 0, behavior: 'auto' })
+        })
+      }
       return true
     } catch {
       setError('Could not save set.')

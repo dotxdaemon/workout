@@ -89,6 +89,44 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
+  it('keeps screen-area scroll position stable when saving a quick-entry set', async () => {
+    const harness = await renderScreen()
+    const firstCard = harness.host.querySelector('.today-card') as HTMLElement | null
+
+    expect(firstCard).not.toBeNull()
+
+    const weightInput = firstCard?.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement | null
+    const repsInput = firstCard?.querySelector(
+      'input[inputmode="numeric"]',
+    ) as HTMLInputElement | null
+    const saveButton = firstCard?.querySelector(
+      '.today-card__complete-button',
+    ) as HTMLButtonElement | null
+
+    expect(weightInput).not.toBeNull()
+    expect(repsInput).not.toBeNull()
+    expect(saveButton).not.toBeNull()
+
+    const scrollTopBeforeSave = 184
+    harness.host.scrollTop = scrollTopBeforeSave
+    const scrollSpy = vi.fn()
+    harness.host.scrollTo = scrollSpy as unknown as typeof harness.host.scrollTo
+
+    await setInputValue(weightInput!, '105')
+    await setInputValue(repsInput!, '7')
+    await click(saveButton!)
+
+    await waitFor(
+      () => (harness.host.querySelector('.today-card__stats-value')?.textContent ?? '').includes('105 x 7'),
+      'Saved set was not reflected in last-set stats.',
+    )
+
+    expect(scrollSpy).toHaveBeenCalledWith({ top: scrollTopBeforeSave, left: 0, behavior: 'auto' })
+    await harness.cleanup()
+  })
+
   it('resets screen-area scroll when switching modes', async () => {
     const harness = await renderScreen()
     const scrollSpy = vi.fn()

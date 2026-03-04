@@ -1,6 +1,6 @@
 // ABOUTME: Caches the app shell for offline support and handles fetch strategies by request type.
 // ABOUTME: Keeps UI assets fresh while preserving offline fallback for same-origin requests.
-const CACHE_NAME = 'workout-shell-v2'
+const CACHE_NAME = 'workout-shell-v3'
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icons/icon.svg']
 
 self.addEventListener('install', (event) => {
@@ -25,6 +25,12 @@ self.addEventListener('activate', (event) => {
       )
       .then(() => self.clients.claim()),
   )
+})
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    void self.skipWaiting()
+  }
 })
 
 self.addEventListener('fetch', (event) => {
