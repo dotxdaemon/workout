@@ -11,7 +11,9 @@ function App() {
     const root = document.documentElement
     const viewport = window.visualViewport
     const keyboardThreshold = 100
+    const blurTransitionLockMs = 300
     let previousStableHeight = 0
+    let blurLockUntil = 0
 
     const isTextEditingElement = (element: Element | null): boolean => {
       if (!element) {
@@ -35,17 +37,33 @@ function App() {
         return
       }
 
+      const preserveDuringBlurTransition = Date.now() < blurLockUntil
+      const isTextEditing =
+        isTextEditingElement(document.activeElement) || preserveDuringBlurTransition
+
       const { shellHeight, stableHeight } = calculateShellHeight({
         visualHeight: viewport.height,
         visualOffsetTop: viewport.offsetTop,
         innerHeight: window.innerHeight,
         previousStableHeight,
-        isTextEditing: isTextEditingElement(document.activeElement),
+        isTextEditing,
         keyboardThreshold,
       })
 
       previousStableHeight = stableHeight
       root.style.setProperty('--app-shell-height', `${shellHeight}px`)
+    }
+
+    const handleFocusIn = () => {
+      blurLockUntil = 0
+      applyViewportHeight()
+    }
+
+    const handleFocusOut = (event: FocusEvent) => {
+      if (isTextEditingElement(event.target as Element | null)) {
+        blurLockUntil = Date.now() + blurTransitionLockMs
+      }
+      applyViewportHeight()
     }
 
     applyViewportHeight()
@@ -56,16 +74,17 @@ function App() {
 
     viewport.addEventListener('resize', applyViewportHeight)
     viewport.addEventListener('scroll', applyViewportHeight)
-    document.addEventListener('focusin', applyViewportHeight)
-    document.addEventListener('focusout', applyViewportHeight)
+    document.addEventListener('focusin', handleFocusIn)
+    document.addEventListener('focusout', handleFocusOut)
 
     return () => {
       viewport.removeEventListener('resize', applyViewportHeight)
       viewport.removeEventListener('scroll', applyViewportHeight)
-      document.removeEventListener('focusin', applyViewportHeight)
-      document.removeEventListener('focusout', applyViewportHeight)
+      document.removeEventListener('focusin', handleFocusIn)
+      document.removeEventListener('focusout', handleFocusOut)
       root.style.removeProperty('--app-shell-height')
       previousStableHeight = 0
+      blurLockUntil = 0
     }
   }, [])
 
