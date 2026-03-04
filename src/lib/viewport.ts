@@ -46,7 +46,6 @@ interface AdvanceShellHeightStateInput {
   keyboardThreshold: number
   recoveryEpsilon: number
   requiredRecoveryPasses: number
-  orientationWidthDeltaThreshold: number
 }
 
 interface AdvanceShellHeightStateResult {
@@ -99,7 +98,6 @@ export function advanceShellHeightState(
     keyboardThreshold,
     recoveryEpsilon,
     requiredRecoveryPasses,
-    orientationWidthDeltaThreshold,
   }: AdvanceShellHeightStateInput,
   state: ShellHeightState,
 ): AdvanceShellHeightStateResult {
@@ -115,9 +113,6 @@ export function advanceShellHeightState(
   const safeRequiredRecoveryPasses = Number.isFinite(requiredRecoveryPasses)
     ? Math.max(1, Math.round(requiredRecoveryPasses))
     : 1
-  const safeOrientationWidthDeltaThreshold = Number.isFinite(orientationWidthDeltaThreshold)
-    ? Math.max(0, orientationWidthDeltaThreshold)
-    : 0
 
   const nextState: ShellHeightState = {
     stableHeight: Number.isFinite(state.stableHeight) ? Math.max(0, state.stableHeight) : 0,
@@ -138,14 +133,11 @@ export function advanceShellHeightState(
   const stableCandidate = Math.max(candidate, Math.round(safeInnerHeight))
   const keyboardShrankViewport = candidate < nextState.stableHeight - safeKeyboardThreshold
   const hasPreviousViewport = nextState.lastViewportWidth > 0 && nextState.lastViewportHeight > 0
-  const widthShifted =
-    hasPreviousViewport &&
-    Math.abs(safeInnerWidth - nextState.lastViewportWidth) >= safeOrientationWidthDeltaThreshold
   const aspectFlipped =
     hasPreviousViewport &&
     (nextState.lastViewportWidth > nextState.lastViewportHeight) !==
       (safeInnerWidth > safeInnerHeight)
-  const shouldRebaseStableHeight = widthShifted || aspectFlipped
+  const shouldRebaseStableHeight = aspectFlipped
 
   const finalize = (shellHeight: number): AdvanceShellHeightStateResult => {
     nextState.lastViewportWidth = Math.round(safeInnerWidth)

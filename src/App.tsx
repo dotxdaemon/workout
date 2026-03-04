@@ -13,7 +13,6 @@ function App() {
     const keyboardThreshold = 100
     const recoveryEpsilon = 2
     const requiredRecoveryPasses = 2
-    const orientationWidthDeltaThreshold = 80
     let shellHeightState: ShellHeightState = {
       stableHeight: 0,
       isEditing: false,
@@ -54,7 +53,6 @@ function App() {
           keyboardThreshold,
           recoveryEpsilon,
           requiredRecoveryPasses,
-          orientationWidthDeltaThreshold,
         },
         shellHeightState,
       )
@@ -97,7 +95,6 @@ function App() {
           keyboardThreshold,
           recoveryEpsilon,
           requiredRecoveryPasses,
-          orientationWidthDeltaThreshold,
         },
         shellHeightState,
       )

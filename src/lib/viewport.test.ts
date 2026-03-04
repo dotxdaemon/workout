@@ -81,7 +81,6 @@ describe('advanceShellHeightState', () => {
         keyboardThreshold: 100,
         recoveryEpsilon: 2,
         requiredRecoveryPasses: 2,
-        orientationWidthDeltaThreshold: 80,
       },
       {
         stableHeight: 700,
@@ -108,7 +107,6 @@ describe('advanceShellHeightState', () => {
         keyboardThreshold: 100,
         recoveryEpsilon: 2,
         requiredRecoveryPasses: 2,
-        orientationWidthDeltaThreshold: 80,
       },
       {
         stableHeight: 700,
@@ -133,7 +131,6 @@ describe('advanceShellHeightState', () => {
         keyboardThreshold: 100,
         recoveryEpsilon: 2,
         requiredRecoveryPasses: 2,
-        orientationWidthDeltaThreshold: 80,
       },
       first.state,
     )
@@ -153,7 +150,6 @@ describe('advanceShellHeightState', () => {
         keyboardThreshold: 100,
         recoveryEpsilon: 2,
         requiredRecoveryPasses: 2,
-        orientationWidthDeltaThreshold: 80,
       },
       {
         stableHeight: 700,
@@ -180,7 +176,6 @@ describe('advanceShellHeightState', () => {
         keyboardThreshold: 100,
         recoveryEpsilon: 2,
         requiredRecoveryPasses: 2,
-        orientationWidthDeltaThreshold: 80,
       },
       {
         stableHeight: 700,
@@ -207,7 +202,6 @@ describe('advanceShellHeightState', () => {
         keyboardThreshold: 100,
         recoveryEpsilon: 2,
         requiredRecoveryPasses: 2,
-        orientationWidthDeltaThreshold: 80,
       },
       {
         stableHeight: 820,
@@ -223,7 +217,7 @@ describe('advanceShellHeightState', () => {
     expect(result.state.stableHeight).toBe(820)
   })
 
-  it('rebases stable height when viewport width shifts beyond threshold', () => {
+  it('does not rebase stable height from width shifts alone in portrait', () => {
     const result = advanceShellHeightState(
       {
         visualHeight: 640,
@@ -233,7 +227,6 @@ describe('advanceShellHeightState', () => {
         keyboardThreshold: 100,
         recoveryEpsilon: 2,
         requiredRecoveryPasses: 2,
-        orientationWidthDeltaThreshold: 80,
       },
       {
         stableHeight: 820,
@@ -245,8 +238,8 @@ describe('advanceShellHeightState', () => {
       },
     )
 
-    expect(result.shellHeight).toBe(640)
-    expect(result.state.stableHeight).toBe(640)
+    expect(result.shellHeight).toBe(820)
+    expect(result.state.stableHeight).toBe(820)
   })
 
   it('rebases stable height when orientation flips', () => {
@@ -259,7 +252,6 @@ describe('advanceShellHeightState', () => {
         keyboardThreshold: 100,
         recoveryEpsilon: 2,
         requiredRecoveryPasses: 2,
-        orientationWidthDeltaThreshold: 80,
       },
       {
         stableHeight: 820,
