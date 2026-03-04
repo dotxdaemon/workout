@@ -147,6 +147,17 @@ export function advanceShellHeightState(
     }
   }
 
+  const isStrongRecoveryTick = candidate >= nextState.stableHeight + safeKeyboardThreshold
+  if (isStrongRecoveryTick) {
+    nextState.stableHeight = stableCandidate
+    nextState.isBlurTransitionActive = false
+    nextState.recoveryPasses = 0
+    return {
+      shellHeight: nextState.stableHeight,
+      state: nextState,
+    }
+  }
+
   const isRecoveredTick = candidate >= nextState.stableHeight - safeRecoveryEpsilon
   if (!isRecoveredTick) {
     nextState.recoveryPasses = 0

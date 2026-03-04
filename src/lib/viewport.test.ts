@@ -133,6 +133,29 @@ describe('advanceShellHeightState', () => {
     expect(second.shellHeight).toBe(820)
   })
 
+  it('exits blur transition on one strong recovery tick', () => {
+    const result = advanceShellHeightState(
+      {
+        visualHeight: 700,
+        visualOffsetTop: 120,
+        innerHeight: 700,
+        keyboardThreshold: 100,
+        recoveryEpsilon: 2,
+        requiredRecoveryPasses: 2,
+      },
+      {
+        stableHeight: 700,
+        isEditing: false,
+        isBlurTransitionActive: true,
+        recoveryPasses: 0,
+      },
+    )
+
+    expect(result.state.isBlurTransitionActive).toBe(false)
+    expect(result.state.recoveryPasses).toBe(0)
+    expect(result.shellHeight).toBe(820)
+  })
+
   it('updates stable height in normal non-blur mode', () => {
     const result = advanceShellHeightState(
       {
