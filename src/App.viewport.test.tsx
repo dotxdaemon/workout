@@ -14,6 +14,7 @@ interface MutableVisualViewport {
 
 describe('App visual viewport sync', () => {
   const originalViewportDescriptor = Object.getOwnPropertyDescriptor(window, 'visualViewport')
+  const originalInnerHeightDescriptor = Object.getOwnPropertyDescriptor(window, 'innerHeight')
   const originalDivScrollTo = HTMLDivElement.prototype.scrollTo
   let host: HTMLDivElement | null = null
   let root: Root | null = null
@@ -43,6 +44,10 @@ describe('App visual viewport sync', () => {
       delete (window as { visualViewport?: VisualViewport }).visualViewport
     }
 
+    if (originalInnerHeightDescriptor) {
+      Object.defineProperty(window, 'innerHeight', originalInnerHeightDescriptor)
+    }
+
     HTMLDivElement.prototype.scrollTo = originalDivScrollTo
   })
 
@@ -63,6 +68,10 @@ describe('App visual viewport sync', () => {
       configurable: true,
       value: viewport,
     })
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 700,
+    })
 
     host = document.createElement('div')
     document.body.append(host)
@@ -75,6 +84,10 @@ describe('App visual viewport sync', () => {
     expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('700px')
 
     viewport.height = 632
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 632,
+    })
     const resizeListener = listeners.get('resize')
     expect(resizeListener).toBeDefined()
 
@@ -85,7 +98,7 @@ describe('App visual viewport sync', () => {
     expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('632px')
   })
 
-  it('does not inflate shell height from visualViewport offsetTop', async () => {
+  it('applies visualViewport offsetTop when not editing text', async () => {
     const viewport: MutableVisualViewport = {
       height: 700,
       offsetTop: 120,
@@ -97,6 +110,10 @@ describe('App visual viewport sync', () => {
       configurable: true,
       value: viewport,
     })
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 700,
+    })
 
     host = document.createElement('div')
     document.body.append(host)
@@ -106,7 +123,7 @@ describe('App visual viewport sync', () => {
       root?.render(<App />)
     })
 
-    expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('700px')
+    expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('820px')
   })
 
   it('keeps shell height stable while editing a text field', async () => {
@@ -158,6 +175,66 @@ describe('App visual viewport sync', () => {
     })
 
     expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('700px')
+    input.remove()
+  })
+
+  it('restores shell height when editing ends and viewport normalizes', async () => {
+    const listeners = new Map<string, EventListener>()
+    const viewport: MutableVisualViewport = {
+      height: 700,
+      offsetTop: 0,
+      addEventListener: (type, listener) => {
+        listeners.set(type, listener)
+      },
+      removeEventListener: (type) => {
+        listeners.delete(type)
+      },
+    }
+
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: viewport,
+    })
+
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 700,
+    })
+
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const input = document.createElement('input')
+    document.body.append(input)
+
+    await act(async () => {
+      root?.render(<App />)
+    })
+
+    await act(async () => {
+      input.focus()
+    })
+
+    viewport.height = 500
+    const resizeListener = listeners.get('resize')
+    expect(resizeListener).toBeDefined()
+
+    await act(async () => {
+      resizeListener?.(new Event('resize'))
+    })
+
+    expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('700px')
+
+    viewport.height = 700
+    viewport.offsetTop = 120
+
+    await act(async () => {
+      input.blur()
+      input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+    })
+
+    expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('820px')
     input.remove()
   })
 })

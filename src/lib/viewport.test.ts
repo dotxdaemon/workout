@@ -2,7 +2,7 @@
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { describe, expect, it } from 'vitest'
-import { calculateViewportBottomOffset } from './viewport'
+import { calculateShellHeight, calculateViewportBottomOffset } from './viewport'
 
 describe('calculateViewportBottomOffset', () => {
   it('returns zero when visual viewport matches layout viewport', () => {
@@ -19,6 +19,50 @@ describe('calculateViewportBottomOffset', () => {
 
   it('clamps non-finite offsets to zero', () => {
     expect(calculateViewportBottomOffset(Number.NaN, 900, 0)).toBe(0)
+  })
+})
+
+describe('calculateShellHeight', () => {
+  it('includes visual viewport offset when not editing text', () => {
+    const result = calculateShellHeight({
+      visualHeight: 700,
+      visualOffsetTop: 120,
+      innerHeight: 700,
+      previousStableHeight: 700,
+      isTextEditing: false,
+      keyboardThreshold: 100,
+    })
+
+    expect(result.shellHeight).toBe(820)
+    expect(result.stableHeight).toBe(820)
+  })
+
+  it('freezes shell height while editing and keyboard shrink is detected', () => {
+    const result = calculateShellHeight({
+      visualHeight: 500,
+      visualOffsetTop: 0,
+      innerHeight: 700,
+      previousStableHeight: 820,
+      isTextEditing: true,
+      keyboardThreshold: 100,
+    })
+
+    expect(result.shellHeight).toBe(820)
+    expect(result.stableHeight).toBe(820)
+  })
+
+  it('returns normalized shell height after editing ends', () => {
+    const result = calculateShellHeight({
+      visualHeight: 700,
+      visualOffsetTop: 120,
+      innerHeight: 700,
+      previousStableHeight: 820,
+      isTextEditing: false,
+      keyboardThreshold: 100,
+    })
+
+    expect(result.shellHeight).toBe(820)
+    expect(result.stableHeight).toBe(820)
   })
 })
 

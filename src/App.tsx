@@ -2,6 +2,7 @@
 // ABOUTME: Defines bottom navigation for routines and settings screens.
 import { useEffect } from 'react'
 import { HashRouter, NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { calculateShellHeight } from './lib/viewport'
 import { RoutinesScreen } from './screens/RoutinesScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 
@@ -10,6 +11,7 @@ function App() {
     const root = document.documentElement
     const viewport = window.visualViewport
     const keyboardThreshold = 100
+    let previousStableHeight = 0
 
     const isTextEditingElement = (element: Element | null): boolean => {
       if (!element) {
@@ -33,13 +35,16 @@ function App() {
         return
       }
 
-      const activeElement = document.activeElement
-      const keyboardVisible = window.innerHeight - viewport.height > keyboardThreshold
-      if (isTextEditingElement(activeElement) && keyboardVisible) {
-        return
-      }
+      const { shellHeight, stableHeight } = calculateShellHeight({
+        visualHeight: viewport.height,
+        visualOffsetTop: viewport.offsetTop,
+        innerHeight: window.innerHeight,
+        previousStableHeight,
+        isTextEditing: isTextEditingElement(document.activeElement),
+        keyboardThreshold,
+      })
 
-      const shellHeight = Math.max(0, Math.round(viewport.height))
+      previousStableHeight = stableHeight
       root.style.setProperty('--app-shell-height', `${shellHeight}px`)
     }
 
@@ -51,11 +56,16 @@ function App() {
 
     viewport.addEventListener('resize', applyViewportHeight)
     viewport.addEventListener('scroll', applyViewportHeight)
+    document.addEventListener('focusin', applyViewportHeight)
+    document.addEventListener('focusout', applyViewportHeight)
 
     return () => {
       viewport.removeEventListener('resize', applyViewportHeight)
       viewport.removeEventListener('scroll', applyViewportHeight)
+      document.removeEventListener('focusin', applyViewportHeight)
+      document.removeEventListener('focusout', applyViewportHeight)
       root.style.removeProperty('--app-shell-height')
+      previousStableHeight = 0
     }
   }, [])
 
