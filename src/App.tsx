@@ -9,10 +9,33 @@ function App() {
   useEffect(() => {
     const root = document.documentElement
     const viewport = window.visualViewport
+    const keyboardThreshold = 100
+
+    const isTextEditingElement = (element: Element | null): boolean => {
+      if (!element) {
+        return false
+      }
+
+      if (
+        element instanceof HTMLInputElement ||
+        element instanceof HTMLTextAreaElement ||
+        element instanceof HTMLSelectElement
+      ) {
+        return true
+      }
+
+      return element instanceof HTMLElement && element.isContentEditable
+    }
 
     const applyViewportHeight = () => {
       if (!viewport) {
         root.style.removeProperty('--app-shell-height')
+        return
+      }
+
+      const activeElement = document.activeElement
+      const keyboardVisible = window.innerHeight - viewport.height > keyboardThreshold
+      if (isTextEditingElement(activeElement) && keyboardVisible) {
         return
       }
 

@@ -108,4 +108,56 @@ describe('App visual viewport sync', () => {
 
     expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('700px')
   })
+
+  it('keeps shell height stable while editing a text field', async () => {
+    const listeners = new Map<string, EventListener>()
+    const viewport: MutableVisualViewport = {
+      height: 700,
+      offsetTop: 0,
+      addEventListener: (type, listener) => {
+        listeners.set(type, listener)
+      },
+      removeEventListener: (type) => {
+        listeners.delete(type)
+      },
+    }
+
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: viewport,
+    })
+
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 700,
+    })
+
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const input = document.createElement('input')
+    document.body.append(input)
+
+    await act(async () => {
+      root?.render(<App />)
+    })
+
+    expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('700px')
+
+    await act(async () => {
+      input.focus()
+    })
+
+    viewport.height = 500
+    const resizeListener = listeners.get('resize')
+    expect(resizeListener).toBeDefined()
+
+    await act(async () => {
+      resizeListener?.(new Event('resize'))
+    })
+
+    expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('700px')
+    input.remove()
+  })
 })
