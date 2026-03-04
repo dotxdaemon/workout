@@ -630,10 +630,6 @@ export function RoutinesScreen() {
 
     const screenArea = document.querySelector<HTMLElement>('.screen-area')
     const scrollTopBeforeSave = screenArea?.scrollTop ?? 0
-    const activeInput = document.activeElement
-    if (activeInput instanceof HTMLInputElement || activeInput instanceof HTMLTextAreaElement) {
-      activeInput.blur()
-    }
 
     const quickDraft = ensureSetDraftLength(draftsByExercise[exerciseId] ?? [], 1)[0]
     const weight = parseWeight(quickDraft.weight)

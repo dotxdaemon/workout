@@ -2,7 +2,11 @@
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { describe, expect, it } from 'vitest'
-import { calculateShellHeight, calculateViewportBottomOffset } from './viewport'
+import {
+  advanceShellHeightState,
+  calculateShellHeight,
+  calculateViewportBottomOffset,
+} from './viewport'
 
 describe('calculateViewportBottomOffset', () => {
   it('returns zero when visual viewport matches layout viewport', () => {
@@ -66,6 +70,93 @@ describe('calculateShellHeight', () => {
   })
 })
 
+describe('advanceShellHeightState', () => {
+  it('keeps stable shell height while blur transition is active and viewport stays shrunken', () => {
+    const first = advanceShellHeightState(
+      {
+        visualHeight: 500,
+        visualOffsetTop: 0,
+        innerHeight: 500,
+        keyboardThreshold: 100,
+        recoveryEpsilon: 2,
+        requiredRecoveryPasses: 2,
+      },
+      {
+        stableHeight: 700,
+        isEditing: false,
+        isBlurTransitionActive: true,
+        recoveryPasses: 0,
+      },
+    )
+
+    expect(first.shellHeight).toBe(700)
+    expect(first.state.isBlurTransitionActive).toBe(true)
+    expect(first.state.recoveryPasses).toBe(0)
+  })
+
+  it('exits blur transition only after two recovered ticks', () => {
+    const first = advanceShellHeightState(
+      {
+        visualHeight: 699,
+        visualOffsetTop: 1,
+        innerHeight: 700,
+        keyboardThreshold: 100,
+        recoveryEpsilon: 2,
+        requiredRecoveryPasses: 2,
+      },
+      {
+        stableHeight: 700,
+        isEditing: false,
+        isBlurTransitionActive: true,
+        recoveryPasses: 0,
+      },
+    )
+
+    expect(first.state.isBlurTransitionActive).toBe(true)
+    expect(first.state.recoveryPasses).toBe(1)
+    expect(first.shellHeight).toBe(700)
+
+    const second = advanceShellHeightState(
+      {
+        visualHeight: 700,
+        visualOffsetTop: 120,
+        innerHeight: 700,
+        keyboardThreshold: 100,
+        recoveryEpsilon: 2,
+        requiredRecoveryPasses: 2,
+      },
+      first.state,
+    )
+
+    expect(second.state.isBlurTransitionActive).toBe(false)
+    expect(second.state.recoveryPasses).toBe(0)
+    expect(second.shellHeight).toBe(820)
+  })
+
+  it('updates stable height in normal non-blur mode', () => {
+    const result = advanceShellHeightState(
+      {
+        visualHeight: 700,
+        visualOffsetTop: 120,
+        innerHeight: 700,
+        keyboardThreshold: 100,
+        recoveryEpsilon: 2,
+        requiredRecoveryPasses: 2,
+      },
+      {
+        stableHeight: 700,
+        isEditing: false,
+        isBlurTransitionActive: false,
+        recoveryPasses: 0,
+      },
+    )
+
+    expect(result.shellHeight).toBe(820)
+    expect(result.state.stableHeight).toBe(820)
+    expect(result.state.isBlurTransitionActive).toBe(false)
+  })
+})
+
 describe('app layout css', () => {
   const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
 
@@ -106,7 +197,7 @@ describe('service worker cache strategy', () => {
   const workerSource = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8')
 
   it('bumps shell cache revision and handles skip-waiting message for fast updates', () => {
-    expect(workerSource).toContain("const CACHE_NAME = 'workout-shell-v3'")
+    expect(workerSource).toContain("const CACHE_NAME = 'workout-shell-v4'")
     expect(workerSource).toContain("event.data?.type === 'SKIP_WAITING'")
     expect(workerSource).toContain('self.skipWaiting()')
   })

@@ -2,7 +2,7 @@
 // ABOUTME: Defines bottom navigation for routines and settings screens.
 import { useEffect } from 'react'
 import { HashRouter, NavLink, Navigate, Route, Routes } from 'react-router-dom'
-import { calculateShellHeight } from './lib/viewport'
+import { advanceShellHeightState, type ShellHeightState } from './lib/viewport'
 import { RoutinesScreen } from './screens/RoutinesScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 
@@ -11,9 +11,14 @@ function App() {
     const root = document.documentElement
     const viewport = window.visualViewport
     const keyboardThreshold = 100
-    const blurTransitionLockMs = 300
-    let previousStableHeight = 0
-    let blurLockUntil = 0
+    const recoveryEpsilon = 2
+    const requiredRecoveryPasses = 2
+    let shellHeightState: ShellHeightState = {
+      stableHeight: 0,
+      isEditing: false,
+      isBlurTransitionActive: false,
+      recoveryPasses: 0,
+    }
 
     const isTextEditingElement = (element: Element | null): boolean => {
       if (!element) {
@@ -37,33 +42,60 @@ function App() {
         return
       }
 
-      const preserveDuringBlurTransition = Date.now() < blurLockUntil
-      const isTextEditing =
-        isTextEditingElement(document.activeElement) || preserveDuringBlurTransition
-
-      const { shellHeight, stableHeight } = calculateShellHeight({
-        visualHeight: viewport.height,
-        visualOffsetTop: viewport.offsetTop,
-        innerHeight: window.innerHeight,
-        previousStableHeight,
-        isTextEditing,
-        keyboardThreshold,
-      })
-
-      previousStableHeight = stableHeight
-      root.style.setProperty('--app-shell-height', `${shellHeight}px`)
+      const result = advanceShellHeightState(
+        {
+          visualHeight: viewport.height,
+          visualOffsetTop: viewport.offsetTop,
+          innerHeight: window.innerHeight,
+          keyboardThreshold,
+          recoveryEpsilon,
+          requiredRecoveryPasses,
+        },
+        shellHeightState,
+      )
+      shellHeightState = result.state
+      root.style.setProperty('--app-shell-height', `${result.shellHeight}px`)
     }
 
-    const handleFocusIn = () => {
-      blurLockUntil = 0
+    const handleFocusIn = (event: FocusEvent) => {
+      if (!isTextEditingElement(event.target as Element | null)) {
+        return
+      }
+
+      shellHeightState = {
+        ...shellHeightState,
+        isEditing: true,
+        isBlurTransitionActive: false,
+        recoveryPasses: 0,
+      }
       applyViewportHeight()
     }
 
     const handleFocusOut = (event: FocusEvent) => {
-      if (isTextEditingElement(event.target as Element | null)) {
-        blurLockUntil = Date.now() + blurTransitionLockMs
+      if (!isTextEditingElement(event.target as Element | null)) {
+        return
       }
-      applyViewportHeight()
+
+      shellHeightState = {
+        ...shellHeightState,
+        isEditing: false,
+        isBlurTransitionActive: true,
+        recoveryPasses: 0,
+      }
+
+      const result = advanceShellHeightState(
+        {
+          visualHeight: viewport?.height ?? 0,
+          visualOffsetTop: viewport?.offsetTop ?? 0,
+          innerHeight: window.innerHeight,
+          keyboardThreshold,
+          recoveryEpsilon,
+          requiredRecoveryPasses,
+        },
+        shellHeightState,
+      )
+      shellHeightState = result.state
+      root.style.setProperty('--app-shell-height', `${result.shellHeight}px`)
     }
 
     applyViewportHeight()
@@ -83,8 +115,12 @@ function App() {
       document.removeEventListener('focusin', handleFocusIn)
       document.removeEventListener('focusout', handleFocusOut)
       root.style.removeProperty('--app-shell-height')
-      previousStableHeight = 0
-      blurLockUntil = 0
+      shellHeightState = {
+        stableHeight: 0,
+        isEditing: false,
+        isBlurTransitionActive: false,
+        recoveryPasses: 0,
+      }
     }
   }, [])
 
