@@ -383,3 +383,21 @@ For any bugfix, do not implement or claim completion until every gate below is s
 Reject rule:
 If any gate is missing, respond exactly:
 `Rejected: missing gate <N>. Continue from that gate only.`
+
+## 15 Things Not To Do (Bottom-Nav Bug Prevention)
+
+1. Do not claim fixed without reproducing the exact flow: input -> checkmark save -> post-save interaction.
+2. Do not rely only on jsdom or Chromium checks for iOS viewport issues.
+3. Do not use timeout-based blur/keyboard locks as the primary fix.
+4. Do not mix multiple root-cause hypotheses in one patch.
+5. Do not leave any non-editing shell-height shrink path after recovery.
+6. Do not treat transient width jitter as orientation change.
+7. Do not rebase stable shell height on transient viewport ticks.
+8. Do not wire visualViewport math without stable-height guardrails.
+9. Do not trigger programmatic blur during save flows.
+10. Do not run no-op scroll restoration that adds extra layout churn.
+11. Do not patch tests by loose context when duplicate assertions exist.
+12. Do not add new state fields/params without complete wiring across call sites.
+13. Do not keep stale test expectations after intended behavior changes.
+14. Do not skip targeted regression tests in final verification.
+15. Do not report completion without before/after screenshots and runtime nav/shell metrics for the exact bug flow.
