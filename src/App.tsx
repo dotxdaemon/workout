@@ -13,11 +13,14 @@ function App() {
     const keyboardThreshold = 100
     const recoveryEpsilon = 2
     const requiredRecoveryPasses = 2
+    const orientationWidthDeltaThreshold = 80
     let shellHeightState: ShellHeightState = {
       stableHeight: 0,
       isEditing: false,
       isBlurTransitionActive: false,
       recoveryPasses: 0,
+      lastViewportWidth: 0,
+      lastViewportHeight: 0,
     }
 
     const isTextEditingElement = (element: Element | null): boolean => {
@@ -47,9 +50,11 @@ function App() {
           visualHeight: viewport.height,
           visualOffsetTop: viewport.offsetTop,
           innerHeight: window.innerHeight,
+          innerWidth: window.innerWidth,
           keyboardThreshold,
           recoveryEpsilon,
           requiredRecoveryPasses,
+          orientationWidthDeltaThreshold,
         },
         shellHeightState,
       )
@@ -88,9 +93,11 @@ function App() {
           visualHeight: viewport?.height ?? 0,
           visualOffsetTop: viewport?.offsetTop ?? 0,
           innerHeight: window.innerHeight,
+          innerWidth: window.innerWidth,
           keyboardThreshold,
           recoveryEpsilon,
           requiredRecoveryPasses,
+          orientationWidthDeltaThreshold,
         },
         shellHeightState,
       )
@@ -120,6 +127,8 @@ function App() {
         isEditing: false,
         isBlurTransitionActive: false,
         recoveryPasses: 0,
+        lastViewportWidth: 0,
+        lastViewportHeight: 0,
       }
     }
   }, [])

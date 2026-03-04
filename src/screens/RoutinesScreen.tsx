@@ -658,6 +658,10 @@ export function RoutinesScreen() {
       showSavedFeedback()
       if (screenArea) {
         window.requestAnimationFrame(() => {
+          if (Math.abs(screenArea.scrollTop - scrollTopBeforeSave) <= 1) {
+            return
+          }
+
           screenArea.scrollTo({ top: scrollTopBeforeSave, left: 0, behavior: 'auto' })
         })
       }

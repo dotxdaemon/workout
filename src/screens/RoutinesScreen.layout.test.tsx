@@ -123,7 +123,8 @@ describe('RoutinesScreen behavior', () => {
       'Saved set was not reflected in last-set stats.',
     )
 
-    expect(scrollSpy).toHaveBeenCalledWith({ top: scrollTopBeforeSave, left: 0, behavior: 'auto' })
+    expect(scrollSpy).not.toHaveBeenCalled()
+    expect(harness.host.scrollTop).toBe(scrollTopBeforeSave)
     await harness.cleanup()
   })
 

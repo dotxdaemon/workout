@@ -51,7 +51,7 @@ describe('App visual viewport sync', () => {
     HTMLDivElement.prototype.scrollTo = originalDivScrollTo
   })
 
-  it('updates app shell height variable from visual viewport changes', async () => {
+  it('keeps shell height pinned when non-editing viewport ticks are smaller', async () => {
     const listeners = new Map<string, EventListener>()
     const viewport: MutableVisualViewport = {
       height: 700,
@@ -95,7 +95,7 @@ describe('App visual viewport sync', () => {
       resizeListener?.(new Event('resize'))
     })
 
-    expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('632px')
+    expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('700px')
   })
 
   it('applies visualViewport offsetTop when not editing text', async () => {
@@ -523,6 +523,92 @@ describe('App visual viewport sync', () => {
     Object.defineProperty(window, 'innerHeight', {
       configurable: true,
       value: 700,
+    })
+
+    await act(async () => {
+      resizeListener?.(new Event('resize'))
+      resizeListener?.(new Event('resize'))
+    })
+
+    expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('820px')
+    input.remove()
+  })
+
+  it('keeps shell pinned after blur recovery if a later non-editing tick shrinks viewport', async () => {
+    const listeners = new Map<string, EventListener>()
+    const viewport: MutableVisualViewport = {
+      height: 700,
+      offsetTop: 0,
+      addEventListener: (type, listener) => {
+        listeners.set(type, listener)
+      },
+      removeEventListener: (type) => {
+        listeners.delete(type)
+      },
+    }
+
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: viewport,
+    })
+
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 700,
+    })
+
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const input = document.createElement('input')
+    document.body.append(input)
+
+    await act(async () => {
+      root?.render(<App />)
+    })
+
+    const resizeListener = listeners.get('resize')
+    expect(resizeListener).toBeDefined()
+    expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('700px')
+
+    await act(async () => {
+      input.focus()
+    })
+
+    viewport.height = 500
+    viewport.offsetTop = 0
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 500,
+    })
+
+    await act(async () => {
+      resizeListener?.(new Event('resize'))
+      input.blur()
+      input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+    })
+
+    expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('700px')
+
+    viewport.height = 700
+    viewport.offsetTop = 120
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 700,
+    })
+
+    await act(async () => {
+      resizeListener?.(new Event('resize'))
+    })
+
+    expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('820px')
+
+    viewport.height = 640
+    viewport.offsetTop = 0
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 640,
     })
 
     await act(async () => {
