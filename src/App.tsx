@@ -16,7 +16,7 @@ function App() {
         return
       }
 
-      const shellHeight = Math.max(0, Math.round(viewport.height + viewport.offsetTop))
+      const shellHeight = Math.max(0, Math.round(viewport.height))
       root.style.setProperty('--app-shell-height', `${shellHeight}px`)
     }
 

@@ -84,4 +84,28 @@ describe('App visual viewport sync', () => {
 
     expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('632px')
   })
+
+  it('does not inflate shell height from visualViewport offsetTop', async () => {
+    const viewport: MutableVisualViewport = {
+      height: 700,
+      offsetTop: 120,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }
+
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: viewport,
+    })
+
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(<App />)
+    })
+
+    expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('700px')
+  })
 })
