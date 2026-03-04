@@ -242,6 +242,31 @@ describe('advanceShellHeightState', () => {
     expect(result.state.stableHeight).toBe(820)
   })
 
+  it('does not rebase while editing when keyboard shrink makes height smaller than width', () => {
+    const result = advanceShellHeightState(
+      {
+        visualHeight: 320,
+        visualOffsetTop: 0,
+        innerHeight: 320,
+        innerWidth: 390,
+        keyboardThreshold: 100,
+        recoveryEpsilon: 2,
+        requiredRecoveryPasses: 2,
+      },
+      {
+        stableHeight: 820,
+        isEditing: true,
+        isBlurTransitionActive: false,
+        recoveryPasses: 0,
+        lastViewportWidth: 390,
+        lastViewportHeight: 844,
+      },
+    )
+
+    expect(result.shellHeight).toBe(820)
+    expect(result.state.stableHeight).toBe(820)
+  })
+
   it('rebases stable height when orientation flips', () => {
     const result = advanceShellHeightState(
       {

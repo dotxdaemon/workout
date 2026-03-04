@@ -137,7 +137,8 @@ export function advanceShellHeightState(
     hasPreviousViewport &&
     (nextState.lastViewportWidth > nextState.lastViewportHeight) !==
       (safeInnerWidth > safeInnerHeight)
-  const shouldRebaseStableHeight = aspectFlipped
+  const shouldRebaseStableHeight =
+    aspectFlipped && !nextState.isEditing && !nextState.isBlurTransitionActive
 
   const finalize = (shellHeight: number): AdvanceShellHeightStateResult => {
     nextState.lastViewportWidth = Math.round(safeInnerWidth)

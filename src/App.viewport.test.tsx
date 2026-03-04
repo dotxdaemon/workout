@@ -186,6 +186,69 @@ describe('App visual viewport sync', () => {
     input.remove()
   })
 
+  it('keeps shell pinned while editing if keyboard shrink makes innerHeight less than innerWidth', async () => {
+    const listeners = new Map<string, EventListener>()
+    const viewport: MutableVisualViewport = {
+      height: 700,
+      offsetTop: 0,
+      addEventListener: (type, listener) => {
+        listeners.set(type, listener)
+      },
+      removeEventListener: (type) => {
+        listeners.delete(type)
+      },
+    }
+
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: viewport,
+    })
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 700,
+    })
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 390,
+    })
+
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    const input = document.createElement('input')
+    document.body.append(input)
+
+    await act(async () => {
+      root?.render(<App />)
+    })
+
+    await act(async () => {
+      input.focus()
+    })
+
+    viewport.height = 320
+    viewport.offsetTop = 0
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 320,
+    })
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 390,
+    })
+
+    const resizeListener = listeners.get('resize')
+    expect(resizeListener).toBeDefined()
+
+    await act(async () => {
+      resizeListener?.(new Event('resize'))
+    })
+
+    expect(document.documentElement.style.getPropertyValue('--app-shell-height')).toBe('700px')
+    input.remove()
+  })
+
   it('restores shell height when editing ends and viewport normalizes', async () => {
     const listeners = new Map<string, EventListener>()
     const viewport: MutableVisualViewport = {
