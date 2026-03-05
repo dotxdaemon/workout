@@ -267,7 +267,7 @@ describe('advanceShellHeightState', () => {
     expect(result.state.stableHeight).toBe(820)
   })
 
-  it('rebases stable height when orientation flips', () => {
+  it('does not rebase stable height from aspect flips without explicit orientation reset', () => {
     const result = advanceShellHeightState(
       {
         visualHeight: 390,
@@ -288,8 +288,8 @@ describe('advanceShellHeightState', () => {
       },
     )
 
-    expect(result.shellHeight).toBe(390)
-    expect(result.state.stableHeight).toBe(390)
+    expect(result.shellHeight).toBe(820)
+    expect(result.state.stableHeight).toBe(820)
   })
 })
 

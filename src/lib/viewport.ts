@@ -132,13 +132,6 @@ export function advanceShellHeightState(
   const candidate = Math.max(0, Math.round(safeVisualHeight + safeVisualOffsetTop))
   const stableCandidate = Math.max(candidate, Math.round(safeInnerHeight))
   const keyboardShrankViewport = candidate < nextState.stableHeight - safeKeyboardThreshold
-  const hasPreviousViewport = nextState.lastViewportWidth > 0 && nextState.lastViewportHeight > 0
-  const aspectFlipped =
-    hasPreviousViewport &&
-    (nextState.lastViewportWidth > nextState.lastViewportHeight) !==
-      (safeInnerWidth > safeInnerHeight)
-  const shouldRebaseStableHeight =
-    aspectFlipped && !nextState.isEditing && !nextState.isBlurTransitionActive
 
   const finalize = (shellHeight: number): AdvanceShellHeightStateResult => {
     nextState.lastViewportWidth = Math.round(safeInnerWidth)
@@ -147,13 +140,6 @@ export function advanceShellHeightState(
       shellHeight,
       state: nextState,
     }
-  }
-
-  if (shouldRebaseStableHeight) {
-    nextState.stableHeight = stableCandidate
-    nextState.isBlurTransitionActive = false
-    nextState.recoveryPasses = 0
-    return finalize(nextState.stableHeight)
   }
 
   if (nextState.isEditing && keyboardShrankViewport) {
