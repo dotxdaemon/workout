@@ -307,11 +307,17 @@ describe('app layout css', () => {
     expect(block).not.toContain('max-height')
   })
 
-  it('uses screen area as the only vertical scroll container', () => {
+  it('keeps screen area as a plain wrapper instead of the vertical scroll owner', () => {
     const block = getRuleBlock(css, '.screen-area')
 
-    expect(block).toContain('min-height: 0')
-    expect(block).toContain('overflow-y: auto')
+    expect(block).not.toContain('overflow-y')
+    expect(block).not.toContain('-webkit-overflow-scrolling')
+  })
+
+  it('leaves body vertical scrolling enabled for routines and settings', () => {
+    const block = getRuleBlock(css, 'body')
+
+    expect(block).not.toContain('overflow: hidden')
   })
 
   it('leaves screen-area touch action to native scrolling after input interactions', () => {
@@ -320,11 +326,10 @@ describe('app layout css', () => {
     expect(block).not.toContain('touch-action')
   })
 
-  it('keeps bottom navigation in layout flow instead of sticky overlay', () => {
+  it('keeps bottom navigation pinned independently from document scrolling', () => {
     const block = getRuleBlock(css, '.bottom-nav')
 
-    expect(block).toContain('position: relative')
-    expect(block).not.toContain('position: sticky')
+    expect(block).toContain('position: fixed')
   })
 
   it('caps safe-area insets so keyboard transitions cannot inflate nav height', () => {
@@ -334,7 +339,9 @@ describe('app layout css', () => {
 
     expect(rootBlock).toContain('--safe-area-bottom-capped:')
     expect(rootBlock).toContain('min(env(safe-area-inset-bottom), 36px)')
-    expect(screenAreaBlock).toContain('var(--safe-area-bottom-capped)')
+    expect(rootBlock).toContain('--bottom-nav-block-size:')
+    expect(rootBlock).toContain('var(--safe-area-bottom-capped)')
+    expect(screenAreaBlock).toContain('var(--bottom-nav-block-size)')
     expect(bottomNavBlock).toContain('var(--safe-area-bottom-capped)')
   })
 

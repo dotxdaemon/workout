@@ -13,6 +13,7 @@ interface ListenerViewport {
 describe('App shell layout model', () => {
   const originalViewportDescriptor = Object.getOwnPropertyDescriptor(window, 'visualViewport')
   const originalDivScrollTo = HTMLDivElement.prototype.scrollTo
+  const originalWindowScrollTo = window.scrollTo
   let host: HTMLDivElement | null = null
   let root: Root | null = null
 
@@ -21,6 +22,7 @@ describe('App shell layout model', () => {
     document.body.innerHTML = ''
     document.documentElement.style.removeProperty('--app-shell-height')
     HTMLDivElement.prototype.scrollTo = (() => undefined) as typeof HTMLDivElement.prototype.scrollTo
+    window.scrollTo = (() => undefined) as typeof window.scrollTo
   })
 
   afterEach(async () => {
@@ -35,6 +37,7 @@ describe('App shell layout model', () => {
     host = null
     document.documentElement.style.removeProperty('--app-shell-height')
     HTMLDivElement.prototype.scrollTo = originalDivScrollTo
+    window.scrollTo = originalWindowScrollTo
 
     if (originalViewportDescriptor) {
       Object.defineProperty(window, 'visualViewport', originalViewportDescriptor)

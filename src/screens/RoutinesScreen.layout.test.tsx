@@ -16,16 +16,20 @@ interface RenderHarness {
 }
 
 describe('RoutinesScreen behavior', () => {
+  const originalWindowScrollTo = window.scrollTo
+
   beforeEach(async () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     localStorage.clear()
     document.body.innerHTML = ''
+    window.scrollTo = (() => undefined) as typeof window.scrollTo
     await clearDatabase()
   })
 
   afterEach(async () => {
     document.body.innerHTML = ''
     localStorage.clear()
+    window.scrollTo = originalWindowScrollTo
     await clearDatabase()
   })
 
@@ -217,10 +221,10 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('resets screen-area scroll when switching modes', async () => {
-    const harness = await renderScreen()
+  it('resets document scroll when switching modes', async () => {
     const scrollSpy = vi.fn()
-    harness.host.scrollTo = scrollSpy as unknown as typeof harness.host.scrollTo
+    window.scrollTo = scrollSpy as unknown as typeof window.scrollTo
+    const harness = await renderScreen()
 
     await click(getButtonByText(harness.host, 'Edit'))
     await waitFor(() => scrollSpy.mock.calls.length > 0, 'Scroll reset was not triggered for edit mode.')
@@ -232,6 +236,7 @@ describe('RoutinesScreen behavior', () => {
     await waitFor(() => scrollSpy.mock.calls.length > 0, 'Scroll reset was not triggered for today mode.')
 
     expect(scrollSpy).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
+    window.scrollTo = originalWindowScrollTo
     await harness.cleanup()
   })
 

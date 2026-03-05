@@ -337,25 +337,19 @@ export function RoutinesScreen() {
       return
     }
 
-    const screenArea = document.querySelector<HTMLElement>('.screen-area')
     const bottomNav = document.querySelector<HTMLElement>('.bottom-nav')
-    return applyHistorySheetOverlayLock(screenArea, bottomNav)
+    return applyHistorySheetOverlayLock(bottomNav)
   }, [historySheet])
 
-  function resetScreenAreaScrollToTop(): void {
-    const screenArea = document.querySelector<HTMLElement>('.screen-area')
-    if (!screenArea) {
-      return
-    }
-
-    screenArea.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  function resetPageScrollToTop(): void {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }
 
   useEffect(() => {
-    resetScreenAreaScrollToTop()
+    resetPageScrollToTop()
 
     const frameId = window.requestAnimationFrame(() => {
-      resetScreenAreaScrollToTop()
+      resetPageScrollToTop()
     })
 
     return () => {
