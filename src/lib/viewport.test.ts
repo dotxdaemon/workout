@@ -296,11 +296,12 @@ describe('advanceShellHeightState', () => {
 describe('app layout css', () => {
   const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
 
-  it('uses a CSS-owned app shell height with dvh units', () => {
+  it('uses a static percent-based app shell height model', () => {
     const block = getRuleBlock(css, '.app-shell')
 
-    expect(block).toContain('min-height: 100dvh')
-    expect(block).toContain('height: 100dvh')
+    expect(block).toContain('min-height: 100%')
+    expect(block).toContain('height: 100%')
+    expect(block).not.toContain('100dvh')
     expect(block).not.toContain('--app-shell-height')
     expect(block).not.toContain('100svh')
     expect(block).not.toContain('max-height')
@@ -345,7 +346,7 @@ describe('service worker cache strategy', () => {
   const workerSource = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8')
 
   it('bumps shell cache revision and handles skip-waiting message for fast updates', () => {
-    expect(workerSource).toContain("const CACHE_NAME = 'workout-shell-v4'")
+    expect(workerSource).toContain("const CACHE_NAME = 'workout-shell-v5'")
     expect(workerSource).toContain("event.data?.type === 'SKIP_WAITING'")
     expect(workerSource).toContain('self.skipWaiting()')
   })
