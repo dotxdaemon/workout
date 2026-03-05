@@ -314,6 +314,12 @@ describe('app layout css', () => {
     expect(block).toContain('overflow-y: auto')
   })
 
+  it('leaves screen-area touch action to native scrolling after input interactions', () => {
+    const block = getRuleBlock(css, '.screen-area')
+
+    expect(block).not.toContain('touch-action')
+  })
+
   it('keeps bottom navigation in layout flow instead of sticky overlay', () => {
     const block = getRuleBlock(css, '.bottom-nav')
 

@@ -76,7 +76,6 @@ a {
   overscroll-behavior-x: none;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
   background: var(--bg);
 }
 
