@@ -628,9 +628,6 @@ export function RoutinesScreen() {
       return false
     }
 
-    const screenArea = document.querySelector<HTMLElement>('.screen-area')
-    const scrollTopBeforeSave = screenArea?.scrollTop ?? 0
-
     const quickDraft = ensureSetDraftLength(draftsByExercise[exerciseId] ?? [], 1)[0]
     const weight = parseWeight(quickDraft.weight)
     const reps = parseReps(quickDraft.reps)
@@ -656,15 +653,6 @@ export function RoutinesScreen() {
       setMessage('')
       setError('')
       showSavedFeedback()
-      if (screenArea) {
-        window.requestAnimationFrame(() => {
-          if (Math.abs(screenArea.scrollTop - scrollTopBeforeSave) <= 1) {
-            return
-          }
-
-          screenArea.scrollTo({ top: scrollTopBeforeSave, left: 0, behavior: 'auto' })
-        })
-      }
       return true
     } catch {
       setError('Could not save set.')

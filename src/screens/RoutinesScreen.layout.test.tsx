@@ -128,6 +128,53 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
+  it('does not programmatically scroll screen-area during save even if scroll drifts mid-frame', async () => {
+    const harness = await renderScreen()
+    const firstCard = harness.host.querySelector('.today-card') as HTMLElement | null
+
+    expect(firstCard).not.toBeNull()
+
+    const weightInput = firstCard?.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement | null
+    const repsInput = firstCard?.querySelector(
+      'input[inputmode="numeric"]',
+    ) as HTMLInputElement | null
+    const saveButton = firstCard?.querySelector(
+      '.today-card__complete-button',
+    ) as HTMLButtonElement | null
+
+    expect(weightInput).not.toBeNull()
+    expect(repsInput).not.toBeNull()
+    expect(saveButton).not.toBeNull()
+
+    const scrollTopBeforeSave = 212
+    harness.host.scrollTop = scrollTopBeforeSave
+    const scrollSpy = vi.fn()
+    harness.host.scrollTo = scrollSpy as unknown as typeof harness.host.scrollTo
+
+    const originalRequestAnimationFrame = window.requestAnimationFrame
+    window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+      harness.host.scrollTop = scrollTopBeforeSave + 18
+      callback(0)
+      return 1
+    }) as typeof window.requestAnimationFrame
+
+    await setInputValue(weightInput!, '115')
+    await setInputValue(repsInput!, '6')
+    await click(saveButton!)
+
+    await waitFor(
+      () => (harness.host.querySelector('.today-card__stats-value')?.textContent ?? '').includes('115 x 6'),
+      'Saved set was not reflected in last-set stats.',
+    )
+
+    expect(scrollSpy).not.toHaveBeenCalled()
+
+    window.requestAnimationFrame = originalRequestAnimationFrame
+    await harness.cleanup()
+  })
+
   it('resets screen-area scroll when switching modes', async () => {
     const harness = await renderScreen()
     const scrollSpy = vi.fn()

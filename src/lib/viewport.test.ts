@@ -296,11 +296,12 @@ describe('advanceShellHeightState', () => {
 describe('app layout css', () => {
   const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
 
-  it('uses dynamic viewport height for the app shell without static svh lock', () => {
+  it('uses a CSS-owned app shell height with dvh units', () => {
     const block = getRuleBlock(css, '.app-shell')
 
-    expect(block).toContain('min-height: var(--app-shell-height, 100dvh)')
-    expect(block).toContain('height: var(--app-shell-height, 100dvh)')
+    expect(block).toContain('min-height: 100dvh')
+    expect(block).toContain('height: 100dvh')
+    expect(block).not.toContain('--app-shell-height')
     expect(block).not.toContain('100svh')
     expect(block).not.toContain('max-height')
   })
