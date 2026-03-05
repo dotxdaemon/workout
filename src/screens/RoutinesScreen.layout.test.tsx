@@ -313,6 +313,14 @@ describe('RoutinesScreen behavior', () => {
     expect(block).not.toContain('position: sticky')
     expect(block).not.toContain('top: 0')
   })
+
+  it('keeps routines header sticky so Today/Edit controls stay reachable', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
+    const block = getRuleBlock(css, '.routines-header')
+
+    expect(block).toContain('position: sticky')
+    expect(block).toContain('top: 0')
+  })
 })
 
 async function renderScreen(options?: { withBottomNav?: boolean }): Promise<RenderHarness> {
