@@ -175,6 +175,48 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
+  it('blurs the active quick-entry input when saving a set', async () => {
+    const harness = await renderScreen()
+    const firstCard = harness.host.querySelector('.today-card') as HTMLElement | null
+
+    expect(firstCard).not.toBeNull()
+
+    const weightInput = firstCard?.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement | null
+    const repsInput = firstCard?.querySelector(
+      'input[inputmode="numeric"]',
+    ) as HTMLInputElement | null
+    const saveButton = firstCard?.querySelector(
+      '.today-card__complete-button',
+    ) as HTMLButtonElement | null
+
+    expect(weightInput).not.toBeNull()
+    expect(repsInput).not.toBeNull()
+    expect(saveButton).not.toBeNull()
+
+    const blurSpy = vi.spyOn(repsInput!, 'blur')
+
+    await act(async () => {
+      repsInput?.focus()
+    })
+
+    expect(document.activeElement).toBe(repsInput)
+
+    await setInputValue(weightInput!, '95')
+    await setInputValue(repsInput!, '8')
+    await click(saveButton!)
+
+    await waitFor(
+      () => (harness.host.querySelector('.today-card__stats-value')?.textContent ?? '').includes('95 x 8'),
+      'Saved set was not reflected in last-set stats.',
+    )
+
+    expect(blurSpy).toHaveBeenCalledTimes(1)
+    blurSpy.mockRestore()
+    await harness.cleanup()
+  })
+
   it('resets screen-area scroll when switching modes', async () => {
     const harness = await renderScreen()
     const scrollSpy = vi.fn()

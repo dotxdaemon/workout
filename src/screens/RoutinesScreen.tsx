@@ -637,6 +637,15 @@ export function RoutinesScreen() {
       return false
     }
 
+    const activeElement = document.activeElement
+    if (
+      activeElement instanceof HTMLInputElement ||
+      activeElement instanceof HTMLTextAreaElement ||
+      activeElement instanceof HTMLSelectElement
+    ) {
+      activeElement.blur()
+    }
+
     try {
       const entry = await addSetEntry(trackerSessionId, exerciseId, {
         weight,
