@@ -319,6 +319,17 @@ describe('app layout css', () => {
     expect(block).not.toContain('position: sticky')
   })
 
+  it('caps safe-area insets so keyboard transitions cannot inflate nav height', () => {
+    const rootBlock = getRuleBlock(css, ':root')
+    const screenAreaBlock = getRuleBlock(css, '.screen-area')
+    const bottomNavBlock = getRuleBlock(css, '.bottom-nav')
+
+    expect(rootBlock).toContain('--safe-area-bottom-capped:')
+    expect(rootBlock).toContain('min(env(safe-area-inset-bottom), 36px)')
+    expect(screenAreaBlock).toContain('var(--safe-area-bottom-capped)')
+    expect(bottomNavBlock).toContain('var(--safe-area-bottom-capped)')
+  })
+
   it('pins edit actions at the top while scrolling edit cards', () => {
     const block = getRuleBlock(css, '.edit-actions-sticky')
     const hasBottomAnchor = /(^|\n)\s*bottom:\s*0;/.test(block)

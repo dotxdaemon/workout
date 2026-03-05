@@ -15,6 +15,7 @@
   --text-muted: #5A5F6E;
   --accent: #C4B5FD;
   --accent-strong: #C4B5FD;
+  --safe-area-bottom-capped: min(env(safe-area-inset-bottom), 36px);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -67,7 +68,7 @@ a {
 }
 
 .screen-area {
-  padding: 1rem 0.9rem calc(1rem + env(safe-area-inset-bottom));
+  padding: 1rem 0.9rem calc(1rem + var(--safe-area-bottom-capped));
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
@@ -791,7 +792,7 @@ input[type='number']::-webkit-outer-spin-button {
   border-top: 1px solid var(--border);
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  padding: 0.5rem 0.45rem max(0.5rem, env(safe-area-inset-bottom));
+  padding: 0.5rem 0.45rem max(0.5rem, var(--safe-area-bottom-capped));
   gap: 0.4rem;
   backdrop-filter: none;
   z-index: 30;
