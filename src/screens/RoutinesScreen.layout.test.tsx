@@ -221,6 +221,53 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
+  it('uses a text-labeled save action and moves history out of the quick-entry row', async () => {
+    const harness = await renderScreen()
+    const firstCard = harness.host.querySelector('.today-card') as HTMLElement | null
+
+    expect(firstCard).not.toBeNull()
+
+    const saveButton = firstCard?.querySelector('.today-card__save-button') as HTMLButtonElement | null
+    const historyButton = firstCard?.querySelector('.today-card__history-button') as HTMLButtonElement | null
+    const quickInputRow = firstCard?.querySelector('.today-input-row') as HTMLElement | null
+
+    expect(saveButton?.textContent?.trim()).toBe('Save')
+    expect(historyButton?.textContent?.trim()).toBe('History')
+    expect(quickInputRow?.querySelector('.today-card__history-button')).toBeNull()
+
+    await harness.cleanup()
+  })
+
+  it('shows inline saved feedback on the save action after logging a set', async () => {
+    const harness = await renderScreen()
+    const firstCard = harness.host.querySelector('.today-card') as HTMLElement | null
+
+    expect(firstCard).not.toBeNull()
+
+    const weightInput = firstCard?.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement | null
+    const repsInput = firstCard?.querySelector(
+      'input[inputmode="numeric"]',
+    ) as HTMLInputElement | null
+    const saveButton = firstCard?.querySelector('.today-card__save-button') as HTMLButtonElement | null
+
+    expect(weightInput).not.toBeNull()
+    expect(repsInput).not.toBeNull()
+    expect(saveButton).not.toBeNull()
+
+    await setInputValue(weightInput!, '100')
+    await setInputValue(repsInput!, '8')
+    await click(saveButton!)
+
+    await waitFor(
+      () => saveButton?.textContent?.trim() === 'Saved',
+      'Save action did not surface saved feedback.',
+    )
+
+    await harness.cleanup()
+  })
+
   it('resets document scroll when switching modes', async () => {
     const scrollSpy = vi.fn()
     window.scrollTo = scrollSpy as unknown as typeof window.scrollTo
@@ -267,6 +314,22 @@ describe('RoutinesScreen behavior', () => {
 
     expect(nav?.style.visibility).toBe('')
     expect(nav?.style.pointerEvents).toBe('')
+    await harness.cleanup()
+  })
+
+  it('explains the empty history state with next-step copy', async () => {
+    const harness = await renderScreen({ withBottomNav: true })
+    const timerButton = getButtonByAriaLabelPrefix(harness.host, 'Open history for')
+    await click(timerButton)
+
+    await waitFor(
+      () => Boolean(document.body.querySelector('.history-modal')),
+      'History sheet did not open from the timer button.',
+    )
+
+    expect(document.body.textContent).toContain('No history yet.')
+    expect(document.body.textContent).toContain('Log a set and it will show up here.')
+
     await harness.cleanup()
   })
 

@@ -34,7 +34,7 @@ describe('Settings screen layout', () => {
     expect(settingsFileBlock).toContain('min-width: 0')
   })
 
-  it('settings screen renders import input with scoped class', async () => {
+  it('settings screen renders styled import controls and stacked export actions', async () => {
     const host = document.createElement('div')
     document.body.appendChild(host)
     const root = createRoot(host)
@@ -45,9 +45,15 @@ describe('Settings screen layout', () => {
 
     const page = host.querySelector('.settings-page')
     const importInput = host.querySelector('.settings-file-input')
+    const importButton = host.querySelector('.settings-file-button')
+    const importName = host.querySelector('.settings-file-name')
+    const exportActions = host.querySelector('.settings-export-actions')
 
     expect(page).not.toBeNull()
     expect(importInput).not.toBeNull()
+    expect(importButton?.textContent).toContain('Choose JSON file')
+    expect(importName?.textContent).toContain('No file selected')
+    expect(exportActions).not.toBeNull()
 
     await act(async () => {
       root.unmount()

@@ -353,6 +353,24 @@ describe('app layout css', () => {
     expect(block).toContain('top: 0')
     expect(hasBottomAnchor).toBe(false)
   })
+
+  it('keeps primary mobile controls at or above a 44px tap target', () => {
+    const pillToggleBlock = getRuleBlock(css, '.pill-toggle__button')
+    const saveButtonBlock = getRuleBlock(css, '.today-card__save-button')
+    const historyButtonBlock = getRuleBlock(css, '.today-card__history-button')
+    const compactFieldBlock = getRuleBlock(css, '.compact-field input')
+    const stepperButtonBlock = getRuleBlock(css, '.stepper-button')
+    const splitToggleBlock = getRuleBlock(css, '.split-toggle-small__button')
+    const navLinkBlock = getRuleBlock(css, '.nav-link')
+
+    expect(pillToggleBlock).toContain('min-height: 2.75rem')
+    expect(saveButtonBlock).toContain('min-height: 44px')
+    expect(historyButtonBlock).toContain('min-height: 44px')
+    expect(compactFieldBlock).toContain('min-height: 44px')
+    expect(stepperButtonBlock).toContain('min-height: 2.75rem')
+    expect(splitToggleBlock).toContain('min-height: 2.75rem')
+    expect(navLinkBlock).toContain('min-height: 2.75rem')
+  })
 })
 
 describe('service worker cache strategy', () => {
