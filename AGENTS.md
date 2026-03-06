@@ -401,3 +401,15 @@ If any gate is missing, respond exactly:
 13. Do not keep stale test expectations after intended behavior changes.
 14. Do not skip targeted regression tests in final verification.
 15. Do not report completion without before/after screenshots and runtime nav/shell metrics for the exact bug flow.
+
+## Anti-Fabrication Rules
+
+1. Treat `fixed` as a reserved word. Use it only after the exact reported flow is re-run and the exact reported symptom is gone.
+2. Add one symptom-level failing check before editing. The check must capture the user-reported failure directly, not a proxy behavior.
+3. Label evidence explicitly as `real device`, `simulator`, `Playwright/WebKit`, or `unit test`. Never present proxy evidence as device proof.
+4. Use explicit certainty labels in bugfix updates: `hypothesis`, `confirmed root cause`, or `unknown`.
+5. Keep one root-cause sentence, one failing check, and one fix path at a time. If the check fails after the fix, stop and replace the hypothesis instead of stacking more theories.
+6. If the original symptom still occurs and the root cause is not isolated, say `I do not understand why the original symptom still occurs.` before attempting another fix.
+7. Use a fail-closed status model only: `not reproduced`, `reproduced`, `fix in progress`, or `fixed and verified`.
+8. Do not report progress as completion. A bug remains open until the original symptom check passes and the required verification gates pass.
+9. In every bugfix update, restate the original user-visible symptom and map the current check directly back to it.
