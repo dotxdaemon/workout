@@ -69,6 +69,7 @@ type ScreenMode = 'today' | 'edit'
 
 export function RoutinesScreen() {
   const historyRequestRef = useRef(0)
+  const savedFeedbackTimeoutRef = useRef<number | null>(null)
   const historySheetListRef = useRef<HTMLDivElement | null>(null)
   const historySheetDragStartYRef = useRef<number | null>(null)
   const historySheetStartScrollTopRef = useRef(0)
@@ -99,6 +100,7 @@ export function RoutinesScreen() {
   const [addExerciseName, setAddExerciseName] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [savedExerciseId, setSavedExerciseId] = useState<string | null>(null)
 
   const exerciseMap = useMemo(
     () => Object.fromEntries(exercises.map((exercise) => [exercise.id, exercise])),
@@ -341,6 +343,14 @@ export function RoutinesScreen() {
     return applyHistorySheetOverlayLock(bottomNav)
   }, [historySheet])
 
+  useEffect(() => {
+    return () => {
+      if (savedFeedbackTimeoutRef.current != null) {
+        window.clearTimeout(savedFeedbackTimeoutRef.current)
+      }
+    }
+  }, [])
+
   function resetPageScrollToTop(): void {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }
@@ -357,7 +367,22 @@ export function RoutinesScreen() {
     }
   }, [mode])
 
-  function showSavedFeedback(): void {}
+  function showSavedFeedback(exerciseId?: string): void {
+    if (!exerciseId) {
+      return
+    }
+
+    setSavedExerciseId(exerciseId)
+
+    if (savedFeedbackTimeoutRef.current != null) {
+      window.clearTimeout(savedFeedbackTimeoutRef.current)
+    }
+
+    savedFeedbackTimeoutRef.current = window.setTimeout(() => {
+      setSavedExerciseId((current) => (current === exerciseId ? null : current))
+      savedFeedbackTimeoutRef.current = null
+    }, 1400)
+  }
 
   async function refreshHistoryForExercise(exerciseId: string): Promise<void> {
     const rows = await listExerciseHistory(exerciseId, 5)
@@ -655,7 +680,7 @@ export function RoutinesScreen() {
       await refreshHistoryForExercise(exerciseId)
       setMessage('')
       setError('')
-      showSavedFeedback()
+      showSavedFeedback(exerciseId)
       return true
     } catch {
       setError('Could not save set.')
@@ -963,17 +988,30 @@ export function RoutinesScreen() {
                         <p className="today-card__group">{routineFocusLabel}</p>
                         <h3>{exercise.name}</h3>
                       </div>
-                      <button
-                        type="button"
-                        className="today-card__complete-button"
-                        aria-label={`Save set for ${exercise.name}`}
-                        onClick={(event) => {
-                          stopCardToggle(event)
-                          void handleSaveQuickEntry(exercise.id)
-                        }}
-                      >
-                        ✓
-                      </button>
+                      <div className="today-card__actions">
+                        <button
+                          type="button"
+                          className="today-card__history-button"
+                          aria-label={`Open history for ${exercise.name}`}
+                          onClick={(event) => {
+                            stopCardToggle(event)
+                            void handleOpenHistorySheet(exercise, event.timeStamp)
+                          }}
+                        >
+                          History
+                        </button>
+                        <button
+                          type="button"
+                          className="today-card__save-button"
+                          aria-label={`Save set for ${exercise.name}`}
+                          onClick={(event) => {
+                            stopCardToggle(event)
+                            void handleSaveQuickEntry(exercise.id)
+                          }}
+                        >
+                          {savedExerciseId === exercise.id ? 'Saved' : 'Save'}
+                        </button>
+                      </div>
                     </div>
 
                     <div className="today-card__stats">
@@ -1000,17 +1038,6 @@ export function RoutinesScreen() {
                           handleSetDraftChange(exercise.id, 0, 'reps', value)
                         }
                       />
-                      <button
-                        type="button"
-                        className="today-input-row__timer"
-                        aria-label={`Open history for ${exercise.name}`}
-                        onClick={(event) => {
-                          stopCardToggle(event)
-                          void handleOpenHistorySheet(exercise, event.timeStamp)
-                        }}
-                      >
-                        ⏱
-                      </button>
                     </div>
 
                     {isExpanded ? (
@@ -1019,36 +1046,38 @@ export function RoutinesScreen() {
                           {Array.from({ length: targetSets }).map((_, index) => (
                             <div key={`${exercise.id}-${index}`} className="set-editor-row">
                               <span className="set-editor-row__label">Set {index + 1}</span>
-                              <StepperField
-                                label={`Set ${index + 1} weight`}
-                                inputMode="decimal"
-                                value={setDrafts[index].weight}
-                                step={exercise.progressionSettings.weightIncrement}
-                                onValueChange={(value) =>
-                                  handleSetDraftChange(exercise.id, index, 'weight', value)
-                                }
-                                onStepAdjust={(direction) =>
-                                  handleSetStepAdjust(
-                                    exercise.id,
-                                    index,
-                                    'weight',
-                                    exercise.progressionSettings.weightIncrement,
-                                    direction,
-                                  )
-                                }
-                              />
-                              <StepperField
-                                label={`Set ${index + 1} reps`}
-                                inputMode="numeric"
-                                value={setDrafts[index].reps}
-                                step={1}
-                                onValueChange={(value) =>
-                                  handleSetDraftChange(exercise.id, index, 'reps', value)
-                                }
-                                onStepAdjust={(direction) =>
-                                  handleSetStepAdjust(exercise.id, index, 'reps', 1, direction)
-                                }
-                              />
+                              <div className="set-editor-row__fields">
+                                <StepperField
+                                  label="Weight"
+                                  inputMode="decimal"
+                                  value={setDrafts[index].weight}
+                                  step={exercise.progressionSettings.weightIncrement}
+                                  onValueChange={(value) =>
+                                    handleSetDraftChange(exercise.id, index, 'weight', value)
+                                  }
+                                  onStepAdjust={(direction) =>
+                                    handleSetStepAdjust(
+                                      exercise.id,
+                                      index,
+                                      'weight',
+                                      exercise.progressionSettings.weightIncrement,
+                                      direction,
+                                    )
+                                  }
+                                />
+                                <StepperField
+                                  label="Reps"
+                                  inputMode="numeric"
+                                  value={setDrafts[index].reps}
+                                  step={1}
+                                  onValueChange={(value) =>
+                                    handleSetDraftChange(exercise.id, index, 'reps', value)
+                                  }
+                                  onStepAdjust={(direction) =>
+                                    handleSetStepAdjust(exercise.id, index, 'reps', 1, direction)
+                                  }
+                                />
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1307,7 +1336,12 @@ export function RoutinesScreen() {
                 historySheet.isLoading ? (
                   <p className="muted">Loading history...</p>
                 ) : (
-                  <p className="muted">No history yet.</p>
+                  <div className="history-empty-state">
+                    <p className="history-empty-state__title">No history yet.</p>
+                    <p className="history-empty-state__body">
+                      Log a set and it will show up here.
+                    </p>
+                  </div>
                 )
               ) : (
                 historySheet.rows.map((row) => (

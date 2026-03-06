@@ -73,7 +73,7 @@ describe('RoutinesScreen behavior', () => {
       'input[inputmode="numeric"]',
     ) as HTMLInputElement | null
     const saveButton = firstCard?.querySelector(
-      '.today-card__complete-button',
+      '.today-card__save-button',
     ) as HTMLButtonElement | null
 
     expect(weightInput).not.toBeNull()
@@ -106,7 +106,7 @@ describe('RoutinesScreen behavior', () => {
       'input[inputmode="numeric"]',
     ) as HTMLInputElement | null
     const saveButton = firstCard?.querySelector(
-      '.today-card__complete-button',
+      '.today-card__save-button',
     ) as HTMLButtonElement | null
 
     expect(weightInput).not.toBeNull()
@@ -145,7 +145,7 @@ describe('RoutinesScreen behavior', () => {
       'input[inputmode="numeric"]',
     ) as HTMLInputElement | null
     const saveButton = firstCard?.querySelector(
-      '.today-card__complete-button',
+      '.today-card__save-button',
     ) as HTMLButtonElement | null
 
     expect(weightInput).not.toBeNull()
@@ -192,7 +192,7 @@ describe('RoutinesScreen behavior', () => {
       'input[inputmode="numeric"]',
     ) as HTMLInputElement | null
     const saveButton = firstCard?.querySelector(
-      '.today-card__complete-button',
+      '.today-card__save-button',
     ) as HTMLButtonElement | null
 
     expect(weightInput).not.toBeNull()

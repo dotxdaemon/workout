@@ -11,6 +11,7 @@ export function SettingsScreen() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [isImporting, setIsImporting] = useState(false)
+  const [importFileName, setImportFileName] = useState('')
 
   useEffect(() => {
     setPreferences(readPreferences())
@@ -43,11 +44,15 @@ export function SettingsScreen() {
   async function handleImportJson(event: ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = event.target.files?.[0]
     if (!file) {
+      setImportFileName('')
       return
     }
 
+    setImportFileName(file.name)
+
     if (!window.confirm('Import will overwrite current data. Continue?')) {
       event.target.value = ''
+      setImportFileName('')
       return
     }
 
@@ -70,6 +75,7 @@ export function SettingsScreen() {
     } finally {
       setIsImporting(false)
       event.target.value = ''
+      setImportFileName('')
     }
   }
 
@@ -125,7 +131,7 @@ export function SettingsScreen() {
 
       <div className="panel">
         <h2>Export</h2>
-        <div className="button-row">
+        <div className="settings-export-actions">
           <button type="button" className="button" onClick={() => void handleExportJson()}>
             Export JSON (full database)
           </button>
@@ -139,13 +145,25 @@ export function SettingsScreen() {
         <h2>Import</h2>
         <label className="stack stack--tight">
           <span>Import JSON</span>
-          <input
-            className="settings-file-input"
-            type="file"
-            accept="application/json"
-            onChange={(event) => void handleImportJson(event)}
-            disabled={isImporting}
-          />
+          <div className="settings-file-picker">
+            <label
+              className={isImporting ? 'settings-file-button settings-file-button--disabled' : 'settings-file-button'}
+              htmlFor="settings-import-json"
+            >
+              Choose JSON file
+            </label>
+            <span className="settings-file-name">
+              {importFileName || 'No file selected'}
+            </span>
+            <input
+              id="settings-import-json"
+              className="settings-file-input"
+              type="file"
+              accept="application/json"
+              onChange={(event) => void handleImportJson(event)}
+              disabled={isImporting}
+            />
+          </div>
         </label>
       </div>
     </section>
