@@ -62,8 +62,8 @@ a {
 .app-shell {
   width: min(100%, 720px);
   margin: 0 auto;
-  height: 100dvh;
-  min-height: 100dvh;
+  height: 100lvh;
+  min-height: 100lvh;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   overflow: hidden;
