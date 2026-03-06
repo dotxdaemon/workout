@@ -296,15 +296,12 @@ describe('advanceShellHeightState', () => {
 describe('app layout css', () => {
   const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
 
-  it('uses a static percent-based app shell height model', () => {
+  it('uses dynamic viewport height for the app shell so the bottom nav reaches the standalone iOS screen edge', () => {
     const block = getRuleBlock(css, '.app-shell')
 
-    expect(block).toContain('min-height: 100%')
-    expect(block).toContain('height: 100%')
-    expect(block).not.toContain('100dvh')
+    expect(block).toContain('min-height: 100dvh')
+    expect(block).toContain('height: 100dvh')
     expect(block).not.toContain('--app-shell-height')
-    expect(block).not.toContain('100svh')
-    expect(block).not.toContain('max-height')
   })
 
   it('uses a dedicated two-row app shell for content and nav', () => {
