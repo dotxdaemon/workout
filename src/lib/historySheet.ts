@@ -4,6 +4,7 @@ const HISTORY_SHEET_CLOSE_THRESHOLD = 96
 const HISTORY_SHEET_BACKDROP_GUARD_MS = 180
 
 interface OverlayLockTargets {
+  screenArea: HTMLElement | null
   bottomNav: HTMLElement | null
 }
 
@@ -46,25 +47,29 @@ export function shouldIgnoreHistorySheetBackdropClose(
 }
 
 export function applyHistorySheetOverlayLock(
-  bottomNav: OverlayLockTargets['bottomNav'],
+  targets: OverlayLockTargets,
 ): () => void {
-  const previousBodyOverflow = document.body.style.overflow
-  const previousBottomNavVisibility = bottomNav?.style.visibility ?? ''
-  const previousBottomNavPointerEvents = bottomNav?.style.pointerEvents ?? ''
+  const previousScreenAreaOverflow = targets.screenArea?.style.overflow ?? ''
+  const previousBottomNavVisibility = targets.bottomNav?.style.visibility ?? ''
+  const previousBottomNavPointerEvents = targets.bottomNav?.style.pointerEvents ?? ''
 
-  document.body.style.overflow = 'hidden'
+  if (targets.screenArea) {
+    targets.screenArea.style.overflow = 'hidden'
+  }
 
-  if (bottomNav) {
-    bottomNav.style.visibility = 'hidden'
-    bottomNav.style.pointerEvents = 'none'
+  if (targets.bottomNav) {
+    targets.bottomNav.style.visibility = 'hidden'
+    targets.bottomNav.style.pointerEvents = 'none'
   }
 
   return () => {
-    document.body.style.overflow = previousBodyOverflow
+    if (targets.screenArea) {
+      targets.screenArea.style.overflow = previousScreenAreaOverflow
+    }
 
-    if (bottomNav) {
-      bottomNav.style.visibility = previousBottomNavVisibility
-      bottomNav.style.pointerEvents = previousBottomNavPointerEvents
+    if (targets.bottomNav) {
+      targets.bottomNav.style.visibility = previousBottomNavVisibility
+      targets.bottomNav.style.pointerEvents = previousBottomNavPointerEvents
     }
   }
 }

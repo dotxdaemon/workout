@@ -268,10 +268,10 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('resets document scroll when switching modes', async () => {
-    const scrollSpy = vi.fn()
-    window.scrollTo = scrollSpy as unknown as typeof window.scrollTo
+  it('resets the app scroll container when switching modes', async () => {
     const harness = await renderScreen()
+    const scrollSpy = vi.fn()
+    harness.host.scrollTo = scrollSpy as unknown as typeof harness.host.scrollTo
 
     await click(getButtonByText(harness.host, 'Edit'))
     await waitFor(() => scrollSpy.mock.calls.length > 0, 'Scroll reset was not triggered for edit mode.')
@@ -283,7 +283,6 @@ describe('RoutinesScreen behavior', () => {
     await waitFor(() => scrollSpy.mock.calls.length > 0, 'Scroll reset was not triggered for today mode.')
 
     expect(scrollSpy).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
-    window.scrollTo = originalWindowScrollTo
     await harness.cleanup()
   })
 
@@ -299,6 +298,8 @@ describe('RoutinesScreen behavior', () => {
 
     const nav = harness.nav
     expect(nav).not.toBeNull()
+    expect(document.body.style.overflow).toBe('')
+    expect(harness.host.style.overflow).toBe('hidden')
     expect(nav?.style.visibility).toBe('hidden')
     expect(nav?.style.pointerEvents).toBe('none')
 
@@ -312,6 +313,8 @@ describe('RoutinesScreen behavior', () => {
       'History sheet did not close from backdrop tap.',
     )
 
+    expect(document.body.style.overflow).toBe('')
+    expect(harness.host.style.overflow).toBe('auto')
     expect(nav?.style.visibility).toBe('')
     expect(nav?.style.pointerEvents).toBe('')
     await harness.cleanup()
@@ -439,6 +442,7 @@ async function renderScreen(options?: { withBottomNav?: boolean }): Promise<Rend
 
   const host = document.createElement('div')
   host.className = 'screen-area'
+  host.style.overflow = 'auto'
   host.scrollTo = (() => undefined) as typeof host.scrollTo
   shell.append(host)
 

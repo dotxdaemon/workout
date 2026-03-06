@@ -307,41 +307,45 @@ describe('app layout css', () => {
     expect(block).not.toContain('max-height')
   })
 
-  it('keeps screen area as a plain wrapper instead of the vertical scroll owner', () => {
-    const block = getRuleBlock(css, '.screen-area')
+  it('uses a dedicated two-row app shell for content and nav', () => {
+    const block = getRuleBlock(css, '.app-shell')
 
-    expect(block).not.toContain('overflow-y')
-    expect(block).not.toContain('-webkit-overflow-scrolling')
+    expect(block).toContain('display: grid')
+    expect(block).toContain('grid-template-rows: minmax(0, 1fr) auto')
+    expect(block).toContain('overflow: hidden')
   })
 
-  it('leaves body vertical scrolling enabled for routines and settings', () => {
+  it('locks document scrolling so screen-area owns vertical movement', () => {
     const block = getRuleBlock(css, 'body')
 
-    expect(block).not.toContain('overflow: hidden')
+    expect(block).toContain('overflow: hidden')
   })
 
-  it('leaves screen-area touch action to native scrolling after input interactions', () => {
+  it('uses screen-area as the vertical scroll owner', () => {
     const block = getRuleBlock(css, '.screen-area')
 
-    expect(block).not.toContain('touch-action')
+    expect(block).toContain('overflow-y: auto')
+    expect(block).toContain('min-height: 0')
+    expect(block).toContain('-webkit-overflow-scrolling: touch')
   })
 
-  it('keeps bottom navigation pinned independently from document scrolling', () => {
+  it('keeps bottom navigation in shell flow instead of viewport-fixed positioning', () => {
     const block = getRuleBlock(css, '.bottom-nav')
 
-    expect(block).toContain('position: fixed')
+    expect(block).not.toContain('position: fixed')
+    expect(block).not.toContain('left: 50%')
+    expect(block).not.toContain('bottom: 0')
+    expect(block).not.toContain('transform: translateX(-50%)')
   })
 
   it('caps safe-area insets so keyboard transitions cannot inflate nav height', () => {
     const rootBlock = getRuleBlock(css, ':root')
-    const screenAreaBlock = getRuleBlock(css, '.screen-area')
     const bottomNavBlock = getRuleBlock(css, '.bottom-nav')
 
     expect(rootBlock).toContain('--safe-area-bottom-capped:')
     expect(rootBlock).toContain('min(env(safe-area-inset-bottom), 36px)')
     expect(rootBlock).toContain('--bottom-nav-block-size:')
     expect(rootBlock).toContain('var(--safe-area-bottom-capped)')
-    expect(screenAreaBlock).toContain('var(--bottom-nav-block-size)')
     expect(bottomNavBlock).toContain('var(--safe-area-bottom-capped)')
   })
 
