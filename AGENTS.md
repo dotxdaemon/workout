@@ -413,3 +413,20 @@ If any gate is missing, respond exactly:
 7. Use a fail-closed status model only: `not reproduced`, `reproduced`, `fix in progress`, or `fixed and verified`.
 8. Do not report progress as completion. A bug remains open until the original symptom check passes and the required verification gates pass.
 9. In every bugfix update, restate the original user-visible symptom and map the current check directly back to it.
+
+## Shell Layout Regression Prevention
+
+1. Do not keep changing the same global shell-height primitive to solve different bugs.
+- Freeze one shell-height contract and stop swapping viewport units reactively.
+- Move bug-specific fixes out of `.app-shell` height; bottom-edge fill, safe-area spacing, and save-time keyboard behavior must be controlled separately.
+- Treat any change to `.app-shell`, `.screen-area`, or `.bottom-nav` as high-risk and require full nav regression coverage before merge.
+
+2. Do not change global layout without validating the full iPhone state matrix.
+- Test every nav fix against Safari in-browser, standalone/PWA, idle, input focused, save/blur transition, and post-save scroll.
+- Require symptom-level validation for each affected mode, not only the mode that motivated the fix.
+- Do not accept WebKit emulation alone as proof for viewport-unit changes; treat it as partial evidence unless device behavior is also confirmed.
+
+3. Do not use one global variable to solve opposite layout constraints.
+- Separate bottom-edge fill and save-time stability into distinct concerns.
+- Add paired regressions so fixing one bug class cannot silently reintroduce the other.
+- For any shell-layout fix, require both a `before save / after save` nav-position check and a standalone bottom-edge fill check before calling it done.
