@@ -76,6 +76,7 @@ export function RoutinesScreen() {
   const historySheetDragOffsetRef = useRef(0)
   const historySheetDraggingRef = useRef(false)
   const historySheetOpenedAtRef = useRef(0)
+  const hydratedRoutineIdRef = useRef<string | null>(null)
 
   const [trackerSessionId, setTrackerSessionId] = useState('')
   const [routines, setRoutines] = useState<Routine[]>([])
@@ -321,8 +322,15 @@ export function RoutinesScreen() {
 
   useEffect(() => {
     if (mode !== 'edit' || !selectedRoutine) {
+      hydratedRoutineIdRef.current = null
       return
     }
+
+    if (hydratedRoutineIdRef.current === selectedRoutine.id) {
+      return
+    }
+
+    hydratedRoutineIdRef.current = selectedRoutine.id
 
     setRoutineNameDraft(selectedRoutine.name)
     setExerciseDrafts(
@@ -660,15 +668,6 @@ export function RoutinesScreen() {
     if (weight <= 0 || reps <= 0) {
       setError('Enter both weight and reps before saving.')
       return false
-    }
-
-    const activeElement = document.activeElement
-    if (
-      activeElement instanceof HTMLInputElement ||
-      activeElement instanceof HTMLTextAreaElement ||
-      activeElement instanceof HTMLSelectElement
-    ) {
-      activeElement.blur()
     }
 
     try {

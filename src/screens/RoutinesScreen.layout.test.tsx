@@ -179,7 +179,7 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('blurs the active quick-entry input when saving a set', async () => {
+  it('keeps the active quick-entry input focused when saving a set', async () => {
     const harness = await renderScreen()
     const firstCard = harness.host.querySelector('.today-card') as HTMLElement | null
 
@@ -199,8 +199,6 @@ describe('RoutinesScreen behavior', () => {
     expect(repsInput).not.toBeNull()
     expect(saveButton).not.toBeNull()
 
-    const blurSpy = vi.spyOn(repsInput!, 'blur')
-
     await act(async () => {
       repsInput?.focus()
     })
@@ -216,8 +214,34 @@ describe('RoutinesScreen behavior', () => {
       'Saved set was not reflected in last-set stats.',
     )
 
-    expect(blurSpy).toHaveBeenCalledTimes(1)
-    blurSpy.mockRestore()
+    expect(document.activeElement).toBe(repsInput)
+    await harness.cleanup()
+  })
+
+  it('shows a newly added exercise draft on the first add attempt', async () => {
+    const harness = await renderScreen()
+    await click(getButtonByText(harness.host, 'Edit'))
+
+    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+
+    const uniqueName = `Codex Exercise ${Date.now()}`
+    const addExerciseInput = harness.host.querySelector(
+      'input[placeholder="Add exercise"]',
+    ) as HTMLInputElement | null
+
+    expect(addExerciseInput).not.toBeNull()
+
+    await setInputValue(addExerciseInput!, uniqueName)
+    await click(getButtonByText(harness.host, 'Add'))
+
+    await waitFor(
+      () =>
+        Array.from(harness.host.querySelectorAll('.edit-exercise-row h3')).some(
+          (title) => title.textContent?.trim() === uniqueName,
+        ),
+      'Added exercise did not appear in the draft list after the first add.',
+    )
+
     await harness.cleanup()
   })
 

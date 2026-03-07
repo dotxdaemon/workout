@@ -312,10 +312,10 @@ describe('app layout css', () => {
     expect(block).toContain('overflow: hidden')
   })
 
-  it('locks document scrolling so screen-area owns vertical movement', () => {
+  it('keeps body overflow visible so iOS momentum scrolling is not locked behind the app shell', () => {
     const block = getRuleBlock(css, 'body')
 
-    expect(block).toContain('overflow: hidden')
+    expect(block).not.toContain('overflow: hidden')
   })
 
   it('uses screen-area as the vertical scroll owner', () => {
