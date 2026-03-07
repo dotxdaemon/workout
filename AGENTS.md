@@ -430,3 +430,81 @@ If any gate is missing, respond exactly:
 - Separate bottom-edge fill and save-time stability into distinct concerns.
 - Add paired regressions so fixing one bug class cannot silently reintroduce the other.
 - For any shell-layout fix, require both a `before save / after save` nav-position check and a standalone bottom-edge fill check before calling it done.
+
+# AGENTS.md — iOS PWA Workout Tracker
+
+## Stack
+- React + TypeScript + Vite
+- Dexie / IndexedDB for persistence
+- Service worker (offline-first)
+- Target: iOS Safari PWA (installed to home screen)
+- Theme: dark, lavender accent
+
+---
+
+## Non-negotiable workflow rules
+
+### Before writing any code
+1. State the root cause in plain language. Not "the component re-renders" — explain *why* and *what triggers it*.
+2. Identify every file you intend to touch. If a file is outside the stated scope, stop and ask.
+3. If the fix touches a service worker or Dexie schema, call that out explicitly before proceeding — these have outsized side effects.
+
+### Writing code
+- One bug, one cause, one fix per session. Do not bundle unrelated changes.
+- Do not refactor, rename, or reformat anything not directly related to the stated issue.
+- Do not add comments unless asked.
+- Do not change CSS that is not broken. iOS Safari compositing and scroll bugs are extremely sensitive to seemingly unrelated style changes.
+
+### After writing code
+- Run the relevant build or type-check command and paste the **exact terminal output** — no summaries, no paraphrasing.
+- If a command cannot be run, say so explicitly. Do not infer success.
+- If TypeScript errors exist, fix them before presenting the solution as complete.
+
+---
+
+## iOS Safari hard rules
+
+These are platform constraints, not suggestions. Violating them produces bugs that are difficult to diagnose.
+
+- **No `overflow: hidden` on `body` or `html`** unless you can prove it does not break Safari's momentum scroll on inner containers.
+- **`position: fixed` elements require `-webkit-overflow-scrolling: touch`** on their scroll ancestors or they will stutter or freeze on scroll.
+- **`will-change: transform` and `translateZ(0)`** create new compositing layers. Do not add or remove these without understanding the current layer tree. Do not add them as a catch-all "performance fix."
+- **`100vh` is wrong on iOS Safari.** Use `100dvh` or a JS-measured value. Never use `100vh` for full-height layout.
+- **Safe area insets** (`env(safe-area-inset-*)`) must be applied wherever content could be obscured by the notch or home indicator. Do not remove existing safe area padding.
+- **Service worker updates** do not take effect immediately in iOS Safari PWA mode. Do not tell me a SW change is live until the app has been closed and reopened. If testing SW behavior, say so explicitly.
+- **IndexedDB transactions in Safari** will abort if there is any await on a non-IDB async operation mid-transaction. Dexie handles this internally — do not interleave non-Dexie awaits inside a `db.transaction()` block.
+
+---
+
+## Verification protocol
+
+For any fix involving:
+- Scroll behavior → describe the exact scroll container hierarchy after the change
+- Compositing / animation → identify which layers exist and why
+- Service worker → confirm old SW is deregistered and new one is activated
+- Dexie schema change → confirm version bump and migration function are present
+- TypeScript → paste `tsc --noEmit` output
+
+Do not present a fix as complete until you have pasted actual output for the relevant check above.
+
+---
+
+## What "done" means
+
+A task is done when:
+1. The stated problem is fixed at its root cause
+2. No unrelated files were modified
+3. Terminal output has been pasted confirming no build/type errors
+4. You have identified any regression risk the change introduces
+
+If you cannot confirm all four, say what is missing.
+
+---
+
+## Prohibited behaviors
+
+- Do not summarize terminal output. Paste it verbatim.
+- Do not say a fix "should work" without running it.
+- Do not speculatively add error handling, loading states, or fallbacks that were not requested.
+- Do not change the color scheme, spacing, or component structure unless that is the explicit task.
+- Do not upgrade dependencies unless asked.
