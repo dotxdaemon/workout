@@ -245,6 +245,35 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
+  it('clears edit-input focus when pressing the page outside the field so scrolling can resume', async () => {
+    const harness = await renderScreen()
+    await click(getButtonByText(harness.host, 'Edit'))
+
+    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+
+    const routineNameInput = harness.host.querySelector(
+      '.panel.panel--compact label input',
+    ) as HTMLInputElement | null
+
+    expect(routineNameInput).not.toBeNull()
+
+    await act(async () => {
+      routineNameInput?.focus()
+    })
+
+    expect(document.activeElement).toBe(routineNameInput)
+
+    await act(async () => {
+      ;(harness.host.querySelector('.page') as HTMLElement).dispatchEvent(
+        new MouseEvent('mousedown', { bubbles: true, cancelable: true }),
+      )
+      await Promise.resolve()
+    })
+
+    expect(document.activeElement).not.toBe(routineNameInput)
+    await harness.cleanup()
+  })
+
   it('uses a text-labeled save action and moves history out of the quick-entry row', async () => {
     const harness = await renderScreen()
     const firstCard = harness.host.querySelector('.today-card') as HTMLElement | null
