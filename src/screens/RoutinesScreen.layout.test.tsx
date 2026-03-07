@@ -179,7 +179,7 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('keeps the active quick-entry input focused when saving a set', async () => {
+  it('releases quick-entry focus when saving a set so scrolling can resume', async () => {
     const harness = await renderScreen()
     const firstCard = harness.host.querySelector('.today-card') as HTMLElement | null
 
@@ -214,7 +214,7 @@ describe('RoutinesScreen behavior', () => {
       'Saved set was not reflected in last-set stats.',
     )
 
-    expect(document.activeElement).toBe(repsInput)
+    expect(document.activeElement).not.toBe(repsInput)
     await harness.cleanup()
   })
 
@@ -242,6 +242,31 @@ describe('RoutinesScreen behavior', () => {
       'Added exercise did not appear in the draft list after the first add.',
     )
 
+    await harness.cleanup()
+  })
+
+  it('releases edit-input focus when saving a routine so scrolling can resume', async () => {
+    const harness = await renderScreen()
+    await click(getButtonByText(harness.host, 'Edit'))
+
+    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+
+    const routineNameInput = harness.host.querySelector(
+      '.panel.panel--compact label input',
+    ) as HTMLInputElement | null
+
+    expect(routineNameInput).not.toBeNull()
+
+    await act(async () => {
+      routineNameInput?.focus()
+    })
+
+    expect(document.activeElement).toBe(routineNameInput)
+
+    await click(getButtonByText(harness.host, 'Save routine'))
+    await waitFor(() => Boolean(harness.host.querySelector('.today-mode')), 'Save did not return to today mode.')
+
+    expect(document.activeElement).not.toBe(routineNameInput)
     await harness.cleanup()
   })
 

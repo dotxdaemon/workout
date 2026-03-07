@@ -471,6 +471,17 @@ export function RoutinesScreen() {
     event.stopPropagation()
   }
 
+  function blurActiveField(): void {
+    const activeElement = document.activeElement
+    if (
+      activeElement instanceof HTMLInputElement ||
+      activeElement instanceof HTMLTextAreaElement ||
+      activeElement instanceof HTMLSelectElement
+    ) {
+      activeElement.blur()
+    }
+  }
+
   function blurActiveFieldIfBackgroundTarget(target: EventTarget | null): void {
     if (!(target instanceof Element)) {
       return
@@ -480,14 +491,7 @@ export function RoutinesScreen() {
       return
     }
 
-    const activeElement = document.activeElement
-    if (
-      activeElement instanceof HTMLInputElement ||
-      activeElement instanceof HTMLTextAreaElement ||
-      activeElement instanceof HTMLSelectElement
-    ) {
-      activeElement.blur()
-    }
+    blurActiveField()
   }
 
   function handlePageMouseDownCapture(event: MouseEvent<HTMLElement>): void {
@@ -697,6 +701,8 @@ export function RoutinesScreen() {
       return false
     }
 
+    blurActiveField()
+
     try {
       const entry = await addSetEntry(trackerSessionId, exerciseId, {
         weight,
@@ -818,6 +824,8 @@ export function RoutinesScreen() {
       setError('Routine name is required.')
       return
     }
+
+    blurActiveField()
 
     const sanitized = exerciseDrafts.map((draft) => {
       const repMin = Math.max(1, Math.round(Number(draft.repMin) || 1))
