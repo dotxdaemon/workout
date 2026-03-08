@@ -15,6 +15,7 @@
   --text-muted: #5A5F6E;
   --accent: #C4B5FD;
   --accent-strong: #C4B5FD;
+  --safe-area-top: env(safe-area-inset-top);
   --safe-area-bottom-capped: min(env(safe-area-inset-bottom), 36px);
   --bottom-nav-block-size: calc(3.6rem + max(0.5rem, var(--safe-area-bottom-capped)));
   font-synthesis: none;
@@ -65,6 +66,7 @@ a {
   margin: 0 auto;
   min-height: 100lvh;
   height: 100lvh;
+  padding-top: var(--safe-area-top);
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   overflow: hidden;

@@ -312,6 +312,15 @@ describe('app layout css', () => {
     expect(block).toContain('overflow: hidden')
   })
 
+  it('reserves the standalone top safe area inside the app shell so the nav stays visible on first load', () => {
+    const rootBlock = getRuleBlock(css, ':root')
+    const shellBlock = getRuleBlock(css, '.app-shell')
+
+    expect(rootBlock).toContain('--safe-area-top:')
+    expect(rootBlock).toContain('env(safe-area-inset-top)')
+    expect(shellBlock).toContain('padding-top: var(--safe-area-top)')
+  })
+
   it('keeps body overflow visible so iOS momentum scrolling is not locked behind the app shell', () => {
     const block = getRuleBlock(css, 'body')
 
