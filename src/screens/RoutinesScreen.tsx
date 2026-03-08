@@ -79,6 +79,7 @@ export function RoutinesScreen() {
   const hydratedRoutineIdRef = useRef<string | null>(null)
   const preservedModeScrollTopRef = useRef<number | null>(null)
   const pendingScrollRestoreTimeoutsRef = useRef<number[]>([])
+  const pendingScrollRestoreCleanupRef = useRef<(() => void) | null>(null)
   const pressedScrollTopRef = useRef<number | null>(null)
 
   const [trackerSessionId, setTrackerSessionId] = useState('')
@@ -355,19 +356,6 @@ export function RoutinesScreen() {
     return applyHistorySheetOverlayLock({ screenArea, bottomNav })
   }, [historySheet])
 
-  useEffect(() => {
-    return () => {
-      if (savedFeedbackTimeoutRef.current != null) {
-        window.clearTimeout(savedFeedbackTimeoutRef.current)
-      }
-
-      pendingScrollRestoreTimeoutsRef.current.forEach((timeoutId) => {
-        window.clearTimeout(timeoutId)
-      })
-      pendingScrollRestoreTimeoutsRef.current = []
-    }
-  }, [])
-
   function resetPageScrollToTop(): void {
     const screenArea = document.querySelector<HTMLElement>('.screen-area')
     if (!screenArea) {
@@ -392,22 +380,45 @@ export function RoutinesScreen() {
     return scrollTop
   }
 
-  function restorePageScrollPosition(scrollTop: number | null): void {
-    if (scrollTop == null) {
-      return
-    }
-
+  const clearPendingScrollRestore = useCallback((): void => {
     pendingScrollRestoreTimeoutsRef.current.forEach((timeoutId) => {
       window.clearTimeout(timeoutId)
     })
     pendingScrollRestoreTimeoutsRef.current = []
 
-    const restore = () => {
-      const screenArea = document.querySelector<HTMLElement>('.screen-area')
-      if (!screenArea) {
-        return
-      }
+    const cleanup = pendingScrollRestoreCleanupRef.current
+    pendingScrollRestoreCleanupRef.current = null
+    cleanup?.()
+  }, [])
 
+  const restorePageScrollPosition = useCallback((scrollTop: number | null): void => {
+    if (scrollTop == null) {
+      return
+    }
+
+    clearPendingScrollRestore()
+
+    const screenArea = document.querySelector<HTMLElement>('.screen-area')
+    if (!screenArea) {
+      return
+    }
+
+    const cancelRestore = () => {
+      clearPendingScrollRestore()
+    }
+
+    const releaseRestoreCancel = () => {
+      screenArea.removeEventListener('touchstart', cancelRestore)
+      screenArea.removeEventListener('pointerdown', cancelRestore)
+      screenArea.removeEventListener('wheel', cancelRestore)
+    }
+
+    pendingScrollRestoreCleanupRef.current = releaseRestoreCancel
+    screenArea.addEventListener('touchstart', cancelRestore, { passive: true })
+    screenArea.addEventListener('pointerdown', cancelRestore)
+    screenArea.addEventListener('wheel', cancelRestore, { passive: true })
+
+    const restore = () => {
       if (Math.abs(screenArea.scrollTop - scrollTop) <= 1) {
         return
       }
@@ -425,7 +436,16 @@ export function RoutinesScreen() {
       window.setTimeout(restore, 360),
       window.setTimeout(restore, 720),
     ]
-  }
+  }, [clearPendingScrollRestore])
+
+  useEffect(() => {
+    return () => {
+      if (savedFeedbackTimeoutRef.current != null) {
+        window.clearTimeout(savedFeedbackTimeoutRef.current)
+      }
+      clearPendingScrollRestore()
+    }
+  }, [clearPendingScrollRestore])
 
   useEffect(() => {
     if (preservedModeScrollTopRef.current != null) {
@@ -444,7 +464,7 @@ export function RoutinesScreen() {
     return () => {
       window.cancelAnimationFrame(frameId)
     }
-  }, [mode])
+  }, [mode, restorePageScrollPosition])
 
   function showSavedFeedback(exerciseId?: string): void {
     if (!exerciseId) {
