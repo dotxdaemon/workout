@@ -23,6 +23,9 @@ describe('RoutinesScreen behavior', () => {
     localStorage.clear()
     document.body.innerHTML = ''
     window.scrollTo = (() => undefined) as typeof window.scrollTo
+    const scrollingElement = getDocumentScrollElement()
+    scrollingElement.scrollTop = 0
+    scrollingElement.scrollTo = (() => undefined) as typeof scrollingElement.scrollTo
     await clearDatabase()
   })
 
@@ -93,7 +96,7 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('keeps screen-area scroll position stable when saving a quick-entry set', async () => {
+  it('keeps document scrolling responsive after saving a quick-entry set', async () => {
     const harness = await renderScreen()
     const firstCard = harness.host.querySelector('.today-card') as HTMLElement | null
 
@@ -113,13 +116,27 @@ describe('RoutinesScreen behavior', () => {
     expect(repsInput).not.toBeNull()
     expect(saveButton).not.toBeNull()
 
-    const scrollTopBeforeSave = 184
+    const scrollingElement = getDocumentScrollElement()
+    const scrollTopBeforeSave = 212
+    scrollingElement.scrollTop = scrollTopBeforeSave
     harness.host.scrollTop = scrollTopBeforeSave
-    const scrollSpy = vi.fn()
-    harness.host.scrollTo = scrollSpy as unknown as typeof harness.host.scrollTo
+    const documentScrollSpy = vi.fn((options?: ScrollToOptions | number) => {
+      if (typeof options === 'object' && typeof options?.top === 'number') {
+        scrollingElement.scrollTop = options.top
+      }
+    })
+    const screenAreaScrollSpy = vi.fn((options?: ScrollToOptions | number) => {
+      if (typeof options === 'object' && typeof options?.top === 'number') {
+        harness.host.scrollTop = options.top
+      }
+    })
+    scrollingElement.scrollTo = documentScrollSpy as unknown as typeof scrollingElement.scrollTo
+    harness.host.scrollTo = screenAreaScrollSpy as unknown as typeof harness.host.scrollTo
 
     await setInputValue(weightInput!, '105')
     await setInputValue(repsInput!, '7')
+    harness.host.scrollTop = scrollTopBeforeSave + 18
+
     await click(saveButton!)
 
     await waitFor(
@@ -127,129 +144,16 @@ describe('RoutinesScreen behavior', () => {
       'Saved set was not reflected in last-set stats.',
     )
 
-    expect(scrollSpy).not.toHaveBeenCalled()
-    expect(harness.host.scrollTop).toBe(scrollTopBeforeSave)
-    await harness.cleanup()
-  })
-
-  it('restores screen-area scroll position when it drifts before the save click handler runs', async () => {
-    const harness = await renderScreen()
-    const firstCard = harness.host.querySelector('.today-card') as HTMLElement | null
-
-    expect(firstCard).not.toBeNull()
-
-    const weightInput = firstCard?.querySelector(
-      'input[inputmode="decimal"]',
-    ) as HTMLInputElement | null
-    const repsInput = firstCard?.querySelector(
-      'input[inputmode="numeric"]',
-    ) as HTMLInputElement | null
-    const saveButton = firstCard?.querySelector(
-      '.today-card__save-button',
-    ) as HTMLButtonElement | null
-
-    expect(weightInput).not.toBeNull()
-    expect(repsInput).not.toBeNull()
-    expect(saveButton).not.toBeNull()
-
-    const scrollTopBeforeSave = 212
-    harness.host.scrollTop = scrollTopBeforeSave
-    const scrollSpy = vi.fn()
-    harness.host.scrollTo = scrollSpy as unknown as typeof harness.host.scrollTo
-
-    await setInputValue(weightInput!, '115')
-    await setInputValue(repsInput!, '6')
-
-    await act(async () => {
-      saveButton?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
-      harness.host.scrollTop = scrollTopBeforeSave + 18
-      await Promise.resolve()
-    })
-
-    await click(saveButton!)
-
-    await waitFor(
-      () => (harness.host.querySelector('.today-card__stats-value')?.textContent ?? '').includes('115 x 6'),
-      'Saved set was not reflected in last-set stats.',
-    )
-
-    await waitFor(
-      () =>
-        scrollSpy.mock.calls.some(
-          ([options]) =>
-            options?.top === scrollTopBeforeSave &&
-            options?.left === 0 &&
-            options?.behavior === 'auto',
-        ),
-      'Save flow did not restore the original screen-area scroll position.',
-    )
-
-    await harness.cleanup()
-  })
-
-  it('cancels delayed scroll restoration when the user starts scrolling after saving a set', async () => {
-    const harness = await renderScreen()
-    const firstCard = harness.host.querySelector('.today-card') as HTMLElement | null
-
-    expect(firstCard).not.toBeNull()
-
-    const weightInput = firstCard?.querySelector(
-      'input[inputmode="decimal"]',
-    ) as HTMLInputElement | null
-    const repsInput = firstCard?.querySelector(
-      'input[inputmode="numeric"]',
-    ) as HTMLInputElement | null
-    const saveButton = firstCard?.querySelector(
-      '.today-card__save-button',
-    ) as HTMLButtonElement | null
-
-    expect(weightInput).not.toBeNull()
-    expect(repsInput).not.toBeNull()
-    expect(saveButton).not.toBeNull()
-
-    const scrollTopBeforeSave = 212
-    harness.host.scrollTop = scrollTopBeforeSave
-    const scrollSpy = vi.fn((options?: ScrollToOptions | number) => {
-      if (typeof options === 'object' && typeof options?.top === 'number') {
-        harness.host.scrollTop = options.top
-      }
-    })
-    harness.host.scrollTo = scrollSpy as unknown as typeof harness.host.scrollTo
-
-    await setInputValue(weightInput!, '135')
-    await setInputValue(repsInput!, '5')
-    await click(saveButton!)
-
-    await waitFor(
-      () => (harness.host.querySelector('.today-card__stats-value')?.textContent ?? '').includes('135 x 5'),
-      'Saved set was not reflected in last-set stats.',
-    )
-
-    await act(async () => {
-      await delay(60)
-    })
-    scrollSpy.mockClear()
-
-    harness.host.scrollTop = 96
-    await act(async () => {
-      harness.host.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }))
-      await Promise.resolve()
-    })
-
+    documentScrollSpy.mockClear()
+    screenAreaScrollSpy.mockClear()
+    scrollingElement.scrollTop = 96
     await act(async () => {
       await delay(820)
     })
 
-    expect(
-      scrollSpy.mock.calls.some(
-        ([options]) =>
-          typeof options === 'object' &&
-          options?.top === scrollTopBeforeSave &&
-          options?.left === 0 &&
-          options?.behavior === 'auto',
-      ),
-    ).toBe(false)
-    expect(harness.host.scrollTop).toBe(96)
+    expect(documentScrollSpy).not.toHaveBeenCalled()
+    expect(screenAreaScrollSpy).not.toHaveBeenCalled()
+    expect(scrollingElement.scrollTop).toBe(96)
     await harness.cleanup()
   })
 
@@ -356,28 +260,7 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('does not reset the app scroll container when saving a routine', async () => {
-    const harness = await renderScreen()
-    await click(getButtonByText(harness.host, 'Edit'))
-
-    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
-    await delay(20)
-
-    const scrollTopBeforeSave = 260
-    harness.host.scrollTop = scrollTopBeforeSave
-    const scrollSpy = vi.fn()
-    harness.host.scrollTo = scrollSpy as unknown as typeof harness.host.scrollTo
-
-    await act(async () => {
-      await click(getButtonByText(harness.host, 'Save routine'))
-    })
-    await waitFor(() => Boolean(harness.host.querySelector('.today-mode')), 'Save did not return to today mode.')
-
-    expect(scrollSpy).not.toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
-    await harness.cleanup()
-  })
-
-  it('cancels delayed scroll restoration when the user starts scrolling after saving a routine', async () => {
+  it('resets the document scroll when saving a routine and changing modes', async () => {
     const harness = await renderScreen()
     await click(getButtonByText(harness.host, 'Edit'))
 
@@ -390,44 +273,35 @@ describe('RoutinesScreen behavior', () => {
 
     expect(routineNameInput).not.toBeNull()
 
+    const scrollingElement = getDocumentScrollElement()
     const scrollTopBeforeSave = 260
+    scrollingElement.scrollTop = scrollTopBeforeSave
     harness.host.scrollTop = scrollTopBeforeSave
-    const scrollSpy = vi.fn((options?: ScrollToOptions | number) => {
+    const documentScrollSpy = vi.fn((options?: ScrollToOptions | number) => {
+      if (typeof options === 'object' && typeof options?.top === 'number') {
+        scrollingElement.scrollTop = options.top
+      }
+    })
+    const screenAreaScrollSpy = vi.fn((options?: ScrollToOptions | number) => {
       if (typeof options === 'object' && typeof options?.top === 'number') {
         harness.host.scrollTop = options.top
       }
     })
-    harness.host.scrollTo = scrollSpy as unknown as typeof harness.host.scrollTo
+    scrollingElement.scrollTo = documentScrollSpy as unknown as typeof scrollingElement.scrollTo
+    harness.host.scrollTo = screenAreaScrollSpy as unknown as typeof harness.host.scrollTo
 
     await setInputValue(routineNameInput!, 'Push')
+    harness.host.scrollTop = scrollTopBeforeSave + 24
     await click(getButtonByText(harness.host, 'Save routine'))
     await waitFor(() => Boolean(harness.host.querySelector('.today-mode')), 'Save did not return to today mode.')
 
     await act(async () => {
       await delay(60)
     })
-    scrollSpy.mockClear()
 
-    harness.host.scrollTop = 112
-    await act(async () => {
-      harness.host.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }))
-      await Promise.resolve()
-    })
-
-    await act(async () => {
-      await delay(820)
-    })
-
-    expect(
-      scrollSpy.mock.calls.some(
-        ([options]) =>
-          typeof options === 'object' &&
-          options?.top === scrollTopBeforeSave &&
-          options?.left === 0 &&
-          options?.behavior === 'auto',
-      ),
-    ).toBe(false)
-    expect(harness.host.scrollTop).toBe(112)
+    expect(documentScrollSpy).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
+    expect(screenAreaScrollSpy).not.toHaveBeenCalled()
+    expect(scrollingElement.scrollTop).toBe(0)
     await harness.cleanup()
   })
 
@@ -507,10 +381,15 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('resets the app scroll container when switching modes', async () => {
+  it('resets the document scroll when switching modes', async () => {
     const harness = await renderScreen()
-    const scrollSpy = vi.fn()
-    harness.host.scrollTo = scrollSpy as unknown as typeof harness.host.scrollTo
+    const scrollingElement = getDocumentScrollElement()
+    const scrollSpy = vi.fn((options?: ScrollToOptions | number) => {
+      if (typeof options === 'object' && typeof options?.top === 'number') {
+        scrollingElement.scrollTop = options.top
+      }
+    })
+    scrollingElement.scrollTo = scrollSpy as unknown as typeof scrollingElement.scrollTo
 
     await click(getButtonByText(harness.host, 'Edit'))
     await waitFor(() => scrollSpy.mock.calls.length > 0, 'Scroll reset was not triggered for edit mode.')
@@ -538,7 +417,7 @@ describe('RoutinesScreen behavior', () => {
     const nav = harness.nav
     expect(nav).not.toBeNull()
     expect(document.body.style.overflow).toBe('')
-    expect(harness.host.style.overflow).toBe('hidden')
+    expect(harness.host.style.overflow).toBe('')
     expect(nav?.style.visibility).toBe('hidden')
     expect(nav?.style.pointerEvents).toBe('none')
 
@@ -553,7 +432,7 @@ describe('RoutinesScreen behavior', () => {
     )
 
     expect(document.body.style.overflow).toBe('')
-    expect(harness.host.style.overflow).toBe('auto')
+    expect(harness.host.style.overflow).toBe('')
     expect(nav?.style.visibility).toBe('')
     expect(nav?.style.pointerEvents).toBe('')
     await harness.cleanup()
@@ -681,7 +560,6 @@ async function renderScreen(options?: { withBottomNav?: boolean }): Promise<Rend
 
   const host = document.createElement('div')
   host.className = 'screen-area'
-  host.style.overflow = 'auto'
   host.scrollTo = (() => undefined) as typeof host.scrollTo
   shell.append(host)
 
@@ -736,6 +614,10 @@ async function setInputValue(input: HTMLInputElement, value: string): Promise<vo
     input.dispatchEvent(new Event('change', { bubbles: true }))
     await Promise.resolve()
   })
+}
+
+function getDocumentScrollElement(): HTMLElement {
+  return (document.scrollingElement ?? document.documentElement) as HTMLElement
 }
 
 function getButtonByText(container: ParentNode, label: string): HTMLButtonElement {

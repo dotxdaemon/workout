@@ -77,10 +77,6 @@ export function RoutinesScreen() {
   const historySheetDraggingRef = useRef(false)
   const historySheetOpenedAtRef = useRef(0)
   const hydratedRoutineIdRef = useRef<string | null>(null)
-  const preservedModeScrollTopRef = useRef<number | null>(null)
-  const pendingScrollRestoreTimeoutsRef = useRef<number[]>([])
-  const pendingScrollRestoreCleanupRef = useRef<(() => void) | null>(null)
-  const pressedScrollTopRef = useRef<number | null>(null)
 
   const [trackerSessionId, setTrackerSessionId] = useState('')
   const [routines, setRoutines] = useState<Routine[]>([])
@@ -351,110 +347,28 @@ export function RoutinesScreen() {
       return
     }
 
-    const screenArea = document.querySelector<HTMLElement>('.screen-area')
     const bottomNav = document.querySelector<HTMLElement>('.bottom-nav')
-    return applyHistorySheetOverlayLock({ screenArea, bottomNav })
+    return applyHistorySheetOverlayLock({ bottomNav })
   }, [historySheet])
 
   function resetPageScrollToTop(): void {
-    const screenArea = document.querySelector<HTMLElement>('.screen-area')
-    if (!screenArea) {
+    const scrollingElement = document.scrollingElement ?? document.documentElement
+    if (!scrollingElement) {
       return
     }
 
-    screenArea.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    scrollingElement.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }
-
-  function readPageScrollTop(): number | null {
-    const screenArea = document.querySelector<HTMLElement>('.screen-area')
-    return screenArea ? screenArea.scrollTop : null
-  }
-
-  function rememberPageScrollTop(): void {
-    pressedScrollTopRef.current = readPageScrollTop()
-  }
-
-  function takeRememberedPageScrollTop(): number | null {
-    const scrollTop = pressedScrollTopRef.current
-    pressedScrollTopRef.current = null
-    return scrollTop
-  }
-
-  const clearPendingScrollRestore = useCallback((): void => {
-    pendingScrollRestoreTimeoutsRef.current.forEach((timeoutId) => {
-      window.clearTimeout(timeoutId)
-    })
-    pendingScrollRestoreTimeoutsRef.current = []
-
-    const cleanup = pendingScrollRestoreCleanupRef.current
-    pendingScrollRestoreCleanupRef.current = null
-    cleanup?.()
-  }, [])
-
-  const restorePageScrollPosition = useCallback((scrollTop: number | null): void => {
-    if (scrollTop == null) {
-      return
-    }
-
-    clearPendingScrollRestore()
-
-    const screenArea = document.querySelector<HTMLElement>('.screen-area')
-    if (!screenArea) {
-      return
-    }
-
-    const cancelRestore = () => {
-      clearPendingScrollRestore()
-    }
-
-    const releaseRestoreCancel = () => {
-      screenArea.removeEventListener('touchstart', cancelRestore)
-      screenArea.removeEventListener('pointerdown', cancelRestore)
-      screenArea.removeEventListener('wheel', cancelRestore)
-    }
-
-    pendingScrollRestoreCleanupRef.current = releaseRestoreCancel
-    screenArea.addEventListener('touchstart', cancelRestore, { passive: true })
-    screenArea.addEventListener('pointerdown', cancelRestore)
-    screenArea.addEventListener('wheel', cancelRestore, { passive: true })
-
-    const restore = () => {
-      if (Math.abs(screenArea.scrollTop - scrollTop) <= 1) {
-        return
-      }
-
-      screenArea.scrollTo({ top: scrollTop, left: 0, behavior: 'auto' })
-    }
-
-    window.requestAnimationFrame(() => {
-      restore()
-      window.requestAnimationFrame(restore)
-    })
-
-    pendingScrollRestoreTimeoutsRef.current = [
-      window.setTimeout(restore, 180),
-      window.setTimeout(restore, 360),
-      window.setTimeout(restore, 720),
-    ]
-  }, [clearPendingScrollRestore])
 
   useEffect(() => {
     return () => {
       if (savedFeedbackTimeoutRef.current != null) {
         window.clearTimeout(savedFeedbackTimeoutRef.current)
       }
-      clearPendingScrollRestore()
     }
-  }, [clearPendingScrollRestore])
+  }, [])
 
   useEffect(() => {
-    if (preservedModeScrollTopRef.current != null) {
-      const preservedScrollTop = preservedModeScrollTopRef.current
-      preservedModeScrollTopRef.current = null
-      restorePageScrollPosition(preservedScrollTop)
-      return
-    }
-
     resetPageScrollToTop()
 
     const frameId = window.requestAnimationFrame(() => {
@@ -464,7 +378,7 @@ export function RoutinesScreen() {
     return () => {
       window.cancelAnimationFrame(frameId)
     }
-  }, [mode, restorePageScrollPosition])
+  }, [mode])
 
   function showSavedFeedback(exerciseId?: string): void {
     if (!exerciseId) {
@@ -517,8 +431,6 @@ export function RoutinesScreen() {
     field: keyof SetDraft,
     value: string,
   ): void {
-    rememberPageScrollTop()
-
     updateDraftSet(exerciseId, setIndex, (draft) => ({
       ...draft,
       [field]: value,
@@ -748,7 +660,6 @@ export function RoutinesScreen() {
       return false
     }
 
-    const scrollTopBeforeSave = takeRememberedPageScrollTop() ?? readPageScrollTop()
     const quickDraft = ensureSetDraftLength(draftsByExercise[exerciseId] ?? [], 1)[0]
     const weight = parseWeight(quickDraft.weight)
     const reps = parseReps(quickDraft.reps)
@@ -774,7 +685,6 @@ export function RoutinesScreen() {
       setMessage('')
       setError('')
       showSavedFeedback(exerciseId)
-      restorePageScrollPosition(scrollTopBeforeSave)
       return true
     } catch {
       setError('Could not save set.')
@@ -875,7 +785,6 @@ export function RoutinesScreen() {
       return
     }
 
-    const scrollTopBeforeSave = takeRememberedPageScrollTop() ?? readPageScrollTop()
     const routineName = routineNameDraft.trim()
     if (!routineName) {
       setError('Routine name is required.')
@@ -970,7 +879,6 @@ export function RoutinesScreen() {
       exerciseIds: nextExerciseIds,
     })
 
-    preservedModeScrollTopRef.current = scrollTopBeforeSave
     setMode('today')
     setExpandedExerciseId(null)
     setMessage('Routine saved.')
@@ -1003,8 +911,6 @@ export function RoutinesScreen() {
     draftId: string,
     updater: (current: RoutineExerciseDraft) => RoutineExerciseDraft,
   ): void {
-    rememberPageScrollTop()
-
     setExerciseDrafts((current) =>
       current.map((item) => (item.draftId === draftId ? updater(item) : item)),
     )
@@ -1296,10 +1202,7 @@ export function RoutinesScreen() {
               <span>Routine name</span>
               <input
                 value={routineNameDraft}
-                onChange={(event) => {
-                  rememberPageScrollTop()
-                  setRoutineNameDraft(event.target.value)
-                }}
+                onChange={(event) => setRoutineNameDraft(event.target.value)}
               />
             </label>
 

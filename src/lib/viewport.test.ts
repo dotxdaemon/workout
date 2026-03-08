@@ -296,11 +296,11 @@ describe('advanceShellHeightState', () => {
 describe('app layout css', () => {
   const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
 
-  it('uses large viewport height for the app shell so save-time viewport changes do not lift the bottom nav', () => {
+  it('uses large viewport height for the app shell without locking it to an inner scroller', () => {
     const block = getRuleBlock(css, '.app-shell')
 
     expect(block).toContain('min-height: 100lvh')
-    expect(block).toContain('height: 100lvh')
+    expect(/(^|\n)\s*height:\s*100lvh;/.test(block)).toBe(false)
     expect(block).not.toContain('--app-shell-height')
   })
 
@@ -318,20 +318,21 @@ describe('app layout css', () => {
     expect(block).not.toContain('overflow: hidden')
   })
 
-  it('uses screen-area as the vertical scroll owner', () => {
+  it('keeps screen-area as a plain content wrapper instead of the vertical scroll owner', () => {
     const block = getRuleBlock(css, '.screen-area')
 
-    expect(block).toContain('overflow-y: auto')
-    expect(block).toContain('min-height: 0')
-    expect(block).toContain('-webkit-overflow-scrolling: touch')
+    expect(block).not.toContain('overflow-y: auto')
+    expect(block).not.toContain('-webkit-overflow-scrolling: touch')
+    expect(block).not.toContain('overscroll-behavior-y: contain')
   })
 
-  it('keeps bottom navigation in shell flow instead of viewport-fixed positioning', () => {
+  it('keeps bottom navigation in sticky document flow instead of viewport-fixed positioning', () => {
     const block = getRuleBlock(css, '.bottom-nav')
 
+    expect(block).toContain('position: sticky')
+    expect(block).toContain('bottom: 0')
     expect(block).not.toContain('position: fixed')
     expect(block).not.toContain('left: 50%')
-    expect(block).not.toContain('bottom: 0')
     expect(block).not.toContain('transform: translateX(-50%)')
   })
 

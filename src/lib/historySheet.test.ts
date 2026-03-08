@@ -58,7 +58,7 @@ describe('shouldIgnoreHistorySheetBackdropClose', () => {
 })
 
 describe('applyHistorySheetOverlayLock', () => {
-  it('locks the app scroll container and hides bottom nav while sheet is open', () => {
+  it('keeps the app content scroll state untouched and only hides bottom nav while sheet is open', () => {
     document.body.style.overflow = ''
     const screenArea = document.createElement('div')
     const bottomNav = document.createElement('nav')
@@ -67,10 +67,10 @@ describe('applyHistorySheetOverlayLock', () => {
     bottomNav.style.visibility = ''
     bottomNav.style.pointerEvents = ''
 
-    const restore = applyHistorySheetOverlayLock({ screenArea, bottomNav })
+    const restore = applyHistorySheetOverlayLock({ bottomNav })
 
     expect(document.body.style.overflow).toBe('')
-    expect(screenArea.style.overflow).toBe('hidden')
+    expect(screenArea.style.overflow).toBe('auto')
     expect(bottomNav.style.visibility).toBe('hidden')
     expect(bottomNav.style.pointerEvents).toBe('none')
 
