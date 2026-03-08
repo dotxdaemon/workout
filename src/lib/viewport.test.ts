@@ -296,20 +296,20 @@ describe('advanceShellHeightState', () => {
 describe('app layout css', () => {
   const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
 
-  it('uses large viewport height for the app shell without locking it to an inner scroller', () => {
+  it('uses large viewport height for the app shell so the nav can live in a dedicated bottom row', () => {
     const block = getRuleBlock(css, '.app-shell')
 
     expect(block).toContain('min-height: 100lvh')
-    expect(/(^|\n)\s*height:\s*100lvh;/.test(block)).toBe(false)
+    expect(block).toContain('height: 100lvh')
     expect(block).not.toContain('--app-shell-height')
   })
 
-  it('uses a dedicated two-row app shell for content and nav without clipping the inner scroller', () => {
+  it('uses a dedicated two-row app shell that clips scrolling content above the nav row', () => {
     const block = getRuleBlock(css, '.app-shell')
 
     expect(block).toContain('display: grid')
     expect(block).toContain('grid-template-rows: minmax(0, 1fr) auto')
-    expect(block).not.toContain('overflow: hidden')
+    expect(block).toContain('overflow: hidden')
   })
 
   it('keeps body overflow visible so iOS momentum scrolling is not locked behind the app shell', () => {
@@ -318,19 +318,20 @@ describe('app layout css', () => {
     expect(block).not.toContain('overflow: hidden')
   })
 
-  it('keeps screen-area as a plain content wrapper instead of the vertical scroll owner', () => {
+  it('uses screen-area as the vertical scroll owner', () => {
     const block = getRuleBlock(css, '.screen-area')
 
-    expect(block).not.toContain('overflow-y: auto')
-    expect(block).not.toContain('-webkit-overflow-scrolling: touch')
-    expect(block).not.toContain('overscroll-behavior-y: contain')
+    expect(block).toContain('overflow-y: auto')
+    expect(block).toContain('-webkit-overflow-scrolling: touch')
+    expect(block).toContain('overscroll-behavior-y: contain')
   })
 
-  it('keeps bottom navigation in sticky document flow instead of viewport-fixed positioning', () => {
+  it('keeps bottom navigation in shell flow instead of sticky document positioning', () => {
     const block = getRuleBlock(css, '.bottom-nav')
 
-    expect(block).toContain('position: sticky')
-    expect(block).toContain('bottom: 0')
+    expect(block).toContain('position: relative')
+    expect(block).not.toContain('bottom: 0')
+    expect(block).not.toContain('position: sticky')
     expect(block).not.toContain('position: fixed')
     expect(block).not.toContain('left: 50%')
     expect(block).not.toContain('transform: translateX(-50%)')

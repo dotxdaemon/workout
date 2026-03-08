@@ -96,7 +96,7 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('keeps document scrolling responsive after saving a quick-entry set', async () => {
+  it('keeps screen-area scrolling responsive after saving a quick-entry set', async () => {
     const harness = await renderScreen()
     const firstCard = harness.host.querySelector('.today-card') as HTMLElement | null
 
@@ -116,10 +116,9 @@ describe('RoutinesScreen behavior', () => {
     expect(repsInput).not.toBeNull()
     expect(saveButton).not.toBeNull()
 
-    const scrollingElement = getDocumentScrollElement()
     const scrollTopBeforeSave = 212
-    scrollingElement.scrollTop = scrollTopBeforeSave
     harness.host.scrollTop = scrollTopBeforeSave
+    const scrollingElement = getDocumentScrollElement()
     const documentScrollSpy = vi.fn((options?: ScrollToOptions | number) => {
       if (typeof options === 'object' && typeof options?.top === 'number') {
         scrollingElement.scrollTop = options.top
@@ -130,8 +129,8 @@ describe('RoutinesScreen behavior', () => {
         harness.host.scrollTop = options.top
       }
     })
-    scrollingElement.scrollTo = documentScrollSpy as unknown as typeof scrollingElement.scrollTo
     harness.host.scrollTo = screenAreaScrollSpy as unknown as typeof harness.host.scrollTo
+    scrollingElement.scrollTo = documentScrollSpy as unknown as typeof scrollingElement.scrollTo
 
     await setInputValue(weightInput!, '105')
     await setInputValue(repsInput!, '7')
@@ -146,14 +145,14 @@ describe('RoutinesScreen behavior', () => {
 
     documentScrollSpy.mockClear()
     screenAreaScrollSpy.mockClear()
-    scrollingElement.scrollTop = 96
+    harness.host.scrollTop = 96
     await act(async () => {
       await delay(820)
     })
 
     expect(documentScrollSpy).not.toHaveBeenCalled()
     expect(screenAreaScrollSpy).not.toHaveBeenCalled()
-    expect(scrollingElement.scrollTop).toBe(96)
+    expect(harness.host.scrollTop).toBe(96)
     await harness.cleanup()
   })
 
@@ -260,7 +259,7 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('resets the document scroll when saving a routine and changing modes', async () => {
+  it('resets the screen-area scroll when saving a routine and changing modes', async () => {
     const harness = await renderScreen()
     await click(getButtonByText(harness.host, 'Edit'))
 
@@ -273,10 +272,9 @@ describe('RoutinesScreen behavior', () => {
 
     expect(routineNameInput).not.toBeNull()
 
-    const scrollingElement = getDocumentScrollElement()
     const scrollTopBeforeSave = 260
-    scrollingElement.scrollTop = scrollTopBeforeSave
     harness.host.scrollTop = scrollTopBeforeSave
+    const scrollingElement = getDocumentScrollElement()
     const documentScrollSpy = vi.fn((options?: ScrollToOptions | number) => {
       if (typeof options === 'object' && typeof options?.top === 'number') {
         scrollingElement.scrollTop = options.top
@@ -287,8 +285,8 @@ describe('RoutinesScreen behavior', () => {
         harness.host.scrollTop = options.top
       }
     })
-    scrollingElement.scrollTo = documentScrollSpy as unknown as typeof scrollingElement.scrollTo
     harness.host.scrollTo = screenAreaScrollSpy as unknown as typeof harness.host.scrollTo
+    scrollingElement.scrollTo = documentScrollSpy as unknown as typeof scrollingElement.scrollTo
 
     await setInputValue(routineNameInput!, 'Push')
     harness.host.scrollTop = scrollTopBeforeSave + 24
@@ -299,9 +297,9 @@ describe('RoutinesScreen behavior', () => {
       await delay(60)
     })
 
-    expect(documentScrollSpy).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
-    expect(screenAreaScrollSpy).not.toHaveBeenCalled()
-    expect(scrollingElement.scrollTop).toBe(0)
+    expect(screenAreaScrollSpy).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
+    expect(documentScrollSpy).not.toHaveBeenCalled()
+    expect(harness.host.scrollTop).toBe(0)
     await harness.cleanup()
   })
 
@@ -381,15 +379,14 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('resets the document scroll when switching modes', async () => {
+  it('resets the screen-area scroll when switching modes', async () => {
     const harness = await renderScreen()
-    const scrollingElement = getDocumentScrollElement()
     const scrollSpy = vi.fn((options?: ScrollToOptions | number) => {
       if (typeof options === 'object' && typeof options?.top === 'number') {
-        scrollingElement.scrollTop = options.top
+        harness.host.scrollTop = options.top
       }
     })
-    scrollingElement.scrollTo = scrollSpy as unknown as typeof scrollingElement.scrollTo
+    harness.host.scrollTo = scrollSpy as unknown as typeof harness.host.scrollTo
 
     await click(getButtonByText(harness.host, 'Edit'))
     await waitFor(() => scrollSpy.mock.calls.length > 0, 'Scroll reset was not triggered for edit mode.')

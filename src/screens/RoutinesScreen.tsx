@@ -352,11 +352,13 @@ export function RoutinesScreen() {
   }, [historySheet])
 
   function resetPageScrollToTop(): void {
-    const scrollingElement = document.scrollingElement ?? document.documentElement
-    if (!scrollingElement) {
+    const screenArea = document.querySelector<HTMLElement>('.screen-area')
+    if (screenArea) {
+      screenArea.scrollTo({ top: 0, left: 0, behavior: 'auto' })
       return
     }
 
+    const scrollingElement = document.scrollingElement ?? document.documentElement
     scrollingElement.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }
 
