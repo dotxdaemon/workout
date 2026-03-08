@@ -304,12 +304,12 @@ describe('app layout css', () => {
     expect(block).not.toContain('--app-shell-height')
   })
 
-  it('uses a dedicated two-row app shell for content and nav', () => {
+  it('uses a dedicated two-row app shell for content and nav without clipping the inner scroller', () => {
     const block = getRuleBlock(css, '.app-shell')
 
     expect(block).toContain('display: grid')
     expect(block).toContain('grid-template-rows: minmax(0, 1fr) auto')
-    expect(block).toContain('overflow: hidden')
+    expect(block).not.toContain('overflow: hidden')
   })
 
   it('keeps body overflow visible so iOS momentum scrolling is not locked behind the app shell', () => {

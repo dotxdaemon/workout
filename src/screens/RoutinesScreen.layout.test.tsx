@@ -132,7 +132,7 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('does not programmatically scroll screen-area during save even if scroll drifts mid-frame', async () => {
+  it('restores screen-area scroll position when it drifts before the save click handler runs', async () => {
     const harness = await renderScreen()
     const firstCard = harness.host.querySelector('.today-card') as HTMLElement | null
 
@@ -157,15 +157,15 @@ describe('RoutinesScreen behavior', () => {
     const scrollSpy = vi.fn()
     harness.host.scrollTo = scrollSpy as unknown as typeof harness.host.scrollTo
 
-    const originalRequestAnimationFrame = window.requestAnimationFrame
-    window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
-      harness.host.scrollTop = scrollTopBeforeSave + 18
-      callback(0)
-      return 1
-    }) as typeof window.requestAnimationFrame
-
     await setInputValue(weightInput!, '115')
     await setInputValue(repsInput!, '6')
+
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+      harness.host.scrollTop = scrollTopBeforeSave + 18
+      await Promise.resolve()
+    })
+
     await click(saveButton!)
 
     await waitFor(
@@ -173,13 +173,21 @@ describe('RoutinesScreen behavior', () => {
       'Saved set was not reflected in last-set stats.',
     )
 
-    expect(scrollSpy).not.toHaveBeenCalled()
+    await waitFor(
+      () =>
+        scrollSpy.mock.calls.some(
+          ([options]) =>
+            options?.top === scrollTopBeforeSave &&
+            options?.left === 0 &&
+            options?.behavior === 'auto',
+        ),
+      'Save flow did not restore the original screen-area scroll position.',
+    )
 
-    window.requestAnimationFrame = originalRequestAnimationFrame
     await harness.cleanup()
   })
 
-  it('releases quick-entry focus when saving a set so scrolling can resume', async () => {
+  it('does not blur the active quick-entry input when saving a set', async () => {
     const harness = await renderScreen()
     const firstCard = harness.host.querySelector('.today-card') as HTMLElement | null
 
@@ -205,6 +213,11 @@ describe('RoutinesScreen behavior', () => {
 
     expect(document.activeElement).toBe(repsInput)
 
+    let blurCount = 0
+    repsInput?.addEventListener('blur', () => {
+      blurCount += 1
+    })
+
     await setInputValue(weightInput!, '95')
     await setInputValue(repsInput!, '8')
     await click(saveButton!)
@@ -214,7 +227,7 @@ describe('RoutinesScreen behavior', () => {
       'Saved set was not reflected in last-set stats.',
     )
 
-    expect(document.activeElement).not.toBe(repsInput)
+    expect(blurCount).toBe(0)
     await harness.cleanup()
   })
 
@@ -245,7 +258,7 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('releases edit-input focus when saving a routine so scrolling can resume', async () => {
+  it('does not blur the active edit input when saving a routine', async () => {
     const harness = await renderScreen()
     await click(getButtonByText(harness.host, 'Edit'))
 
@@ -263,10 +276,38 @@ describe('RoutinesScreen behavior', () => {
 
     expect(document.activeElement).toBe(routineNameInput)
 
-    await click(getButtonByText(harness.host, 'Save routine'))
+    let blurCount = 0
+    routineNameInput?.addEventListener('blur', () => {
+      blurCount += 1
+    })
+
+    await act(async () => {
+      await click(getButtonByText(harness.host, 'Save routine'))
+    })
     await waitFor(() => Boolean(harness.host.querySelector('.today-mode')), 'Save did not return to today mode.')
 
-    expect(document.activeElement).not.toBe(routineNameInput)
+    expect(blurCount).toBe(0)
+    await harness.cleanup()
+  })
+
+  it('does not reset the app scroll container when saving a routine', async () => {
+    const harness = await renderScreen()
+    await click(getButtonByText(harness.host, 'Edit'))
+
+    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+    await delay(20)
+
+    const scrollTopBeforeSave = 260
+    harness.host.scrollTop = scrollTopBeforeSave
+    const scrollSpy = vi.fn()
+    harness.host.scrollTo = scrollSpy as unknown as typeof harness.host.scrollTo
+
+    await act(async () => {
+      await click(getButtonByText(harness.host, 'Save routine'))
+    })
+    await waitFor(() => Boolean(harness.host.querySelector('.today-mode')), 'Save did not return to today mode.')
+
+    expect(scrollSpy).not.toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
     await harness.cleanup()
   })
 
