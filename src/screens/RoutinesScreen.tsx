@@ -482,26 +482,6 @@ export function RoutinesScreen() {
     }
   }
 
-  function blurActiveFieldIfBackgroundTarget(target: EventTarget | null): void {
-    if (!(target instanceof Element)) {
-      return
-    }
-
-    if (target.closest('input, textarea, select, button, a, label')) {
-      return
-    }
-
-    blurActiveField()
-  }
-
-  function handlePageMouseDownCapture(event: MouseEvent<HTMLElement>): void {
-    blurActiveFieldIfBackgroundTarget(event.target)
-  }
-
-  function handlePageTouchStartCapture(event: TouchEvent<HTMLElement>): void {
-    blurActiveFieldIfBackgroundTarget(event.target)
-  }
-
   async function handleUseTemplate(exerciseId: string, sets: SetEntry[]): Promise<void> {
     if (!trackerSessionId) {
       return
@@ -953,11 +933,7 @@ export function RoutinesScreen() {
   }
 
   return (
-    <section
-      className="page"
-      onMouseDownCapture={handlePageMouseDownCapture}
-      onTouchStartCapture={handlePageTouchStartCapture}
-    >
+    <section className="page">
       <header className="page-header routines-header">
         <div className="routines-header__row">
           <div className="routines-header__title">

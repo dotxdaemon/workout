@@ -270,7 +270,7 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('clears edit-input focus when pressing the page outside the field so scrolling can resume', async () => {
+  it('does not hijack a page press into a blur while editing', async () => {
     const harness = await renderScreen()
     await click(getButtonByText(harness.host, 'Edit'))
 
@@ -295,7 +295,7 @@ describe('RoutinesScreen behavior', () => {
       await Promise.resolve()
     })
 
-    expect(document.activeElement).not.toBe(routineNameInput)
+    expect(document.activeElement).toBe(routineNameInput)
     await harness.cleanup()
   })
 
