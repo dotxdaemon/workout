@@ -304,6 +304,15 @@ describe('app layout css', () => {
     expect(block).not.toContain('--app-shell-height')
   })
 
+  it('provides a dynamic-viewport fallback before lvh so the startup nav row still renders when lvh is unavailable', () => {
+    const bodyBlock = getRuleBlock(css, 'body')
+    const shellBlock = getRuleBlock(css, '.app-shell')
+
+    expect(bodyBlock).toContain('min-height: 100dvh')
+    expect(shellBlock).toContain('min-height: 100dvh')
+    expect(shellBlock).toContain('height: 100dvh')
+  })
+
   it('uses a dedicated two-row app shell that clips scrolling content above the nav row', () => {
     const block = getRuleBlock(css, '.app-shell')
 

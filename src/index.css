@@ -38,6 +38,7 @@ body,
 body {
   margin: 0;
   min-width: 320px;
+  min-height: 100dvh;
   min-height: 100lvh;
   background: var(--bg);
   color: var(--text);
@@ -64,7 +65,9 @@ a {
 .app-shell {
   width: min(100%, 720px);
   margin: 0 auto;
+  min-height: 100dvh;
   min-height: 100lvh;
+  height: 100dvh;
   height: 100lvh;
   padding-top: var(--safe-area-top);
   display: grid;
