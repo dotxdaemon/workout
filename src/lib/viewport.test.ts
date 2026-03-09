@@ -296,21 +296,20 @@ describe('advanceShellHeightState', () => {
 describe('app layout css', () => {
   const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
 
-  it('uses large viewport height for the app shell so the nav can live in a dedicated bottom row', () => {
+  it('uses dynamic viewport height for the app shell so the startup nav row stays inside the visible PWA viewport', () => {
     const block = getRuleBlock(css, '.app-shell')
 
-    expect(block).toContain('min-height: 100lvh')
-    expect(block).toContain('height: 100lvh')
+    expect(block).toContain('min-height: 100dvh')
+    expect(block).toContain('height: 100dvh')
+    expect(block).not.toContain('100lvh')
     expect(block).not.toContain('--app-shell-height')
   })
 
-  it('provides a dynamic-viewport fallback before lvh so the startup nav row still renders when lvh is unavailable', () => {
+  it('uses dynamic viewport height for the body shell floor too', () => {
     const bodyBlock = getRuleBlock(css, 'body')
-    const shellBlock = getRuleBlock(css, '.app-shell')
 
     expect(bodyBlock).toContain('min-height: 100dvh')
-    expect(shellBlock).toContain('min-height: 100dvh')
-    expect(shellBlock).toContain('height: 100dvh')
+    expect(bodyBlock).not.toContain('100lvh')
   })
 
   it('uses a dedicated two-row app shell that clips scrolling content above the nav row', () => {
