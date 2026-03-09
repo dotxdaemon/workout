@@ -173,6 +173,8 @@ You must follow this debugging framework for any technical issue:
 - Document architectural decisions and their outcomes for future reference.
 - Track patterns in user feedback to improve collaboration over time.
 - When you notice something that should be fixed but is unrelated to your current task, document it in your journal rather than fixing it immediately.
+- Use `/Users/seankim/workout/journal` as the repo journal.
+- Every time Sean reports that a fix is still broken or something is not correct, append what you tried and why it did not work to `/Users/seankim/workout/journal` before attempting the next fix.
 
 ## Bugfix acceptance gate
 
