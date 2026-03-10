@@ -63,7 +63,7 @@ describe('Settings screen layout', () => {
     })
   })
 
-  it('renders and persists a theme choice from settings', async () => {
+  it('applies and persists a theme choice immediately from the settings switch', async () => {
     const host = document.createElement('div')
     document.body.appendChild(host)
     const root = createRoot(host)
@@ -81,15 +81,7 @@ describe('Settings screen layout', () => {
       lightButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
 
-    const saveButton = Array.from(host.querySelectorAll('button')).find(
-      (button) => button.textContent?.trim() === 'Save settings',
-    )
-    expect(saveButton).not.toBeUndefined()
-
-    await act(async () => {
-      saveButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    })
-
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light')
     expect(readPreferences().theme).toBe('light')
 
     await act(async () => {

@@ -14,3 +14,13 @@
 - Added persisted theme mode in Settings.
 - Root cause: there was no theme preference in stored app settings and no app-level theme attribute or alternate token set to switch the UI.
 - Result: Settings now saves dark/light mode, App applies it to the root element, and the UI tokens switch without touching workout logic.
+
+2026-03-10
+- Previously tried: added persisted theme mode that only writes when `Save settings` is pressed.
+- Sean asked: make light mode toggle on and off directly with the switch.
+- Error after trying: the theme buttons only changed local Settings state, so the UI theme did not switch or persist until the separate save button was pressed.
+
+2026-03-10
+- Tried making the theme toggle work immediately from the Settings switch.
+- Root cause: the Light/Dark buttons only updated local component state; they did not call writePreferences or applyTheme, so the build stayed dark until Save settings.
+- Result: theme changes now persist immediately on button press and the whole app follows the selected mode without waiting for Save settings.

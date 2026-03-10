@@ -23,6 +23,19 @@ export function SettingsScreen() {
     setError('')
   }
 
+  function handleThemeChange(theme: ThemeMode): void {
+    setPreferences((current) => ({
+      ...current,
+      theme,
+    }))
+    writePreferences({
+      ...readPreferences(),
+      theme,
+    })
+    setMessage('')
+    setError('')
+  }
+
   async function handleExportJson(): Promise<void> {
     const json = await buildJsonExport(preferences)
     await triggerDownload(
@@ -106,12 +119,7 @@ export function SettingsScreen() {
                     ? 'pill-toggle__button pill-toggle__button--active'
                     : 'pill-toggle__button'
                 }
-                onClick={() =>
-                  setPreferences((current) => ({
-                    ...current,
-                    theme,
-                  }))
-                }
+                onClick={() => handleThemeChange(theme)}
               >
                 {theme === 'dark' ? 'Dark' : 'Light'}
               </button>
