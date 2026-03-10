@@ -66,6 +66,7 @@ interface RoutineExerciseDraft {
 }
 
 type ScreenMode = 'today' | 'edit'
+const historyPreviewLimit = 5
 
 export function RoutinesScreen() {
   const historyRequestRef = useRef(0)
@@ -255,7 +256,7 @@ export function RoutinesScreen() {
 
     void Promise.all(
       selectedExerciseIds.map(async (exerciseId) => {
-        const rows = await listExerciseHistory(exerciseId, 5)
+        const rows = await listExerciseHistory(exerciseId, historyPreviewLimit)
         return [exerciseId, rows] as const
       }),
     )
@@ -400,7 +401,7 @@ export function RoutinesScreen() {
   }
 
   async function refreshHistoryForExercise(exerciseId: string): Promise<void> {
-    const rows = await listExerciseHistory(exerciseId, 5)
+    const rows = await listExerciseHistory(exerciseId, historyPreviewLimit)
     setHistoryByExercise((current) => ({
       ...current,
       [exerciseId]: rows,
@@ -528,7 +529,7 @@ export function RoutinesScreen() {
     historyRequestRef.current = requestId
 
     try {
-      const rows = await listExerciseHistory(exercise.id, 5)
+      const rows = await listExerciseHistory(exercise.id)
 
       if (historyRequestRef.current !== requestId) {
         return

@@ -585,7 +585,7 @@ export async function getLastCompletedSessionForExercise(
 
 export async function listExerciseHistory(
   exerciseId: string,
-  limit = 10,
+  limit?: number,
 ): Promise<Array<{ session: SessionRecord; sets: SetEntry[] }>> {
   const relatedExerciseIds = await getRelatedExerciseIds(exerciseId)
   const entries =
@@ -606,14 +606,17 @@ export async function listExerciseHistory(
 
   const sessions = await db.sessions.bulkGet(Array.from(entryMap.keys()))
 
-  return sessions
+  const sortedSessions = sessions
     .filter((session): session is SessionRecord => Boolean(session))
     .sort((left, right) => {
       const leftTimestamp = getSessionSortTimestamp(left, entryMap.get(left.id) ?? [])
       const rightTimestamp = getSessionSortTimestamp(right, entryMap.get(right.id) ?? [])
       return rightTimestamp.localeCompare(leftTimestamp)
     })
-    .slice(0, limit)
+
+  const visibleSessions = typeof limit === 'number' ? sortedSessions.slice(0, limit) : sortedSessions
+
+  return visibleSessions
     .map((session) => ({
       session,
       sets: (entryMap.get(session.id) ?? []).sort((a, b) => a.index - b.index),

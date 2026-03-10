@@ -231,6 +231,52 @@ describe('IndexedDB integration', () => {
     expect(history[0].sets.map((set) => [set.weight, set.reps])).toEqual([[165, 6]])
   })
 
+  it('returns every exercise history session when no limit is provided', async () => {
+    const exercise = await createExercise({
+      name: 'Cable Fly',
+      unitDefault: 'lb',
+    })
+
+    const baseTimestamp = Date.parse('2026-03-01T12:00:00.000Z')
+
+    await db.transaction('rw', db.sessions, db.setEntries, async () => {
+      for (let index = 0; index < 7; index += 1) {
+        const completedAt = new Date(baseTimestamp + index * 60_000).toISOString()
+        const sessionId = `history-session-${index}`
+
+        await db.sessions.add({
+          id: sessionId,
+          startedAt: completedAt,
+          endedAt: completedAt,
+        })
+
+        await db.setEntries.add({
+          id: `history-set-${index}`,
+          sessionId,
+          exerciseId: exercise.id,
+          index: 0,
+          weight: 40 + index,
+          reps: 10 + index,
+          isWarmup: false,
+          completedAt,
+        })
+      }
+    })
+
+    const history = await listExerciseHistory(exercise.id)
+
+    expect(history).toHaveLength(7)
+    expect(history.map((row) => row.session.id)).toEqual([
+      'history-session-6',
+      'history-session-5',
+      'history-session-4',
+      'history-session-3',
+      'history-session-2',
+      'history-session-1',
+      'history-session-0',
+    ])
+  })
+
   it('keeps same-name exercises isolated for history and routine references', async () => {
     const first = await createExercise({
       name: 'Leg Press',
