@@ -416,6 +416,16 @@ If any gate is missing, respond exactly:
 8. Do not report progress as completion. A bug remains open until the original symptom check passes and the required verification gates pass.
 9. In every bugfix update, restate the original user-visible symptom and map the current check directly back to it.
 
+## Fix Trigger Rule
+
+`Fix` is now a trigger word. Every time Sean asks you to fix something, you need to:
+
+1. Write down what you just tried previously.
+2. Write down what Sean is asking you to do.
+3. Write down what the error is after you have tried.
+4. This needs to go in the journal file in this repo.
+5. Write these entries to `/Users/seankim/workout/journal`.
+
 ## Shell Layout Regression Prevention
 
 1. Do not keep changing the same global shell-height primitive to solve different bugs.
