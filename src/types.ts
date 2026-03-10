@@ -2,6 +2,7 @@
 // ABOUTME: Keeps persistence and UI layers aligned on a single data contract.
 export type Unit = 'lb' | 'kg'
 export type RoutineSplitId = '3-day-split' | '4-day-split'
+export type ThemeMode = 'dark' | 'light'
 
 export interface ProgressionSettings {
   repMin: number
@@ -50,6 +51,7 @@ export interface AppPreferences {
   defaultWeightIncrement: number
   restTimerEnabled: boolean
   restSeconds: number
+  theme: ThemeMode
 }
 
 export interface WorkoutExport {

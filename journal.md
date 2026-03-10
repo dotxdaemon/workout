@@ -9,3 +9,8 @@
 - Previously tried: reproduced the history-sheet bug by seeding seven sessions for one exercise; the sheet still rendered only five rows.
 - Sean asked: fix the exercises whose history sheet will not scroll down to older entries.
 - Error after trying: `handleOpenHistorySheet()` fetched `listExerciseHistory(exercise.id, 5)`, so older sessions were never loaded into the modal and there was nothing below row five to scroll to.
+
+2026-03-10
+- Added persisted theme mode in Settings.
+- Root cause: there was no theme preference in stored app settings and no app-level theme attribute or alternate token set to switch the UI.
+- Result: Settings now saves dark/light mode, App applies it to the root element, and the UI tokens switch without touching workout logic.

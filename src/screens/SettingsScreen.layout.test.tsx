@@ -6,16 +6,19 @@ import { resolve } from 'path'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { readPreferences } from '../lib/preferences'
 import { SettingsScreen } from './SettingsScreen'
 
 describe('Settings screen layout', () => {
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     document.body.innerHTML = ''
+    localStorage.clear()
   })
 
   afterEach(() => {
     document.body.innerHTML = ''
+    localStorage.clear()
   })
 
   it('settings page grid uses constrained single column track', () => {
@@ -54,6 +57,40 @@ describe('Settings screen layout', () => {
     expect(importButton?.textContent).toContain('Choose JSON file')
     expect(importName?.textContent).toContain('No file selected')
     expect(exportActions).not.toBeNull()
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('renders and persists a theme choice from settings', async () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<SettingsScreen />)
+    })
+
+    const lightButton = Array.from(host.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Light',
+    )
+    expect(lightButton).not.toBeUndefined()
+
+    await act(async () => {
+      lightButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    const saveButton = Array.from(host.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Save settings',
+    )
+    expect(saveButton).not.toBeUndefined()
+
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(readPreferences().theme).toBe('light')
 
     await act(async () => {
       root.unmount()

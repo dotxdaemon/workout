@@ -22,6 +22,8 @@ describe('App shell layout model', () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     document.body.innerHTML = ''
     document.documentElement.style.removeProperty('--app-shell-height')
+    document.documentElement.removeAttribute('data-theme')
+    localStorage.clear()
     HTMLDivElement.prototype.scrollTo = (() => undefined) as typeof HTMLDivElement.prototype.scrollTo
     document.documentElement.scrollTo =
       (() => undefined) as typeof document.documentElement.scrollTo
@@ -39,6 +41,8 @@ describe('App shell layout model', () => {
     host?.remove()
     host = null
     document.documentElement.style.removeProperty('--app-shell-height')
+    document.documentElement.removeAttribute('data-theme')
+    localStorage.clear()
     HTMLDivElement.prototype.scrollTo = originalDivScrollTo
     document.documentElement.scrollTo = originalDocumentElementScrollTo
     window.scrollTo = originalWindowScrollTo
@@ -119,5 +123,28 @@ describe('App shell layout model', () => {
 
     expect(nav).not.toBeNull()
     expect(links).toEqual(expect.arrayContaining(['Routines', 'Settings']))
+  })
+
+  it('applies the saved theme to the root element on mount', async () => {
+    localStorage.setItem(
+      'workout-tracker.preferences.v1',
+      JSON.stringify({
+        defaultUnit: 'lb',
+        defaultWeightIncrement: 5,
+        restTimerEnabled: true,
+        restSeconds: 90,
+        theme: 'light',
+      }),
+    )
+
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+
+    await act(async () => {
+      root?.render(<App />)
+    })
+
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light')
   })
 })

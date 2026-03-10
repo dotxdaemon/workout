@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { buildCsvExport, buildJsonExport, applyJsonImport, triggerDownload } from '../lib/exportImport'
 import { readPreferences, writePreferences } from '../lib/preferences'
-import type { AppPreferences, Unit } from '../types'
+import type { AppPreferences, ThemeMode, Unit } from '../types'
 
 export function SettingsScreen() {
   const [preferences, setPreferences] = useState<AppPreferences>(readPreferences())
@@ -91,6 +91,34 @@ export function SettingsScreen() {
 
       <div className="panel">
         <h2>Defaults</h2>
+        <div className="settings-theme-row">
+          <div className="stack stack--tight">
+            <span>Theme</span>
+            <p className="settings-theme-copy">Switch the app between dark and light.</p>
+          </div>
+          <div className="pill-toggle" role="group" aria-label="Theme">
+            {(['dark', 'light'] as ThemeMode[]).map((theme) => (
+              <button
+                key={theme}
+                type="button"
+                className={
+                  preferences.theme === theme
+                    ? 'pill-toggle__button pill-toggle__button--active'
+                    : 'pill-toggle__button'
+                }
+                onClick={() =>
+                  setPreferences((current) => ({
+                    ...current,
+                    theme,
+                  }))
+                }
+              >
+                {theme === 'dark' ? 'Dark' : 'Light'}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <label className="stack stack--tight">
           <span>Default unit</span>
           <select
@@ -125,7 +153,7 @@ export function SettingsScreen() {
         </label>
 
         <button type="button" className="button button--primary" onClick={handleSavePreferences}>
-          Save defaults
+          Save settings
         </button>
       </div>
 

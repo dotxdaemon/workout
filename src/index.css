@@ -6,7 +6,9 @@
   font-weight: 500;
   color: #F0F2F7;
   background: #0D0D0F;
+  color-scheme: dark;
   --bg: #0D0D0F;
+  --bg-rgb: 13, 13, 15;
   --surface: #16181C;
   --surface2: #1E2026;
   --surface-muted: #16181C;
@@ -15,6 +17,13 @@
   --text-muted: #5A5F6E;
   --accent: #C4B5FD;
   --accent-strong: #C4B5FD;
+  --surface-soft: rgba(255, 255, 255, 0.02);
+  --field-label: rgba(240, 242, 247, 0.7);
+  --field-bg: rgba(11, 13, 19, 0.88);
+  --field-border: rgba(196, 181, 253, 0.18);
+  --stepper-button-bg: rgba(196, 181, 253, 0.08);
+  --modal-backdrop: rgba(13, 13, 15, 0.72);
+  --history-shadow: 0 -18px 48px rgba(0, 0, 0, 0.4);
   --safe-area-top: env(safe-area-inset-top);
   --safe-area-bottom-capped: min(env(safe-area-inset-bottom), 36px);
   --bottom-nav-block-size: calc(3.6rem + max(0.5rem, var(--safe-area-bottom-capped)));
@@ -23,6 +32,27 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f5efe8;
+  --bg-rgb: 245, 239, 232;
+  --surface: #fffaf4;
+  --surface2: #f2ebe3;
+  --surface-muted: #fbf4ec;
+  --border: #d9cfe7;
+  --text: #241c2f;
+  --text-muted: #6f647f;
+  --accent: #8b6ff2;
+  --accent-strong: #7759eb;
+  --surface-soft: rgba(36, 28, 47, 0.04);
+  --field-label: rgba(36, 28, 47, 0.62);
+  --field-bg: rgba(255, 250, 244, 0.96);
+  --field-border: rgba(139, 111, 242, 0.24);
+  --stepper-button-bg: rgba(139, 111, 242, 0.12);
+  --modal-backdrop: rgba(24, 16, 40, 0.22);
+  --history-shadow: 0 -18px 48px rgba(66, 51, 107, 0.18);
 }
 
 * {
@@ -675,7 +705,7 @@ input[type='number']::-webkit-outer-spin-button {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(13, 13, 15, 0.72);
+  background: var(--modal-backdrop);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -699,7 +729,7 @@ input[type='number']::-webkit-outer-spin-button {
   touch-action: pan-y;
   transition: transform 150ms ease;
   will-change: transform;
-  box-shadow: 0 -18px 48px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--history-shadow);
 }
 
 .history-modal--dragging {
@@ -1045,7 +1075,7 @@ input[type='number']::-webkit-outer-spin-button {
   padding: 0 0.85rem;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--surface-soft);
   color: var(--text);
   display: inline-flex;
   align-items: center;
@@ -1090,7 +1120,7 @@ input[type='number']::-webkit-outer-spin-button {
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(240, 242, 247, 0.7);
+  color: var(--field-label);
 }
 
 .compact-field input {
@@ -1099,8 +1129,8 @@ input[type='number']::-webkit-outer-spin-button {
   min-height: 44px;
   height: 44px;
   border-radius: 10px;
-  border: 1px solid rgba(196, 181, 253, 0.18);
-  background: rgba(11, 13, 19, 0.88);
+  border: 1px solid var(--field-border);
+  background: var(--field-bg);
   color: var(--text);
   text-align: center;
   font-size: 20px;
@@ -1120,16 +1150,16 @@ input[type='number']::-webkit-outer-spin-button {
   gap: 0.28rem;
   font-size: 0.78rem;
   font-weight: 700;
-  color: rgba(240, 242, 247, 0.68);
+  color: var(--field-label);
 }
 
 .stepper-control {
   display: grid;
   grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem;
-  border: 1px solid rgba(196, 181, 253, 0.16);
+  border: 1px solid var(--field-border);
   border-radius: 10px;
   overflow: hidden;
-  background: rgba(11, 13, 19, 0.88);
+  background: var(--field-bg);
 }
 
 .stepper-control input {
@@ -1144,7 +1174,7 @@ input[type='number']::-webkit-outer-spin-button {
 
 .stepper-button {
   border: none;
-  background: rgba(196, 181, 253, 0.08);
+  background: var(--stepper-button-bg);
   color: var(--text);
   font-weight: 800;
   font-size: 1.05rem;
@@ -1207,6 +1237,18 @@ input[type='number']::-webkit-outer-spin-button {
   gap: 0.6rem;
 }
 
+.settings-theme-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.settings-theme-copy {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
 .settings-export-actions .button {
   width: 100%;
 }
@@ -1241,7 +1283,7 @@ input[type='number']::-webkit-outer-spin-button {
   min-height: 2.9rem;
   border-radius: 0.75rem;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--surface-soft);
   color: var(--text-muted);
   font-size: 0.92rem;
   display: flex;
@@ -1258,7 +1300,7 @@ input[type='number']::-webkit-outer-spin-button {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: linear-gradient(to bottom, rgba(13, 13, 15, 0.98) 78%, rgba(13, 13, 15, 0));
+  background: linear-gradient(to bottom, rgba(var(--bg-rgb), 0.98) 78%, rgba(var(--bg-rgb), 0));
   padding-top: 0.55rem;
   padding-bottom: 0.35rem;
 }

@@ -171,12 +171,17 @@ function validatePreferences(value: unknown): AppPreferences {
     typeof preferences.restSeconds === 'number' && Number.isFinite(preferences.restSeconds)
       ? Math.max(0, Math.round(preferences.restSeconds))
       : defaultPreferences.restSeconds
+  const theme =
+    preferences.theme === 'light' || preferences.theme === 'dark'
+      ? preferences.theme
+      : defaultPreferences.theme
 
   return {
     defaultUnit,
     defaultWeightIncrement,
     restTimerEnabled,
     restSeconds,
+    theme,
   }
 }
 

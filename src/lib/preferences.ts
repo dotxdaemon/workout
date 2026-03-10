@@ -1,6 +1,6 @@
 // ABOUTME: Reads and writes local user preferences used for defaults across workout entry.
 // ABOUTME: Applies safe fallbacks so malformed local storage never breaks the UI.
-import type { AppPreferences, Unit } from '../types'
+import type { AppPreferences, ThemeMode, Unit } from '../types'
 
 const PREFERENCES_KEY = 'workout-tracker.preferences.v1'
 
@@ -9,10 +9,19 @@ export const defaultPreferences: AppPreferences = {
   defaultWeightIncrement: 5,
   restTimerEnabled: true,
   restSeconds: 90,
+  theme: 'dark',
 }
 
 function isUnit(value: unknown): value is Unit {
   return value === 'lb' || value === 'kg'
+}
+
+function isThemeMode(value: unknown): value is ThemeMode {
+  return value === 'dark' || value === 'light'
+}
+
+export function applyTheme(theme: ThemeMode): void {
+  document.documentElement.setAttribute('data-theme', theme)
 }
 
 export function readPreferences(): AppPreferences {
@@ -39,12 +48,14 @@ export function readPreferences(): AppPreferences {
       typeof parsed.restSeconds === 'number' && Number.isFinite(parsed.restSeconds)
         ? Math.max(0, Math.round(parsed.restSeconds))
         : defaultPreferences.restSeconds
+    const theme = isThemeMode(parsed.theme) ? parsed.theme : defaultPreferences.theme
 
     return {
       defaultUnit,
       defaultWeightIncrement,
       restTimerEnabled,
       restSeconds,
+      theme,
     }
   } catch {
     return defaultPreferences
@@ -53,4 +64,5 @@ export function readPreferences(): AppPreferences {
 
 export function writePreferences(preferences: AppPreferences): void {
   localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences))
+  applyTheme(preferences.theme)
 }
