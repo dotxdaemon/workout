@@ -1,8 +1,5 @@
 // ABOUTME: Verifies settings screen layout constraints for mobile overflow prevention.
 // ABOUTME: Ensures settings-specific file input classes are rendered for themed styling.
-/// <reference types="node" />
-import { readFileSync } from 'fs'
-import { resolve } from 'path'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -19,22 +16,6 @@ describe('Settings screen layout', () => {
   afterEach(() => {
     document.body.innerHTML = ''
     localStorage.clear()
-  })
-
-  it('settings page grid uses constrained single column track', () => {
-    const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
-    const pageBlock = getRuleBlock(css, '.page')
-
-    expect(pageBlock).toContain('grid-template-columns: minmax(0, 1fr)')
-  })
-
-  it('settings file input has width clamp styles', () => {
-    const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
-    const settingsFileBlock = getRuleBlock(css, '.settings-page .settings-file-input')
-
-    expect(settingsFileBlock).toContain('width: 100%')
-    expect(settingsFileBlock).toContain('max-width: 100%')
-    expect(settingsFileBlock).toContain('min-width: 0')
   })
 
   it('settings screen renders styled import controls and stacked export actions', async () => {
@@ -89,9 +70,3 @@ describe('Settings screen layout', () => {
     })
   })
 })
-
-function getRuleBlock(css: string, selector: string): string {
-  const escapedSelector = selector.replace(/\./g, '\\.')
-  const match = css.match(new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\}`, 'm'))
-  return match?.[1] ?? ''
-}

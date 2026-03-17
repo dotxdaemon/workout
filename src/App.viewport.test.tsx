@@ -125,18 +125,8 @@ describe('App shell layout model', () => {
     expect(links).toEqual(expect.arrayContaining(['Routines', 'Settings']))
   })
 
-  it('applies the saved theme to the root element on mount', async () => {
-    localStorage.setItem(
-      'workout-tracker.preferences.v1',
-      JSON.stringify({
-        defaultUnit: 'lb',
-        defaultWeightIncrement: 5,
-        restTimerEnabled: true,
-        restSeconds: 90,
-        theme: 'light',
-      }),
-    )
-
+  it('preserves the existing root theme attribute on mount', async () => {
+    document.documentElement.setAttribute('data-theme', 'light')
     host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)

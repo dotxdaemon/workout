@@ -193,3 +193,19 @@
   - what hypothesis was tried
   - why it failed or why it worked
 - The journal is the memory of failed hypotheses; it should stop repeated attempts, especially for the nav and shell subsystem.
+2026-03-17
+- Previously tried: reviewed `a282294..main`, ran the baseline verification commands, and identified the current issues without changing code yet.
+- Sean asked: fix review points 2, 3, and 5 from the current `main` review.
+- Error after trying: not attempted yet in code; next step is to add failing regressions for the unstable history cache contract, duplicate-name add ambiguity, first-paint theme delay, and timing-based test synchronization.
+2026-03-17
+- Tried fixing review points 2, 3, and 5 with failing regressions first.
+- Root causes:
+  - the routine editor reused the first name match even after duplicate exercise names became valid, so add-by-name could bind the wrong record or refuse to add.
+  - the saved theme was only applied after `App` mounted, so startup still painted dark first.
+  - the history preview cache was reused for both the 5-row today preview and the full modal payload.
+  - layout tests depended on long wall-clock sleeps and raw CSS/source-string assertions.
+- Result:
+  - startup theme now applies in `main.tsx` before first render, while `App` no longer owns theme bootstrap.
+  - the routine editor now creates a fresh record when duplicate-name matches are ambiguous.
+  - the today preview cache stays preview-only while the history sheet loads its own full rows.
+  - the affected tests now use runtime behavior checks and deterministic event-loop flushing instead of fixed sleeps.

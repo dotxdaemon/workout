@@ -83,7 +83,7 @@ export function RoutinesScreen() {
   const [routines, setRoutines] = useState<Routine[]>([])
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [setsByExercise, setSetsByExercise] = useState<Record<string, SetEntry[]>>({})
-  const [historyByExercise, setHistoryByExercise] = useState<Record<string, HistoryItem[]>>({})
+  const [historyPreviewByExercise, setHistoryPreviewByExercise] = useState<Record<string, HistoryItem[]>>({})
   const [activeSplitId, setActiveSplitId] = useState<RoutineSplitId>(() =>
     readActiveRoutineSplitId(),
   )
@@ -248,7 +248,7 @@ export function RoutinesScreen() {
 
   useEffect(() => {
     if (selectedExerciseIds.length === 0) {
-      setHistoryByExercise({})
+      setHistoryPreviewByExercise({})
       return
     }
 
@@ -265,7 +265,7 @@ export function RoutinesScreen() {
           return
         }
 
-        setHistoryByExercise(Object.fromEntries(pairs))
+        setHistoryPreviewByExercise(Object.fromEntries(pairs))
       })
       .catch(() => {
         if (isCurrent) {
@@ -402,7 +402,7 @@ export function RoutinesScreen() {
 
   async function refreshHistoryForExercise(exerciseId: string): Promise<void> {
     const rows = await listExerciseHistory(exerciseId, historyPreviewLimit)
-    setHistoryByExercise((current) => ({
+    setHistoryPreviewByExercise((current) => ({
       ...current,
       [exerciseId]: rows,
     }))
@@ -514,7 +514,7 @@ export function RoutinesScreen() {
     exercise: Exercise,
     openedAtMs: number,
   ): Promise<void> {
-    const cachedRows = historyByExercise[exercise.id] ?? []
+    const cachedRows = historyPreviewByExercise[exercise.id] ?? []
     historySheetOpenedAtRef.current = openedAtMs
 
     setHistorySheet({
@@ -534,11 +534,6 @@ export function RoutinesScreen() {
       if (historyRequestRef.current !== requestId) {
         return
       }
-
-      setHistoryByExercise((current) => ({
-        ...current,
-        [exercise.id]: rows,
-      }))
 
       setHistorySheet((current) =>
         current && current.exerciseId === exercise.id
@@ -724,7 +719,10 @@ export function RoutinesScreen() {
       return
     }
 
-    let exercise = exercises.find((item) => item.name.toLowerCase() === query.toLowerCase())
+    const matchingExercises = exercises.filter(
+      (item) => item.name.toLowerCase() === query.toLowerCase(),
+    )
+    let exercise = matchingExercises.length === 1 ? matchingExercises[0] : undefined
 
     if (!exercise) {
       const created = await createExercise({
@@ -981,7 +979,7 @@ export function RoutinesScreen() {
                 const isExpanded = expandedExerciseId === exercise.id
                 const targetSets = exercise.progressionSettings.workSetsTarget
                 const setDrafts = ensureSetDraftLength(draftsByExercise[exercise.id] ?? [], targetSets)
-                const historyRows = historyByExercise[exercise.id] ?? []
+                const historyRows = historyPreviewByExercise[exercise.id] ?? []
                 const lastSummary = formatLastSummary(historyRows[0]?.sets)
 
                 return (

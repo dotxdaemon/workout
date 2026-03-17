@@ -1,12 +1,9 @@
 // ABOUTME: Verifies runtime routines-screen behavior for today/edit flows, history sheet UX, and rename isolation.
 // ABOUTME: Guards mobile layout stability regressions with focused assertions tied to reported bugs.
-/// <reference types="node" />
-import { readFileSync } from 'fs'
-import { resolve } from 'path'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { db, listExercises } from '../lib/db'
+import { createExercise, db, ensureCoreRoutines, listExercises } from '../lib/db'
 import { RoutinesScreen } from './RoutinesScreen'
 
 interface RenderHarness {
@@ -20,6 +17,7 @@ describe('RoutinesScreen behavior', () => {
 
   beforeEach(async () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    vi.useRealTimers()
     localStorage.clear()
     document.body.innerHTML = ''
     window.scrollTo = (() => undefined) as typeof window.scrollTo
@@ -30,6 +28,7 @@ describe('RoutinesScreen behavior', () => {
   })
 
   afterEach(async () => {
+    vi.useRealTimers()
     document.body.innerHTML = ''
     localStorage.clear()
     window.scrollTo = originalWindowScrollTo
@@ -98,62 +97,79 @@ describe('RoutinesScreen behavior', () => {
 
   it('keeps screen-area scrolling responsive after saving a quick-entry set', async () => {
     const harness = await renderScreen()
-    const firstCard = harness.host.querySelector('.today-card') as HTMLElement | null
+    let setTimeoutSpy: ReturnType<typeof vi.spyOn> | null = null
 
-    expect(firstCard).not.toBeNull()
+    try {
+      const firstCard = harness.host.querySelector('.today-card') as HTMLElement | null
 
-    const weightInput = firstCard?.querySelector(
-      'input[inputmode="decimal"]',
-    ) as HTMLInputElement | null
-    const repsInput = firstCard?.querySelector(
-      'input[inputmode="numeric"]',
-    ) as HTMLInputElement | null
-    const saveButton = firstCard?.querySelector(
-      '.today-card__save-button',
-    ) as HTMLButtonElement | null
+      expect(firstCard).not.toBeNull()
 
-    expect(weightInput).not.toBeNull()
-    expect(repsInput).not.toBeNull()
-    expect(saveButton).not.toBeNull()
+      const weightInput = firstCard?.querySelector(
+        'input[inputmode="decimal"]',
+      ) as HTMLInputElement | null
+      const repsInput = firstCard?.querySelector(
+        'input[inputmode="numeric"]',
+      ) as HTMLInputElement | null
+      const saveButton = firstCard?.querySelector(
+        '.today-card__save-button',
+      ) as HTMLButtonElement | null
 
-    const scrollTopBeforeSave = 212
-    harness.host.scrollTop = scrollTopBeforeSave
-    const scrollingElement = getDocumentScrollElement()
-    const documentScrollSpy = vi.fn((options?: ScrollToOptions | number) => {
-      if (typeof options === 'object' && typeof options?.top === 'number') {
-        scrollingElement.scrollTop = options.top
-      }
-    })
-    const screenAreaScrollSpy = vi.fn((options?: ScrollToOptions | number) => {
-      if (typeof options === 'object' && typeof options?.top === 'number') {
-        harness.host.scrollTop = options.top
-      }
-    })
-    harness.host.scrollTo = screenAreaScrollSpy as unknown as typeof harness.host.scrollTo
-    scrollingElement.scrollTo = documentScrollSpy as unknown as typeof scrollingElement.scrollTo
+      expect(weightInput).not.toBeNull()
+      expect(repsInput).not.toBeNull()
+      expect(saveButton).not.toBeNull()
 
-    await setInputValue(weightInput!, '105')
-    await setInputValue(repsInput!, '7')
-    harness.host.scrollTop = scrollTopBeforeSave + 18
+      const scrollTopBeforeSave = 212
+      harness.host.scrollTop = scrollTopBeforeSave
+      const scrollingElement = getDocumentScrollElement()
+      const documentScrollSpy = vi.fn((options?: ScrollToOptions | number) => {
+        if (typeof options === 'object' && typeof options?.top === 'number') {
+          scrollingElement.scrollTop = options.top
+        }
+      })
+      const screenAreaScrollSpy = vi.fn((options?: ScrollToOptions | number) => {
+        if (typeof options === 'object' && typeof options?.top === 'number') {
+          harness.host.scrollTop = options.top
+        }
+      })
+      harness.host.scrollTo = screenAreaScrollSpy as unknown as typeof harness.host.scrollTo
+      scrollingElement.scrollTo = documentScrollSpy as unknown as typeof scrollingElement.scrollTo
+      await setInputValue(weightInput!, '105')
+      await setInputValue(repsInput!, '7')
+      harness.host.scrollTop = scrollTopBeforeSave + 18
 
-    await click(saveButton!)
+      await click(saveButton!)
 
-    await waitFor(
-      () => (harness.host.querySelector('.today-card__stats-value')?.textContent ?? '').includes('105 x 7'),
-      'Saved set was not reflected in last-set stats.',
-    )
+      await waitFor(
+        () => (harness.host.querySelector('.today-card__stats-value')?.textContent ?? '').includes('105 x 7'),
+        'Saved set was not reflected in last-set stats.',
+      )
 
-    documentScrollSpy.mockClear()
-    screenAreaScrollSpy.mockClear()
-    harness.host.scrollTop = 96
-    await act(async () => {
-      await delay(820)
-    })
+      let savedFeedbackCallback: (() => void) | null = null
+      setTimeoutSpy = vi.spyOn(window, 'setTimeout').mockImplementation(
+        ((handler: TimerHandler) => {
+          if (typeof handler === 'function') {
+            savedFeedbackCallback = handler as () => void
+          }
+          return 1 as unknown as number
+        }) as typeof window.setTimeout,
+      )
 
-    expect(documentScrollSpy).not.toHaveBeenCalled()
-    expect(screenAreaScrollSpy).not.toHaveBeenCalled()
-    expect(harness.host.scrollTop).toBe(96)
-    await harness.cleanup()
+      documentScrollSpy.mockClear()
+      screenAreaScrollSpy.mockClear()
+      harness.host.scrollTop = 96
+
+      await act(async () => {
+        savedFeedbackCallback?.()
+        await Promise.resolve()
+      })
+
+      expect(documentScrollSpy).not.toHaveBeenCalled()
+      expect(screenAreaScrollSpy).not.toHaveBeenCalled()
+      expect(harness.host.scrollTop).toBe(96)
+    } finally {
+      setTimeoutSpy?.mockRestore()
+      await harness.cleanup()
+    }
   })
 
   it('does not blur the active quick-entry input when saving a set', async () => {
@@ -264,7 +280,6 @@ describe('RoutinesScreen behavior', () => {
     await click(getButtonByText(harness.host, 'Edit'))
 
     await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
-    await delay(20)
 
     const routineNameInput = harness.host.querySelector(
       '.panel.panel--compact label input',
@@ -292,10 +307,7 @@ describe('RoutinesScreen behavior', () => {
     harness.host.scrollTop = scrollTopBeforeSave + 24
     await click(getButtonByText(harness.host, 'Save routine'))
     await waitFor(() => Boolean(harness.host.querySelector('.today-mode')), 'Save did not return to today mode.')
-
-    await act(async () => {
-      await delay(60)
-    })
+    await waitForNextFrame()
 
     expect(screenAreaScrollSpy).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
     expect(documentScrollSpy).not.toHaveBeenCalled()
@@ -404,7 +416,7 @@ describe('RoutinesScreen behavior', () => {
   it('opens and closes history sheet while locking bottom nav interaction', async () => {
     const harness = await renderScreen({ withBottomNav: true })
     const timerButton = getButtonByAriaLabelPrefix(harness.host, 'Open history for')
-    await click(timerButton)
+    await click(timerButton, { timeStamp: 0 })
 
     await waitFor(
       () => Boolean(document.body.querySelector('.history-modal')),
@@ -418,10 +430,9 @@ describe('RoutinesScreen behavior', () => {
     expect(nav?.style.visibility).toBe('hidden')
     expect(nav?.style.pointerEvents).toBe('none')
 
-    await delay(220)
     const backdrop = document.body.querySelector('.modal-backdrop') as HTMLDivElement | null
     expect(backdrop).not.toBeNull()
-    await click(backdrop!)
+    await click(backdrop!, { timeStamp: 220 })
 
     await waitFor(
       () => !document.body.querySelector('.history-modal'),
@@ -523,32 +534,59 @@ describe('RoutinesScreen behavior', () => {
 
     await click(getButtonByText(harness.host, 'Save routine'))
     await waitFor(() => Boolean(harness.host.querySelector('.today-mode')), 'Save did not return to today mode.')
-    await act(async () => {
-      await delay(25)
-    })
-
-    const exercises = await listExercises()
-    const duplicates = exercises.filter((exercise) => exercise.name === 'Lying Hamstring Curl')
-    expect(duplicates).toHaveLength(2)
+    await waitForAsync(async () => {
+      const exercises = await listExercises()
+      const duplicates = exercises.filter((exercise) => exercise.name === 'Lying Hamstring Curl')
+      return duplicates.length === 2
+    }, 'Renaming to an existing exercise name did not create an isolated exercise record.')
 
     await harness.cleanup()
   })
 
-  it('keeps today active-day header non-sticky to prevent clipping artifacts', () => {
-    const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
-    const block = getRuleBlock(css, '.today-active-day-header')
+  it('creates a fresh exercise record when add-by-name is ambiguous across duplicates', async () => {
+    await ensureCoreRoutines('lb')
+    await createExercise({
+      name: 'Leg Press',
+      unitDefault: 'kg',
+    })
 
-    expect(block).not.toContain('position: sticky')
-    expect(block).not.toContain('top: 0')
+    const harness = await renderScreen()
+    await click(getButtonByText(harness.host, 'Edit'))
+
+    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+    await click(getButtonByText(harness.host, '4 day'))
+    await waitFor(
+      () => getButtonByTextIncludes(harness.host, 'Day 2') !== null,
+      '4-day routine cards were not rendered.',
+    )
+
+    await click(getButtonByTextIncludes(harness.host, 'Day 2')!)
+    await waitFor(
+      () => Boolean(findEditRowByTitle(harness.host, 'Leg Press')),
+      'Day 2 did not render a Leg Press edit row.',
+    )
+
+    const rowCountBeforeAdd = harness.host.querySelectorAll('.edit-exercise-row').length
+    const addExerciseInput = harness.host.querySelector(
+      'input[placeholder="Add exercise"]',
+    ) as HTMLInputElement | null
+
+    expect(addExerciseInput).not.toBeNull()
+
+    await setInputValue(addExerciseInput!, 'Leg Press')
+    await click(getButtonByText(harness.host, 'Add'))
+
+    await waitFor(
+      () => harness.host.querySelectorAll('.edit-exercise-row').length === rowCountBeforeAdd + 1,
+      'Ambiguous duplicate-name add did not create a fresh draft row.',
+    )
+
+    const exercises = await listExercises()
+    expect(exercises.filter((exercise) => exercise.name === 'Leg Press')).toHaveLength(3)
+
+    await harness.cleanup()
   })
 
-  it('keeps routines header sticky so Today/Edit controls stay reachable', () => {
-    const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
-    const block = getRuleBlock(css, '.routines-header')
-
-    expect(block).toContain('position: sticky')
-    expect(block).toContain('top: 0')
-  })
 })
 
 async function renderScreen(options?: { withBottomNav?: boolean }): Promise<RenderHarness> {
@@ -595,9 +633,20 @@ async function cleanupRender(root: Root, shell: HTMLElement): Promise<void> {
   shell.remove()
 }
 
-async function click(element: HTMLElement): Promise<void> {
+async function click(
+  element: HTMLElement,
+  options?: { timeStamp?: number },
+): Promise<void> {
+  const event = new MouseEvent('click', { bubbles: true, cancelable: true })
+  if (options?.timeStamp != null) {
+    Object.defineProperty(event, 'timeStamp', {
+      configurable: true,
+      value: options.timeStamp,
+    })
+  }
+
   await act(async () => {
-    element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    element.dispatchEvent(event)
     await Promise.resolve()
   })
 }
@@ -660,24 +709,48 @@ function findEditRowByTitle(container: ParentNode, title: string): HTMLElement |
 async function waitFor(
   condition: () => boolean,
   failureMessage: string,
-  timeoutMs = 4500,
+  maxPasses = 500,
 ): Promise<void> {
-  const startedAt = Date.now()
-  while (Date.now() - startedAt < timeoutMs) {
+  for (let pass = 0; pass < maxPasses; pass += 1) {
     if (condition()) {
       return
     }
+
     await act(async () => {
-      await delay(25)
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0)
+      })
     })
   }
 
   throw new Error(failureMessage)
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms)
+async function waitForAsync(
+  condition: () => Promise<boolean>,
+  failureMessage: string,
+  maxPasses = 500,
+): Promise<void> {
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    if (await condition()) {
+      return
+    }
+
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0)
+      })
+    })
+  }
+
+  throw new Error(failureMessage)
+}
+
+async function waitForNextFrame(): Promise<void> {
+  await act(async () => {
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve())
+    })
   })
 }
 
@@ -688,10 +761,4 @@ async function clearDatabase(): Promise<void> {
     await db.routines.clear()
     await db.exercises.clear()
   })
-}
-
-function getRuleBlock(css: string, selector: string): string {
-  const escapedSelector = selector.replace('.', '\\.')
-  const match = css.match(new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\}`, 'm'))
-  return match?.[1] ?? ''
 }

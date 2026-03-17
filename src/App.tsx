@@ -1,16 +1,10 @@
 // ABOUTME: Sets up app routing and fixed shell layout for the mobile workout tracker.
 // ABOUTME: Defines bottom navigation for routines and settings screens.
-import { useEffect } from 'react'
 import { HashRouter, NavLink, Navigate, Route, Routes } from 'react-router-dom'
-import { applyTheme, readPreferences } from './lib/preferences'
 import { RoutinesScreen } from './screens/RoutinesScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 
 function App() {
-  useEffect(() => {
-    applyTheme(readPreferences().theme)
-  }, [])
-
   return (
     <HashRouter>
       <div className="app-shell">
