@@ -209,3 +209,7 @@
   - the routine editor now creates a fresh record when duplicate-name matches are ambiguous.
   - the today preview cache stays preview-only while the history sheet loads its own full rows.
   - the affected tests now use runtime behavior checks and deterministic event-loop flushing instead of fixed sleeps.
+2026-03-31
+- Previously tried: linked exact-name exercises in the data layer so history, prefills, and settings follow exact stored-name matches across duplicate exercise records.
+- Sean asked: make exactly named exercises affect each other across different days.
+- Error after trying: the full `npm test` run exposed a timing-sensitive history-sheet test; it asserted as soon as the modal mounted, but the sheet could still be in `Loading history...` after the added exact-name lookup.

@@ -456,6 +456,13 @@ describe('RoutinesScreen behavior', () => {
       'History sheet did not open from the timer button.',
     )
 
+    await waitFor(
+      () =>
+        (document.body.textContent ?? '').includes('No history yet.') &&
+        (document.body.textContent ?? '').includes('Log a set and it will show up here.'),
+      'Empty history copy did not render after the history sheet loaded.',
+    )
+
     expect(document.body.textContent).toContain('No history yet.')
     expect(document.body.textContent).toContain('Log a set and it will show up here.')
 
@@ -648,6 +655,9 @@ async function click(
   await act(async () => {
     element.dispatchEvent(event)
     await Promise.resolve()
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0)
+    })
   })
 }
 

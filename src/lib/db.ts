@@ -244,7 +244,13 @@ export async function updateExercise(
   id: string,
   patch: Partial<Omit<Exercise, 'id'>>,
 ): Promise<void> {
-  await db.exercises.update(id, patch)
+  const relatedExerciseIds = await getRelatedExerciseIds(id)
+
+  await db.transaction('rw', db.exercises, async () => {
+    for (const exerciseId of relatedExerciseIds) {
+      await db.exercises.update(exerciseId, patch)
+    }
+  })
 }
 
 export async function listRoutines(): Promise<Routine[]> {
@@ -809,5 +815,15 @@ async function repairSeedDuplicates(): Promise<void> {
 }
 
 async function getRelatedExerciseIds(exerciseId: string): Promise<string[]> {
-  return [exerciseId]
+  const exercise = await db.exercises.get(exerciseId)
+  if (!exercise) {
+    return [exerciseId]
+  }
+
+  const relatedExercises = await db.exercises.where('name').equals(exercise.name).toArray()
+  if (relatedExercises.length === 0) {
+    return [exerciseId]
+  }
+
+  return relatedExercises.map((relatedExercise) => relatedExercise.id)
 }

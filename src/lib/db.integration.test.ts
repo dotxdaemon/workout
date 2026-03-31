@@ -21,6 +21,7 @@ import {
   saveSessionExerciseSet,
   listSessionSetEntries,
   startSession,
+  updateExercise,
   updateRoutine,
   updateSetEntry,
 } from './db'
@@ -277,38 +278,83 @@ describe('IndexedDB integration', () => {
     ])
   })
 
-  it('keeps same-name exercises isolated for history and routine references', async () => {
+  it('links exact-name exercises for history, prefills, and settings only', async () => {
     const first = await createExercise({
-      name: 'Leg Press',
+      name: 'Leg Extension',
       unitDefault: 'lb',
     })
     const second = await createExercise({
-      name: 'Leg Press',
+      name: 'Leg Extension',
+      unitDefault: 'lb',
+    })
+    const differentCase = await createExercise({
+      name: 'leg extension',
       unitDefault: 'lb',
     })
 
-    const session = await startSession()
-    await addSetEntry(session.id, first.id, {
+    const firstSession = await startSession()
+    await addSetEntry(firstSession.id, first.id, {
       weight: 315,
       reps: 10,
       completed: true,
     })
-    await addSetEntry(session.id, second.id, {
-      weight: 405,
-      reps: 6,
-      completed: true,
-    })
+    await endSession(firstSession.id)
 
     const firstHistory = await listExerciseHistory(first.id, 5)
     const secondHistory = await listExerciseHistory(second.id, 5)
+    const differentCaseHistory = await listExerciseHistory(differentCase.id, 5)
+    const secondPrefill = await getSetInputPrefillFromLastSession(second.id, 0)
 
     expect(firstHistory).toHaveLength(1)
     expect(secondHistory).toHaveLength(1)
+    expect(differentCaseHistory).toHaveLength(0)
+    expect(secondPrefill).toEqual({
+      weight: 315,
+      reps: 10,
+    })
     expect(firstHistory[0].sets.map((set) => [set.exerciseId, set.weight, set.reps])).toEqual([
       [first.id, 315, 10],
     ])
     expect(secondHistory[0].sets.map((set) => [set.exerciseId, set.weight, set.reps])).toEqual([
-      [second.id, 405, 6],
+      [first.id, 315, 10],
     ])
+
+    await updateExercise(first.id, {
+      equipment: 'Machine',
+      unitDefault: 'kg',
+      progressionSettings: {
+        ...first.progressionSettings,
+        repMin: 8,
+        repMax: 12,
+        workSetsTarget: 4,
+        weightIncrement: 5,
+        unit: 'kg',
+      },
+    })
+
+    const exercises = await listExercises()
+    const updatedSecond = exercises.find((exercise) => exercise.id === second.id)
+    const unchangedDifferentCase = exercises.find((exercise) => exercise.id === differentCase.id)
+
+    expect(updatedSecond).toMatchObject({
+      equipment: 'Machine',
+      unitDefault: 'kg',
+      progressionSettings: {
+        ...second.progressionSettings,
+        repMin: 8,
+        repMax: 12,
+        workSetsTarget: 4,
+        weightIncrement: 5,
+        unit: 'kg',
+      },
+    })
+    expect(unchangedDifferentCase).toMatchObject({
+      equipment: undefined,
+      unitDefault: 'lb',
+      progressionSettings: {
+        ...differentCase.progressionSettings,
+        unit: 'lb',
+      },
+    })
   })
 })
