@@ -18,7 +18,7 @@ describe('Settings screen layout', () => {
     localStorage.clear()
   })
 
-  it('settings screen renders styled import controls and stacked export actions', async () => {
+  it('keeps defaults visible while collapsing backup and restore tools by default', async () => {
     const host = document.createElement('div')
     document.body.appendChild(host)
     const root = createRoot(host)
@@ -28,16 +28,31 @@ describe('Settings screen layout', () => {
     })
 
     const page = host.querySelector('.settings-page')
+    const defaultsHeading = Array.from(host.querySelectorAll('h2')).find(
+      (heading) => heading.textContent?.trim() === 'Defaults',
+    )
+    const dataPanel = host.querySelector('.settings-data-panel') as HTMLDetailsElement | null
     const importInput = host.querySelector('.settings-file-input')
-    const importButton = host.querySelector('.settings-file-button')
-    const importName = host.querySelector('.settings-file-name')
     const exportActions = host.querySelector('.settings-export-actions')
 
     expect(page).not.toBeNull()
-    expect(importInput).not.toBeNull()
-    expect(importButton?.textContent).toContain('Choose JSON file')
-    expect(importName?.textContent).toContain('No file selected')
-    expect(exportActions).not.toBeNull()
+    expect(defaultsHeading).not.toBeUndefined()
+    expect(dataPanel).not.toBeNull()
+    expect(dataPanel?.open).toBe(false)
+    expect(importInput).toBeNull()
+    expect(exportActions).toBeNull()
+
+    await act(async () => {
+      if (dataPanel) {
+        dataPanel.open = true
+        dataPanel.dispatchEvent(new Event('toggle'))
+      }
+    })
+
+    expect(host.querySelector('.settings-file-input')).not.toBeNull()
+    expect(host.querySelector('.settings-file-button')?.textContent).toContain('Choose JSON file')
+    expect(host.querySelector('.settings-file-name')?.textContent).toContain('No file selected')
+    expect(host.querySelector('.settings-export-actions')).not.toBeNull()
 
     await act(async () => {
       root.unmount()

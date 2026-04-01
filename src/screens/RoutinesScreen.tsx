@@ -99,6 +99,7 @@ export function RoutinesScreen() {
   const [defaultWeightIncrement, setDefaultWeightIncrement] = useState(5)
   const [routineNameDraft, setRoutineNameDraft] = useState('')
   const [exerciseDrafts, setExerciseDrafts] = useState<RoutineExerciseDraft[]>([])
+  const [openExerciseDraftIds, setOpenExerciseDraftIds] = useState<Record<string, boolean>>({})
   const [addExerciseName, setAddExerciseName] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -169,6 +170,25 @@ export function RoutinesScreen() {
     () => getRoutineFocusLabel(selectedRoutine?.name),
     [selectedRoutine?.name],
   )
+  const trimmedAddExerciseName = addExerciseName.trim()
+  const normalizedAddExerciseName = trimmedAddExerciseName.toLowerCase()
+  const draftExerciseIds = useMemo(
+    () => new Set(exerciseDrafts.map((draft) => draft.exerciseId)),
+    [exerciseDrafts],
+  )
+  const editExerciseSuggestions = useMemo(() => {
+    if (mode !== 'edit' || !trimmedAddExerciseName) {
+      return []
+    }
+
+    return exercises
+      .filter(
+        (exercise) =>
+          !draftExerciseIds.has(exercise.id) &&
+          exercise.name.toLowerCase().includes(normalizedAddExerciseName),
+      )
+      .slice(0, 6)
+  }, [draftExerciseIds, exercises, mode, normalizedAddExerciseName, trimmedAddExerciseName])
 
   const loadData = useCallback(async () => {
     const preferences = readPreferences()
@@ -342,6 +362,10 @@ export function RoutinesScreen() {
     )
     setAddExerciseName('')
   }, [exerciseMap, mode, selectedRoutine])
+
+  useEffect(() => {
+    setOpenExerciseDraftIds({})
+  }, [mode, selectedRoutine?.id])
 
   useEffect(() => {
     if (!historySheet) {
@@ -714,53 +738,71 @@ export function RoutinesScreen() {
   }
 
   async function handleAddExerciseToDraft(): Promise<void> {
-    const query = addExerciseName.trim()
-    if (!query) {
+    if (!trimmedAddExerciseName) {
       return
     }
 
-    const matchingExercises = exercises.filter(
-      (item) => item.name.toLowerCase() === query.toLowerCase(),
+    const exactMatch = exercises.find(
+      (item) => item.name.toLowerCase() === normalizedAddExerciseName,
     )
-    let exercise = matchingExercises.length === 1 ? matchingExercises[0] : undefined
 
-    if (!exercise) {
-      const created = await createExercise({
-        name: query,
-        unitDefault: defaultUnit,
-      })
-
-      const createdExercise: Exercise = {
-        ...created,
-        progressionSettings: {
-          ...created.progressionSettings,
-          weightIncrement: defaultWeightIncrement,
-        },
-      }
-      exercise = createdExercise
-
-      await updateExercise(exercise.id, {
-        progressionSettings: exercise.progressionSettings,
-      })
-
-      setExercises((current) => [...current, createdExercise])
-    }
-
-    if (!exercise) {
+    if (exactMatch) {
+      addExerciseDraft(exactMatch)
       return
     }
 
-    setExerciseDrafts((current) => {
-      if (current.some((item) => item.exerciseId === exercise.id)) {
-        return current
-      }
-
-      return [...current, toRoutineExerciseDraft(exercise, createRoutineDraftId(exercise.id))]
+    const created = await createExercise({
+      name: trimmedAddExerciseName,
+      unitDefault: defaultUnit,
     })
 
+    const createdExercise: Exercise = {
+      ...created,
+      progressionSettings: {
+        ...created.progressionSettings,
+        weightIncrement: defaultWeightIncrement,
+      },
+    }
+
+    await updateExercise(createdExercise.id, {
+      progressionSettings: createdExercise.progressionSettings,
+    })
+
+    setExercises((current) => sortExercisesByName([...current, createdExercise]))
+    addExerciseDraft(createdExercise)
+  }
+
+  function addExerciseDraft(exercise: Exercise): void {
+    if (draftExerciseIds.has(exercise.id)) {
+      setAddExerciseName('')
+      setMessage('Exercise already in routine.')
+      setError('')
+      return
+    }
+
+    setExerciseDrafts((current) => [
+      ...current,
+      toRoutineExerciseDraft(exercise, createRoutineDraftId(exercise.id)),
+    ])
     setAddExerciseName('')
     setMessage('Exercise ready. Save routine to apply changes.')
     setError('')
+  }
+
+  function toggleExerciseDraftDetails(draftId: string): void {
+    setOpenExerciseDraftIds((current) => ({
+      ...current,
+      [draftId]: !current[draftId],
+    }))
+  }
+
+  function removeExerciseDraft(draftId: string): void {
+    setExerciseDrafts((current) => current.filter((item) => item.draftId !== draftId))
+    setOpenExerciseDraftIds((current) => {
+      const next = { ...current }
+      delete next[draftId]
+      return next
+    })
   }
 
   function moveExerciseDraft(draftId: string, direction: -1 | 1): void {
@@ -872,7 +914,7 @@ export function RoutinesScreen() {
     }
 
     if (createdExercises.length > 0) {
-      setExercises((current) => [...current, ...createdExercises])
+      setExercises((current) => sortExercisesByName([...current, ...createdExercises]))
     }
 
     await updateRoutine(selectedRoutine.id, {
@@ -1228,6 +1270,21 @@ export function RoutinesScreen() {
               </button>
             </div>
 
+            {editExerciseSuggestions.length > 0 ? (
+              <div className="suggestions-list">
+                {editExerciseSuggestions.map((exercise) => (
+                  <button
+                    key={exercise.id}
+                    type="button"
+                    className="suggestion-button"
+                    onClick={() => addExerciseDraft(exercise)}
+                  >
+                    {exercise.name}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
             <div className="button-row edit-actions-sticky">
               <button
                 type="button"
@@ -1246,64 +1303,161 @@ export function RoutinesScreen() {
             </div>
 
             <div className="edit-exercise-list">
-              {exerciseDrafts.map((draft, index) => (
-                <article
-                  key={draft.draftId}
-                  className="list-card edit-exercise-row"
-                >
-                  <div className="edit-exercise-row__header">
-                    <div className="row row--center edit-exercise-row__title">
-                      <span className="drag-handle" aria-hidden="true">
-                        ⋮⋮
-                      </span>
-                      <h3>{draft.name || 'Exercise'}</h3>
-                    </div>
-                    <div className="edit-exercise-row__actions">
-                      <button
-                        type="button"
-                        className="icon-link"
-                        onClick={() => moveExerciseDraft(draft.draftId, -1)}
-                        disabled={index === 0}
-                      >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-link"
-                        onClick={() => moveExerciseDraft(draft.draftId, 1)}
-                        disabled={index === exerciseDrafts.length - 1}
-                      >
-                        ↓
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-link icon-link--danger"
-                        onClick={() =>
-                          setExerciseDrafts((current) =>
-                            current.filter((item) => item.draftId !== draft.draftId),
-                          )
-                        }
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
+              {exerciseDrafts.map((draft, index) => {
+                const isAdvancedOpen = Boolean(openExerciseDraftIds[draft.draftId])
 
-                  <label className="stack stack--tight">
-                    <span>Name</span>
-                    <input
-                      value={draft.name}
-                      onChange={(event) =>
-                        updateExerciseDraft(draft.draftId, (current) => ({
-                          ...current,
-                          name: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
+                return (
+                  <article
+                    key={draft.draftId}
+                    className="list-card edit-exercise-row"
+                  >
+                    <div className="edit-exercise-row__header">
+                      <div className="row row--center edit-exercise-row__title">
+                        <span className="drag-handle" aria-hidden="true">
+                          ⋮⋮
+                        </span>
+                        <h3>{draft.name || 'Exercise'}</h3>
+                      </div>
+                      <div className="edit-exercise-row__actions">
+                        <button
+                          type="button"
+                          className="icon-link"
+                          onClick={() => toggleExerciseDraftDetails(draft.draftId)}
+                          aria-expanded={isAdvancedOpen}
+                        >
+                          Advanced
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-link"
+                          onClick={() => moveExerciseDraft(draft.draftId, -1)}
+                          disabled={index === 0}
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-link"
+                          onClick={() => moveExerciseDraft(draft.draftId, 1)}
+                          disabled={index === exerciseDrafts.length - 1}
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-link icon-link--danger"
+                          onClick={() => removeExerciseDraft(draft.draftId)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
 
-                </article>
-              ))}
+                    {isAdvancedOpen ? (
+                      <div className="edit-exercise-row__advanced">
+                        <label className="stack stack--tight">
+                          <span>Name</span>
+                          <input
+                            value={draft.name}
+                            onChange={(event) =>
+                              updateExerciseDraft(draft.draftId, (current) => ({
+                                ...current,
+                                name: event.target.value,
+                              }))
+                            }
+                          />
+                        </label>
+
+                        <div className="edit-exercise-row__field-grid">
+                          <label className="stack stack--tight">
+                            <span>Unit</span>
+                            <select
+                              value={draft.unit}
+                              onChange={(event) =>
+                                updateExerciseDraft(draft.draftId, (current) => ({
+                                  ...current,
+                                  unit: event.target.value as Unit,
+                                }))
+                              }
+                            >
+                              <option value="lb">lb</option>
+                              <option value="kg">kg</option>
+                            </select>
+                          </label>
+
+                          <label className="stack stack--tight">
+                            <span>Rep min</span>
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min="1"
+                              step="1"
+                              value={draft.repMin}
+                              onChange={(event) =>
+                                updateExerciseDraft(draft.draftId, (current) => ({
+                                  ...current,
+                                  repMin: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+
+                          <label className="stack stack--tight">
+                            <span>Rep max</span>
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min="1"
+                              step="1"
+                              value={draft.repMax}
+                              onChange={(event) =>
+                                updateExerciseDraft(draft.draftId, (current) => ({
+                                  ...current,
+                                  repMax: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+
+                          <label className="stack stack--tight">
+                            <span>Work sets</span>
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min="1"
+                              step="1"
+                              value={draft.workSetsTarget}
+                              onChange={(event) =>
+                                updateExerciseDraft(draft.draftId, (current) => ({
+                                  ...current,
+                                  workSetsTarget: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+
+                          <label className="stack stack--tight">
+                            <span>Increment</span>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min="0.1"
+                              step="0.1"
+                              value={draft.weightIncrement}
+                              onChange={(event) =>
+                                updateExerciseDraft(draft.draftId, (current) => ({
+                                  ...current,
+                                  weightIncrement: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    ) : null}
+                  </article>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -1504,6 +1658,10 @@ function createRoutineDraftId(exerciseId: string): string {
     globalThis.crypto?.randomUUID?.() ??
     `${Date.now()}-${Math.round(Math.random() * 1_000_000_000)}`
   return `${exerciseId}:${token}`
+}
+
+function sortExercisesByName(exercises: Exercise[]): Exercise[] {
+  return [...exercises].sort((left, right) => left.name.localeCompare(right.name))
 }
 
 function parseWeight(value: string): number {

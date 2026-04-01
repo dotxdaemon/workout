@@ -8,6 +8,7 @@ import type { AppPreferences, ThemeMode, Unit } from '../types'
 
 export function SettingsScreen() {
   const [preferences, setPreferences] = useState<AppPreferences>(readPreferences())
+  const [isDataOpen, setIsDataOpen] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [isImporting, setIsImporting] = useState(false)
@@ -165,43 +166,54 @@ export function SettingsScreen() {
         </button>
       </div>
 
-      <div className="panel">
-        <h2>Export</h2>
-        <div className="settings-export-actions">
-          <button type="button" className="button" onClick={() => void handleExportJson()}>
-            Export JSON (full database)
-          </button>
-          <button type="button" className="button" onClick={() => void handleExportCsv()}>
-            Export CSV (sessions + sets)
-          </button>
-        </div>
-      </div>
+      <details
+        className="panel details-panel settings-data-panel"
+        open={isDataOpen}
+        onToggle={(event) => setIsDataOpen(event.currentTarget.open)}
+      >
+        <summary>Backup and restore</summary>
+        {isDataOpen ? (
+          <div className="stack">
+            <div className="stack stack--tight">
+              <h2>Export</h2>
+              <div className="settings-export-actions">
+                <button type="button" className="button" onClick={() => void handleExportJson()}>
+                  Export JSON (full database)
+                </button>
+                <button type="button" className="button" onClick={() => void handleExportCsv()}>
+                  Export CSV (sessions + sets)
+                </button>
+              </div>
+            </div>
 
-      <div className="panel">
-        <h2>Import</h2>
-        <label className="stack stack--tight">
-          <span>Import JSON</span>
-          <div className="settings-file-picker">
-            <label
-              className={isImporting ? 'settings-file-button settings-file-button--disabled' : 'settings-file-button'}
-              htmlFor="settings-import-json"
-            >
-              Choose JSON file
-            </label>
-            <span className="settings-file-name">
-              {importFileName || 'No file selected'}
-            </span>
-            <input
-              id="settings-import-json"
-              className="settings-file-input"
-              type="file"
-              accept="application/json"
-              onChange={(event) => void handleImportJson(event)}
-              disabled={isImporting}
-            />
+            <div className="stack stack--tight">
+              <h2>Import</h2>
+              <label className="stack stack--tight">
+                <span>Import JSON</span>
+                <div className="settings-file-picker">
+                  <label
+                    className={isImporting ? 'settings-file-button settings-file-button--disabled' : 'settings-file-button'}
+                    htmlFor="settings-import-json"
+                  >
+                    Choose JSON file
+                  </label>
+                  <span className="settings-file-name">
+                    {importFileName || 'No file selected'}
+                  </span>
+                  <input
+                    id="settings-import-json"
+                    className="settings-file-input"
+                    type="file"
+                    accept="application/json"
+                    onChange={(event) => void handleImportJson(event)}
+                    disabled={isImporting}
+                  />
+                </div>
+              </label>
+            </div>
           </div>
-        </label>
-      </div>
+        ) : null}
+      </details>
     </section>
   )
 }

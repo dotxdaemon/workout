@@ -3,7 +3,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createExercise, db, ensureCoreRoutines, listExercises } from '../lib/db'
+import { db, ensureCoreRoutines, listExercises } from '../lib/db'
 import { RoutinesScreen } from './RoutinesScreen'
 
 interface RenderHarness {
@@ -216,11 +216,87 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('shows a newly added exercise draft on the first add attempt', async () => {
+  it('keeps advanced exercise settings hidden until one row is opened', async () => {
     const harness = await renderScreen()
     await click(getButtonByText(harness.host, 'Edit'))
 
     await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+
+    const benchRow = findEditRowByTitle(harness.host, 'Barbell Bench Press')
+    expect(benchRow).not.toBeNull()
+
+    expect(benchRow?.textContent).not.toContain('Rep min')
+    expect(benchRow?.textContent).not.toContain('Rep max')
+    expect(benchRow?.textContent).not.toContain('Work sets')
+    expect(benchRow?.textContent).not.toContain('Increment')
+    expect(benchRow?.querySelector('select')).toBeNull()
+
+    await click(getButtonByTextWithin(benchRow!, 'Advanced'))
+
+    await waitFor(
+      () => (benchRow?.textContent ?? '').includes('Rep min') && Boolean(benchRow?.querySelector('select')),
+      'Advanced exercise settings did not appear after opening a row.',
+    )
+
+    expect(benchRow?.textContent).toContain('Rep min')
+    expect(benchRow?.textContent).toContain('Rep max')
+    expect(benchRow?.textContent).toContain('Work sets')
+    expect(benchRow?.textContent).toContain('Increment')
+    expect(benchRow?.querySelector('select')).not.toBeNull()
+
+    const overheadRow = findEditRowByTitle(harness.host, 'Overhead Press')
+    expect(overheadRow?.textContent).not.toContain('Rep min')
+
+    await harness.cleanup()
+  })
+
+  it('closes advanced exercise settings when leaving edit mode and when switching routines', async () => {
+    const harness = await renderScreen()
+    await click(getButtonByText(harness.host, 'Edit'))
+
+    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+
+    const benchRow = findEditRowByTitle(harness.host, 'Barbell Bench Press')
+    expect(benchRow).not.toBeNull()
+
+    await click(getButtonByTextWithin(benchRow!, 'Advanced'))
+    await waitFor(
+      () => (benchRow?.textContent ?? '').includes('Rep min'),
+      'Advanced exercise settings did not appear before mode switch.',
+    )
+
+    await click(getButtonByText(harness.host, 'Today'))
+    await waitFor(() => Boolean(harness.host.querySelector('.today-mode')), 'Today mode did not open.')
+
+    await click(getButtonByText(harness.host, 'Edit'))
+    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not reopen.')
+
+    const reopenedBenchRow = findEditRowByTitle(harness.host, 'Barbell Bench Press')
+    expect(reopenedBenchRow?.textContent).not.toContain('Rep min')
+
+    await click(getButtonByText(harness.host, '4 day'))
+    await waitFor(
+      () => getButtonByTextIncludes(harness.host, 'Day 2') !== null,
+      '4-day routine cards were not rendered.',
+    )
+    await click(getButtonByTextIncludes(harness.host, 'Day 2')!)
+    await waitFor(
+      () => Boolean(findEditRowByTitle(harness.host, 'Leg Press')),
+      'Day 2 did not render a Leg Press edit row.',
+    )
+
+    const legPressRow = findEditRowByTitle(harness.host, 'Leg Press')
+    expect(legPressRow?.textContent).not.toContain('Rep min')
+
+    await harness.cleanup()
+  })
+
+  it('creates a new exercise record on the first add attempt when the text does not exactly match an existing exercise', async () => {
+    const harness = await renderScreen()
+    await click(getButtonByText(harness.host, 'Edit'))
+
+    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+    const exercisesBefore = await listExercises()
 
     const uniqueName = `Codex Exercise ${Date.now()}`
     const addExerciseInput = harness.host.querySelector(
@@ -239,6 +315,42 @@ describe('RoutinesScreen behavior', () => {
         ),
       'Added exercise did not appear in the draft list after the first add.',
     )
+
+    const exercisesAfter = await listExercises()
+    expect(exercisesAfter).toHaveLength(exercisesBefore.length + 1)
+    expect(exercisesAfter.some((exercise) => exercise.name === uniqueName)).toBe(true)
+
+    await harness.cleanup()
+  })
+
+  it('reuses an existing exercise record on an exact-name add', async () => {
+    const harness = await renderScreen()
+    await click(getButtonByText(harness.host, 'Edit'))
+
+    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+
+    const exercisesBefore = await listExercises()
+    const benchPress = exercisesBefore.find((exercise) => exercise.name === 'Bench Press')
+    expect(benchPress).not.toBeUndefined()
+
+    const rowCountBeforeAdd = harness.host.querySelectorAll('.edit-exercise-row').length
+    const addExerciseInput = harness.host.querySelector(
+      'input[placeholder="Add exercise"]',
+    ) as HTMLInputElement | null
+
+    expect(addExerciseInput).not.toBeNull()
+
+    await setInputValue(addExerciseInput!, 'bench press')
+    await click(getButtonByText(harness.host, 'Add'))
+
+    await waitFor(
+      () => harness.host.querySelectorAll('.edit-exercise-row').length === rowCountBeforeAdd + 1,
+      'Exact-name add did not reuse the existing exercise row.',
+    )
+
+    const exercisesAfter = await listExercises()
+    expect(exercisesAfter).toHaveLength(exercisesBefore.length)
+    expect(findEditRowByTitle(harness.host, 'Bench Press')).not.toBeNull()
 
     await harness.cleanup()
   })
@@ -491,6 +603,12 @@ describe('RoutinesScreen behavior', () => {
     const legPressRow = findEditRowByTitle(harness.host, 'Leg Press')
     expect(legPressRow).not.toBeNull()
 
+    await click(getButtonByTextWithin(legPressRow!, 'Advanced'))
+    await waitFor(
+      () => Boolean(legPressRow?.querySelector('label input')),
+      'Advanced edit controls did not open for Leg Press.',
+    )
+
     const nameInput = legPressRow?.querySelector('label input') as HTMLInputElement | null
     expect(nameInput).not.toBeNull()
     await setInputValue(nameInput!, 'Hamstring Curl')
@@ -535,6 +653,12 @@ describe('RoutinesScreen behavior', () => {
     const legPressRow = findEditRowByTitle(harness.host, 'Leg Press')
     expect(legPressRow).not.toBeNull()
 
+    await click(getButtonByTextWithin(legPressRow!, 'Advanced'))
+    await waitFor(
+      () => Boolean(legPressRow?.querySelector('label input')),
+      'Advanced edit controls did not open for Leg Press.',
+    )
+
     const nameInput = legPressRow?.querySelector('label input') as HTMLInputElement | null
     expect(nameInput).not.toBeNull()
     await setInputValue(nameInput!, 'Lying Hamstring Curl')
@@ -550,28 +674,13 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('creates a fresh exercise record when add-by-name is ambiguous across duplicates', async () => {
+  it('reuses an existing exercise from an inline suggestion', async () => {
     await ensureCoreRoutines('lb')
-    await createExercise({
-      name: 'Leg Press',
-      unitDefault: 'kg',
-    })
-
     const harness = await renderScreen()
     await click(getButtonByText(harness.host, 'Edit'))
 
     await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
-    await click(getButtonByText(harness.host, '4 day'))
-    await waitFor(
-      () => getButtonByTextIncludes(harness.host, 'Day 2') !== null,
-      '4-day routine cards were not rendered.',
-    )
-
-    await click(getButtonByTextIncludes(harness.host, 'Day 2')!)
-    await waitFor(
-      () => Boolean(findEditRowByTitle(harness.host, 'Leg Press')),
-      'Day 2 did not render a Leg Press edit row.',
-    )
+    const exercisesBefore = await listExercises()
 
     const rowCountBeforeAdd = harness.host.querySelectorAll('.edit-exercise-row').length
     const addExerciseInput = harness.host.querySelector(
@@ -580,16 +689,22 @@ describe('RoutinesScreen behavior', () => {
 
     expect(addExerciseInput).not.toBeNull()
 
-    await setInputValue(addExerciseInput!, 'Leg Press')
-    await click(getButtonByText(harness.host, 'Add'))
+    await setInputValue(addExerciseInput!, 'bench')
+    await waitFor(
+      () => getButtonByTextIncludes(harness.host, 'Bench Press') !== null,
+      'Inline exercise suggestion did not appear for a partial match.',
+    )
+
+    await click(getButtonByTextIncludes(harness.host, 'Bench Press')!)
 
     await waitFor(
       () => harness.host.querySelectorAll('.edit-exercise-row').length === rowCountBeforeAdd + 1,
-      'Ambiguous duplicate-name add did not create a fresh draft row.',
+      'Selecting an inline suggestion did not add the existing exercise row.',
     )
 
-    const exercises = await listExercises()
-    expect(exercises.filter((exercise) => exercise.name === 'Leg Press')).toHaveLength(3)
+    const exercisesAfter = await listExercises()
+    expect(exercisesAfter).toHaveLength(exercisesBefore.length)
+    expect(findEditRowByTitle(harness.host, 'Bench Press')).not.toBeNull()
 
     await harness.cleanup()
   })
@@ -683,6 +798,18 @@ function getButtonByText(container: ParentNode, label: string): HTMLButtonElemen
 
   if (!target) {
     throw new Error(`Could not find button with text: ${label}`)
+  }
+
+  return target as HTMLButtonElement
+}
+
+function getButtonByTextWithin(container: ParentNode, label: string): HTMLButtonElement {
+  const target = Array.from(container.querySelectorAll('button')).find(
+    (button) => button.textContent?.trim().toLowerCase() === label.toLowerCase(),
+  )
+
+  if (!target) {
+    throw new Error(`Could not find nested button with text: ${label}`)
   }
 
   return target as HTMLButtonElement
