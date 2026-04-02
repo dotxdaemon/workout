@@ -225,3 +225,8 @@
 - Sean asked: make sure the icon is fitted to the iPhone icon layout and is not just the picture.
 - Error after trying: the direct resize preserved the outer white presentation frame, so the result still looked like a screenshot dropped into the icon slot.
 - Result: removed the white presentation frame from the provided artwork, rebuilt the square icon canvas from the same lavender art, and re-exported the 180, 192, and 512 PNG icon assets.
+2026-04-02
+- Previously tried: crop-and-blend versions of the provided screenshot to fake a full-canvas icon.
+- Sean asked: make the icon fitted to the iPhone icon layout instead of just using the picture.
+- Error after trying: the source screenshot geometry kept leaking through as inset corners, cropped weights, and blurred box artifacts, so the asset still did not read like a real app icon.
+- Result: replaced the icon source with a full-canvas dumbbell SVG based on the provided reference colors and composition, then re-rendered the 180, 192, and 512 PNG icon assets from that source.
