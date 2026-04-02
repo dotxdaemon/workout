@@ -217,3 +217,6 @@
 - Implemented guided edit mode so routine rows default to structure-only controls and reveal name/unit/progression fields only behind an `Advanced` toggle.
 - Added inline edit-mode exercise suggestions, kept exact-name add on existing records, and moved backup/import into a collapsed `Backup and restore` section in Settings.
 - Verification passed with `npm test`, `npm run lint`, and `npm run typecheck`, and mobile checks at `390x844` confirmed `Today` stayed intact while `Edit` and `Settings` became less dense by default.
+2026-04-02
+- Sean asked: replace the app icon with `/Users/seankim/Desktop/image.png`.
+- Result: replaced the 180, 192, and 512 PNG icon assets with the provided dumbbell artwork and pointed the browser favicon at `/icons/icon-192.png` so the old bolt icon is no longer user-facing.
