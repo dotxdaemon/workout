@@ -230,3 +230,11 @@
 - Sean asked: make the icon fitted to the iPhone icon layout instead of just using the picture.
 - Error after trying: the source screenshot geometry kept leaking through as inset corners, cropped weights, and blurred box artifacts, so the asset still did not read like a real app icon.
 - Result: replaced the icon source with a full-canvas dumbbell SVG based on the provided reference colors and composition, then re-rendered the 180, 192, and 512 PNG icon assets from that source.
+2026-04-02
+- Previously tried: replaced Sean's supplied icon art with a newly constructed SVG dumbbell icon.
+- Sean asked: use the actual image only and stop constructing a new icon.
+- Error after trying: the shipped asset no longer used the provided artwork at all, which contradicted the request and changed the design instead of fitting it to the iPhone icon layout.
+2026-04-02
+- Tried fitting the icon with a source-image-only composition after proving a pure square crop could not keep the full dumbbell without reintroducing the screenshot frame.
+- Root cause: the supplied image is a screenshot of a rounded-square icon on a white field, so no square crop can both keep the full dumbbell and avoid the screenshot framing.
+- Result: rebuilt the shipped PNG icons from the actual image only by using a clean lavender background patch from the source plus the real dumbbell band from the same source, and pointed `icon.svg` back to the rendered PNG instead of a constructed vector redraw.
