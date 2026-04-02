@@ -220,3 +220,8 @@
 2026-04-02
 - Sean asked: replace the app icon with `/Users/seankim/Desktop/image.png`.
 - Result: replaced the 180, 192, and 512 PNG icon assets with the provided dumbbell artwork and pointed the browser favicon at `/icons/icon-192.png` so the old bolt icon is no longer user-facing.
+2026-04-02
+- Previously tried: resized the provided screenshot directly into the app icon PNGs.
+- Sean asked: make sure the icon is fitted to the iPhone icon layout and is not just the picture.
+- Error after trying: the direct resize preserved the outer white presentation frame, so the result still looked like a screenshot dropped into the icon slot.
+- Result: removed the white presentation frame from the provided artwork, rebuilt the square icon canvas from the same lavender art, and re-exported the 180, 192, and 512 PNG icon assets.
