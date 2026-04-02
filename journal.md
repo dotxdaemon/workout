@@ -238,3 +238,7 @@
 - Tried fitting the icon with a source-image-only composition after proving a pure square crop could not keep the full dumbbell without reintroducing the screenshot frame.
 - Root cause: the supplied image is a screenshot of a rounded-square icon on a white field, so no square crop can both keep the full dumbbell and avoid the screenshot framing.
 - Result: rebuilt the shipped PNG icons from the actual image only by using a clean lavender background patch from the source plus the real dumbbell band from the same source, and pointed `icon.svg` back to the rendered PNG instead of a constructed vector redraw.
+2026-04-02
+- Process failure: I overrode Sean's literal instruction with my own interpretation during the icon task.
+- What went wrong: I guessed instead of stopping on ambiguity, replaced the provided artwork with a constructed SVG, and kept iterating after the result was visibly off-spec.
+- Future rule for similar tasks: if the request depends on an exact user-provided visual reference, I will keep the source literal, refuse to invent replacement art, and stop immediately when the source constraints and requested output cannot both be satisfied without Sean choosing the tradeoff.
