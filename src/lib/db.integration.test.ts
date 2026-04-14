@@ -25,6 +25,7 @@ import {
   updateRoutine,
   updateSetEntry,
 } from './db'
+import { applyJsonImport } from './exportImport'
 
 describe('IndexedDB integration', () => {
   beforeEach(async () => {
@@ -356,5 +357,75 @@ describe('IndexedDB integration', () => {
         unit: 'lb',
       },
     })
+  })
+
+  it('keeps an imported backup exact after routine bootstrap runs again', async () => {
+    await applyJsonImport(
+      JSON.stringify({
+        version: 1,
+        exportedAt: '2026-04-14T00:00:00.000Z',
+        preferences: {
+          defaultUnit: 'kg',
+          defaultWeightIncrement: 1.25,
+          restTimerEnabled: false,
+          restSeconds: 45,
+          theme: 'light',
+        },
+        data: {
+          exercises: [
+            {
+              id: 'import-exercise',
+              name: 'Import Lift',
+              unitDefault: 'kg',
+              progressionSettings: {
+                repMin: 5,
+                repMax: 8,
+                workSetsTarget: 4,
+                weightIncrement: 1.25,
+                unit: 'kg',
+              },
+            },
+          ],
+          routines: [
+            {
+              id: 'import-routine',
+              name: 'Import Routine',
+              splitId: '3-day-split',
+              exerciseIds: ['import-exercise'],
+            },
+          ],
+          sessions: [],
+          setEntries: [],
+        },
+      }),
+    )
+
+    await ensureCoreRoutines('lb')
+
+    const routines = await listRoutines()
+    const exercises = await listExercises()
+
+    expect(routines).toEqual([
+      {
+        id: 'import-routine',
+        name: 'Import Routine',
+        splitId: '3-day-split',
+        exerciseIds: ['import-exercise'],
+      },
+    ])
+    expect(exercises).toEqual([
+      {
+        id: 'import-exercise',
+        name: 'Import Lift',
+        unitDefault: 'kg',
+        progressionSettings: {
+          repMin: 5,
+          repMax: 8,
+          workSetsTarget: 4,
+          weightIncrement: 1.25,
+          unit: 'kg',
+        },
+      },
+    ])
   })
 })

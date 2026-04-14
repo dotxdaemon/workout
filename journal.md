@@ -242,3 +242,7 @@
 - Process failure: I overrode Sean's literal instruction with my own interpretation during the icon task.
 - What went wrong: I guessed instead of stopping on ambiguity, replaced the provided artwork with a constructed SVG, and kept iterating after the result was visibly off-spec.
 - Future rule for similar tasks: if the request depends on an exact user-provided visual reference, I will keep the source literal, refuse to invent replacement art, and stop immediately when the source constraints and requested output cannot both be satisfied without Sean choosing the tradeoff.
+2026-04-14
+- Previously tried: verified JSON upload through Settings with Playwright/WebKit using a valid backup and a malformed file.
+- Sean asked: make backup restore work so he does not have to worry about deleting the app.
+- Error after trying: a valid import writes the uploaded payload, but the next app load re-runs core routine seeding and adds built-in routines/exercises that were not in the backup, so restore is not exact.

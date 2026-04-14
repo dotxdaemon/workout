@@ -2,6 +2,7 @@
 // ABOUTME: Ensures imported data is structurally valid before replacing local storage.
 import {
   importFullExportData,
+  markCoreRoutinesRestored,
   readFullExportData,
 } from './db'
 import { defaultPreferences, writePreferences } from './preferences'
@@ -84,6 +85,7 @@ export async function applyJsonImport(jsonText: string): Promise<void> {
   const payload = validatePayload(parsed)
 
   await importFullExportData(payload.data)
+  markCoreRoutinesRestored()
   writePreferences(payload.preferences)
 }
 

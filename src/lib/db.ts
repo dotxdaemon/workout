@@ -49,6 +49,7 @@ class WorkoutDatabase extends Dexie {
 
 export const db = new WorkoutDatabase()
 let ensureCoreRoutinesTask: Promise<void> | null = null
+const coreRoutineBootstrapStateKey = 'workout-tracker.core-routines-bootstrap.v1'
 
 interface CoreRoutineTemplate {
   splitId: RoutineSplitId
@@ -155,6 +156,10 @@ export async function listExercises(): Promise<Exercise[]> {
 }
 
 export async function ensureCoreRoutines(unitDefault: Unit): Promise<void> {
+  if (readCoreRoutineBootstrapState() === 'restored') {
+    return
+  }
+
   if (ensureCoreRoutinesTask) {
     return ensureCoreRoutinesTask
   }
@@ -164,6 +169,10 @@ export async function ensureCoreRoutines(unitDefault: Unit): Promise<void> {
   })
 
   return ensureCoreRoutinesTask
+}
+
+export function markCoreRoutinesRestored(): void {
+  localStorage.setItem(coreRoutineBootstrapStateKey, 'restored')
 }
 
 async function ensureCoreRoutinesInternal(unitDefault: Unit): Promise<void> {
@@ -726,6 +735,10 @@ function isSameLocalDate(left: Date, right: Date): boolean {
 
 function toSplitRoutineKey(splitId: RoutineSplitId, name: string): string {
   return `${splitId}:${name.toLowerCase()}`
+}
+
+function readCoreRoutineBootstrapState(): string {
+  return localStorage.getItem(coreRoutineBootstrapStateKey) ?? ''
 }
 
 function normalizeRoutineSplitId(splitId: unknown, name: string): RoutineSplitId {
