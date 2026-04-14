@@ -173,8 +173,8 @@ You must follow this debugging framework for any technical issue:
 - Document architectural decisions and their outcomes for future reference.
 - Track patterns in user feedback to improve collaboration over time.
 - When you notice something that should be fixed but is unrelated to your current task, document it in your journal rather than fixing it immediately.
-- Use `/Users/seankim/workout/journal.md` as the repo journal.
-- Every time Sean reports that a fix is still broken or something is not correct, append what you tried and why it did not work to `/Users/seankim/workout/journal.md` before attempting the next fix.
+- Use `/Users/seankim/code/workout/journal.md` as the repo journal.
+- Every time Sean reports that a fix is still broken or something is not correct, append what you tried and why it did not work to `/Users/seankim/code/workout/journal.md` before attempting the next fix.
 
 ## Bugfix acceptance gate
 
@@ -424,7 +424,7 @@ If any gate is missing, respond exactly:
 2. Write down what Sean is asking you to do.
 3. Write down what the error is after you have tried.
 4. This needs to go in the journal file in this repo.
-5. Write these entries to `/Users/seankim/workout/journal.md`.
+5. Write these entries to `/Users/seankim/code/workout/journal.md`.
 
 ## Shell Layout Regression Prevention
 
