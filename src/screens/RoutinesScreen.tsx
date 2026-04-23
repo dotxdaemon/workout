@@ -35,7 +35,6 @@ import {
   writeSelectedRoutineId,
 } from '../lib/routineSelection'
 import { routineSplitOptions } from '../lib/routineSplit'
-import { getWeeklyStats, type WeeklyStats } from '../lib/stats'
 import type { Exercise, Routine, RoutineSplitId, SessionRecord, SetEntry, Unit } from '../types'
 
 interface SetDraft {
@@ -105,15 +104,6 @@ export function RoutinesScreen() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [savedExerciseId, setSavedExerciseId] = useState<string | null>(null)
-  const [weeklyStats, setWeeklyStats] = useState<WeeklyStats>({ streak: 0, thisWeek: 0 })
-
-  const refreshWeeklyStats = useCallback(() => {
-    void getWeeklyStats()
-      .then((stats) => setWeeklyStats(stats))
-      .catch(() => {
-        // Stats are non-critical; ignore failures rather than disrupt logging.
-      })
-  }, [])
 
   const exerciseMap = useMemo(
     () => Object.fromEntries(exercises.map((exercise) => [exercise.id, exercise])),
@@ -226,8 +216,7 @@ export function RoutinesScreen() {
     void loadData().catch(() => {
       setError('Could not load routines.')
     })
-    refreshWeeklyStats()
-  }, [loadData, refreshWeeklyStats])
+  }, [loadData])
 
   useEffect(() => {
     writeActiveRoutineSplitId(activeSplit.id)
@@ -715,7 +704,6 @@ export function RoutinesScreen() {
       }))
 
       await refreshHistoryForExercise(exerciseId)
-      refreshWeeklyStats()
       setMessage('')
       setError('')
       showSavedFeedback(exerciseId)
@@ -1006,28 +994,6 @@ export function RoutinesScreen() {
         </div>
         <div className="routines-header__rule" aria-hidden="true" />
       </header>
-
-      <div
-        className="week-pulse"
-        role="group"
-        aria-label="Weekly activity"
-      >
-        <div className="week-pulse__cell">
-          <span className="week-pulse__label">Streak</span>
-          <span className="week-pulse__value week-pulse__value--prism">
-            {weeklyStats.streak}
-            <span className="week-pulse__unit">{weeklyStats.streak === 1 ? 'day' : 'days'}</span>
-          </span>
-        </div>
-        <div className="week-pulse__divider" aria-hidden="true" />
-        <div className="week-pulse__cell">
-          <span className="week-pulse__label">This week</span>
-          <span className="week-pulse__value">
-            {weeklyStats.thisWeek}
-            <span className="week-pulse__unit">/ 7</span>
-          </span>
-        </div>
-      </div>
 
       {message ? <p className="success-banner">{message}</p> : null}
       {error ? <p className="error-banner">{error}</p> : null}
