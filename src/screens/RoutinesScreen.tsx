@@ -19,7 +19,7 @@ import {
   updateExercise,
   updateRoutine,
 } from '../lib/db'
-import { formatDateTime, formatNumber } from '../lib/format'
+import { formatNumber } from '../lib/format'
 import {
   applyHistorySheetOverlayLock,
   getHistorySheetDragOffset,
@@ -1034,6 +1034,35 @@ export function RoutinesScreen() {
 
       {mode === 'today' ? (
         <div className="today-mode">
+          {orderedRoutines.length > 1 ? (
+            <div
+              className="day-chips"
+              role="tablist"
+              aria-label="Select training day"
+            >
+              {orderedRoutines.map((routine, index) => {
+                const isActive = routine.id === selectedRoutine?.id
+                return (
+                  <button
+                    key={routine.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    className={
+                      isActive ? 'day-chip day-chip--active' : 'day-chip'
+                    }
+                    onClick={() => setSelectedRoutineId(routine.id)}
+                  >
+                    <span className="day-chip__index">
+                      {getRoutineDayNumber(routine.name, index)}
+                    </span>
+                    <span className="day-chip__name">{routine.name}</span>
+                  </button>
+                )
+              })}
+            </div>
+          ) : null}
+
           <header className="today-active-day-header">
             <div className="today-active-day-header__meta">
               <p className="today-active-day-header__day">{dayHeading.dayLabel}</p>
@@ -1513,21 +1542,24 @@ export function RoutinesScreen() {
           >
             <span className="history-modal__grabber" aria-hidden="true" />
             <header className="history-modal__header">
-              <h2>{historySheet.exerciseName}</h2>
+              <div className="history-modal__title">
+                <p className="history-modal__eyebrow">History</p>
+                <h2>{historySheet.exerciseName}</h2>
+              </div>
               <button
                 type="button"
-                className="icon-link"
+                className="history-modal__close"
                 onClick={() => closeHistorySheet('user')}
                 aria-label="Close history"
               >
-                ✕
+                <span aria-hidden="true">×</span>
               </button>
             </header>
 
             <div className="history-modal__table" ref={historySheetListRef}>
               {historySheet.rows.length === 0 ? (
                 historySheet.isLoading ? (
-                  <p className="muted">Loading history...</p>
+                  <p className="muted">Loading history…</p>
                 ) : (
                   <div className="history-empty-state">
                     <p className="history-empty-state__title">No history yet.</p>
@@ -1537,15 +1569,64 @@ export function RoutinesScreen() {
                   </div>
                 )
               ) : (
-                historySheet.rows.map((row) => (
-                  <div
-                    key={row.session.id}
-                    className="history-entry"
-                  >
-                    <span>{formatDateTime(getHistoryTimestamp(row.session, row.sets))}</span>
-                    <span>{formatSetList(row.sets)}</span>
-                  </div>
-                ))
+                historySheet.rows.map((row) => {
+                  const timestamp = getHistoryTimestamp(row.session, row.sets)
+                  const workSets = row.sets.filter((set) => !set.isWarmup)
+                  const topSet = getTopWorkSet(row.sets)
+                  const totalReps = workSets.reduce((sum, set) => sum + set.reps, 0)
+
+                  return (
+                    <article key={row.session.id} className="history-row">
+                      <header className="history-row__header">
+                        <span className="history-row__date">{formatHistoryDate(timestamp)}</span>
+                        {topSet ? (
+                          <span className="history-row__top">
+                            <span className="history-row__top-label">Top</span>
+                            <span className="history-row__top-value">
+                              {formatNumber(topSet.weight)}
+                              <span className="history-row__top-x">×</span>
+                              {topSet.reps}
+                            </span>
+                          </span>
+                        ) : null}
+                      </header>
+
+                      {workSets.length > 0 ? (
+                        <div className="history-row__chips">
+                          {workSets.map((set) => {
+                            const isTop = topSet?.id === set.id
+                            return (
+                              <span
+                                key={set.id}
+                                className={
+                                  isTop
+                                    ? 'history-chip history-chip--top'
+                                    : 'history-chip'
+                                }
+                              >
+                                <span className="history-chip__weight">
+                                  {formatNumber(set.weight)}
+                                </span>
+                                <span className="history-chip__x">×</span>
+                                <span className="history-chip__reps">{set.reps}</span>
+                              </span>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <p className="history-row__empty">No work sets recorded.</p>
+                      )}
+
+                      {workSets.length > 0 ? (
+                        <footer className="history-row__footer">
+                          <span>{workSets.length} {workSets.length === 1 ? 'set' : 'sets'}</span>
+                          <span aria-hidden="true">·</span>
+                          <span>{totalReps} total reps</span>
+                        </footer>
+                      ) : null}
+                    </article>
+                  )
+                })
               )}
             </div>
           </section>
@@ -1817,17 +1898,6 @@ function formatLastSummary(lastSets: SetEntry[] | undefined): string {
   return `${formatNumber(latestWorkSet.weight)} x ${latestWorkSet.reps}`
 }
 
-function formatSetList(sets: SetEntry[]): string {
-  const workSets = sets.filter((set) => !set.isWarmup)
-  if (workSets.length === 0) {
-    return 'No sets'
-  }
-
-  return workSets
-    .map((set) => `${formatNumber(set.weight)} x ${set.reps}`)
-    .join(' · ')
-}
-
 function getHistoryTimestamp(session: SessionRecord, sets: SetEntry[]): string {
   const completedAtValues = sets
     .map((set) => set.completedAt)
@@ -1835,6 +1905,45 @@ function getHistoryTimestamp(session: SessionRecord, sets: SetEntry[]): string {
     .sort((left, right) => right.localeCompare(left))
 
   return completedAtValues[0] ?? session.endedAt ?? session.startedAt
+}
+
+function formatHistoryDate(value: string, now: Date = new Date()): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown date'
+  }
+
+  const startOfDay = (input: Date) => {
+    const copy = new Date(input)
+    copy.setHours(0, 0, 0, 0)
+    return copy.getTime()
+  }
+
+  const dayDiff = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000)
+
+  if (dayDiff === 0) return 'Today'
+  if (dayDiff === 1) return 'Yesterday'
+  if (dayDiff > 1 && dayDiff < 7) {
+    return new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(date)
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  }).format(date)
+}
+
+function getTopWorkSet(sets: SetEntry[]): SetEntry | null {
+  const workSets = sets.filter((set) => !set.isWarmup)
+  if (workSets.length === 0) {
+    return null
+  }
+  return workSets.reduce((best, current) => {
+    const bestScore = best.weight * (1 + best.reps / 30)
+    const currentScore = current.weight * (1 + current.reps / 30)
+    return currentScore > bestScore ? current : best
+  })
 }
 
 function getNextRoutineName(routines: Routine[]): string {
