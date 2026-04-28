@@ -72,6 +72,7 @@ export function RoutinesScreen() {
   const historyRequestRef = useRef(0)
   const savedFeedbackTimeoutRef = useRef<number | null>(null)
   const historySheetListRef = useRef<HTMLDivElement | null>(null)
+  const todayCardRefs = useRef<Record<string, HTMLElement | null>>({})
   const exerciseDraftRowRefs = useRef<Record<string, HTMLElement | null>>({})
   const historySheetDragStartYRef = useRef<number | null>(null)
   const historySheetStartScrollTopRef = useRef(0)
@@ -102,6 +103,7 @@ export function RoutinesScreen() {
   const [exerciseDrafts, setExerciseDrafts] = useState<RoutineExerciseDraft[]>([])
   const [openExerciseDraftIds, setOpenExerciseDraftIds] = useState<Record<string, boolean>>({})
   const [draftIdToReveal, setDraftIdToReveal] = useState<string | null>(null)
+  const [todayExerciseIdToReveal, setTodayExerciseIdToReveal] = useState<string | null>(null)
   const [addExerciseName, setAddExerciseName] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -344,8 +346,12 @@ export function RoutinesScreen() {
   }, [selectedRoutine, trackerSessionId])
 
   useEffect(() => {
-    if (mode !== 'edit' || !selectedRoutine) {
+    if (!selectedRoutine) {
       hydratedRoutineIdRef.current = null
+      return
+    }
+
+    if (mode !== 'edit') {
       return
     }
 
@@ -422,6 +428,26 @@ export function RoutinesScreen() {
       window.cancelAnimationFrame(frameId)
     }
   }, [mode])
+
+  useEffect(() => {
+    if (mode !== 'today' || !todayExerciseIdToReveal) {
+      return
+    }
+
+    const card = todayCardRefs.current[todayExerciseIdToReveal]
+    if (!card) {
+      return
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      card.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+      setTodayExerciseIdToReveal(null)
+    })
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+    }
+  }, [mode, selectedExerciseIds, todayExerciseIdToReveal])
 
   function showSavedFeedback(exerciseId?: string): void {
     if (!exerciseId) {
@@ -704,6 +730,7 @@ export function RoutinesScreen() {
 
     if (weight <= 0 || reps <= 0) {
       setError('Enter both weight and reps before saving.')
+      resetPageScrollToTop()
       return false
     }
 
@@ -851,6 +878,7 @@ export function RoutinesScreen() {
     const routineName = routineNameDraft.trim()
     if (!routineName) {
       setError('Routine name is required.')
+      resetPageScrollToTop()
       return
     }
 
@@ -872,11 +900,13 @@ export function RoutinesScreen() {
 
     if (sanitized.some((draft) => !draft.name)) {
       setError('Exercise names cannot be blank.')
+      resetPageScrollToTop()
       return
     }
 
     const nextExerciseIds: string[] = []
     const createdExercises: Exercise[] = []
+    const currentExerciseIds = new Set(selectedRoutine.exerciseIds)
 
     for (const draft of sanitized) {
       const currentExercise = exerciseMap[draft.exerciseId]
@@ -942,6 +972,13 @@ export function RoutinesScreen() {
       exerciseIds: nextExerciseIds,
     })
 
+    const exerciseIdToReveal =
+      nextExerciseIds.find((exerciseId) => !currentExerciseIds.has(exerciseId)) ?? null
+    if (exerciseIdToReveal) {
+      setTodayExerciseIdToReveal(exerciseIdToReveal)
+    }
+
+    hydratedRoutineIdRef.current = null
     setMode('today')
     setExpandedExerciseId(null)
     setMessage('Routine saved.')
@@ -959,10 +996,15 @@ export function RoutinesScreen() {
       return
     }
 
+    if (!window.confirm(`Delete ${selectedRoutine.name}?`)) {
+      return
+    }
+
     await deleteRoutine(selectedRoutine.id)
 
     const remaining = routines.filter((routine) => routine.id !== selectedRoutine.id)
     const remainingInSplit = remaining.filter((routine) => routine.splitId === activeSplit.id)
+    hydratedRoutineIdRef.current = null
     setRoutines(remaining)
     setSelectedRoutineId(remainingInSplit[0]?.id ?? '')
     setMode('today')
@@ -1076,6 +1118,14 @@ export function RoutinesScreen() {
                 return (
                   <article
                     key={exercise.id}
+                    ref={(element) => {
+                      if (element) {
+                        todayCardRefs.current[exercise.id] = element
+                        return
+                      }
+
+                      delete todayCardRefs.current[exercise.id]
+                    }}
                     className={isExpanded ? 'today-card today-card--expanded' : 'today-card'}
                     onClick={() => handleCardClick(exercise.id)}
                   >

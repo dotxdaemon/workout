@@ -251,3 +251,8 @@
 - Sean asked: when adding an exercise, make it show up on the first attempt and make the add flow easier.
 - Error after trying: the draft row was created, but it was appended below the visible mobile viewport with scrollTop still 0, so the first add looked like it did nothing.
 - Result: the routine editor now reveals the added or already-staged draft row after Add, and the first-add regression plus Playwright mobile check show the row visible after the first attempt.
+2026-04-28
+- Previously tried: no code attempt yet in this run; prior related work revealed added exercise draft rows but did not address mode switching, save reveal, validation reveal, delete confirmation, or edit-row truncation.
+- Sean asked: fix the routed app UX bugs where unsaved routine edits are discarded silently, saved newly-added exercises are hidden below the Today viewport, validation errors can appear off-screen, routine deletion has no confirmation, and edit-row exercise names truncate badly on 390px width.
+- Error after trying: not attempted yet in this run; next step is baseline verification, symptom-level regressions, and then one minimal fix path for the routine editor flow.
+- Result: added failing regressions for the four routine-flow bugs plus a 390x844 Playwright repro for edit-row title truncation; fixed draft hydration, save reveal, validation reveal, delete confirmation, and mobile edit-row layout. Verification passed with npm test, npm run lint, npm run typecheck, and the mobile repro script.

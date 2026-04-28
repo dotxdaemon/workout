@@ -336,6 +336,87 @@ describe('RoutinesScreen behavior', () => {
     }
   })
 
+  it('keeps unsaved exercise drafts when leaving and returning to edit mode', async () => {
+    const harness = await renderScreen()
+    await click(getButtonByText(harness.host, 'Edit'))
+
+    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+
+    const uniqueName = `Unsaved UX Probe ${Date.now()}`
+    const addExerciseInput = harness.host.querySelector(
+      'input[placeholder="Add exercise"]',
+    ) as HTMLInputElement | null
+
+    expect(addExerciseInput).not.toBeNull()
+
+    await setInputValue(addExerciseInput!, uniqueName)
+    await click(getButtonByText(harness.host, 'Add'))
+
+    await waitFor(
+      () => Boolean(findEditRowByTitle(harness.host, uniqueName)),
+      'Added unsaved exercise draft did not appear before mode switch.',
+    )
+
+    await click(getButtonByText(harness.host, 'Today'))
+    await waitFor(() => Boolean(harness.host.querySelector('.today-mode')), 'Today mode did not open.')
+
+    await click(getButtonByText(harness.host, 'Edit'))
+    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not reopen.')
+
+    expect(findEditRowByTitle(harness.host, uniqueName)).not.toBeNull()
+    await harness.cleanup()
+  })
+
+  it('reveals a newly added exercise after saving routine edits', async () => {
+    const harness = await renderScreen()
+    const revealedRows: HTMLElement[] = []
+    const originalScrollIntoView = window.HTMLElement.prototype.scrollIntoView
+    const scrollIntoView = vi.fn(function (this: HTMLElement) {
+      revealedRows.push(this)
+    })
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoView
+    await click(getButtonByText(harness.host, 'Edit'))
+
+    try {
+      await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+
+      const uniqueName = `Saved UX Probe ${Date.now()}`
+      const addExerciseInput = harness.host.querySelector(
+        'input[placeholder="Add exercise"]',
+      ) as HTMLInputElement | null
+
+      expect(addExerciseInput).not.toBeNull()
+
+      await setInputValue(addExerciseInput!, uniqueName)
+      await click(getButtonByText(harness.host, 'Add'))
+
+      await waitFor(
+        () => Boolean(findEditRowByTitle(harness.host, uniqueName)),
+        'Added exercise draft did not appear before saving.',
+      )
+      await waitFor(() => scrollIntoView.mock.calls.length > 0, 'Added exercise draft was not revealed.')
+
+      scrollIntoView.mockClear()
+      revealedRows.length = 0
+
+      await click(getButtonByText(harness.host, 'Save routine'))
+      await waitFor(() => Boolean(harness.host.querySelector('.today-mode')), 'Save did not return to today mode.')
+      await waitFor(
+        () => Boolean(findTodayCardByTitle(harness.host, uniqueName)),
+        'Saved exercise did not appear in Today mode.',
+      )
+      await waitFor(
+        () => scrollIntoView.mock.calls.length > 0,
+        'Saved exercise card was not revealed in Today mode.',
+      )
+
+      expect(revealedRows).toContain(findTodayCardByTitle(harness.host, uniqueName))
+    } finally {
+      window.HTMLElement.prototype.scrollIntoView = originalScrollIntoView
+      await harness.cleanup()
+    }
+  })
+
   it('reuses an existing exercise record on an exact-name add', async () => {
     const harness = await renderScreen()
     await click(getButtonByText(harness.host, 'Edit'))
@@ -365,6 +446,37 @@ describe('RoutinesScreen behavior', () => {
     expect(exercisesAfter).toHaveLength(exercisesBefore.length)
     expect(findEditRowByTitle(harness.host, 'Bench Press')).not.toBeNull()
 
+    await harness.cleanup()
+  })
+
+  it('reveals the error banner when a scrolled Today card is saved empty', async () => {
+    const harness = await renderScreen()
+    const cards = Array.from(harness.host.querySelectorAll('.today-card')) as HTMLElement[]
+    const lastCard = cards.at(-1)
+
+    expect(lastCard).not.toBeUndefined()
+
+    const saveButton = lastCard?.querySelector('.today-card__save-button') as HTMLButtonElement | null
+
+    expect(saveButton).not.toBeNull()
+
+    const scrollSpy = vi.fn((options?: ScrollToOptions | number) => {
+      if (typeof options === 'object' && typeof options?.top === 'number') {
+        harness.host.scrollTop = options.top
+      }
+    })
+    harness.host.scrollTo = scrollSpy as unknown as typeof harness.host.scrollTo
+    harness.host.scrollTop = 640
+
+    await click(saveButton!)
+
+    await waitFor(
+      () => (harness.host.querySelector('.error-banner')?.textContent ?? '').includes('Enter both weight and reps before saving.'),
+      'Empty save validation error did not render.',
+    )
+
+    expect(scrollSpy).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
+    expect(harness.host.scrollTop).toBe(0)
     await harness.cleanup()
   })
 
@@ -398,6 +510,34 @@ describe('RoutinesScreen behavior', () => {
 
     expect(blurCount).toBe(0)
     await harness.cleanup()
+  })
+
+  it('keeps the routine when delete confirmation is canceled', async () => {
+    const harness = await renderScreen()
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await click(getButtonByText(harness.host, 'Edit'))
+
+    try {
+      await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+
+      const routineNameInput = harness.host.querySelector(
+        '.panel.panel--compact label input',
+      ) as HTMLInputElement | null
+      const routineName = routineNameInput?.value ?? ''
+
+      expect(routineName).not.toBe('')
+
+      await click(getButtonByText(harness.host, 'Delete routine'))
+
+      expect(confirmSpy).toHaveBeenCalledTimes(1)
+      expect(harness.host.querySelector('.edit-mode')).not.toBeNull()
+      expect(
+        (harness.host.querySelector('.panel.panel--compact label input') as HTMLInputElement | null)?.value,
+      ).toBe(routineName)
+    } finally {
+      confirmSpy.mockRestore()
+      await harness.cleanup()
+    }
   })
 
   it('resets the screen-area scroll when saving a routine and changing modes', async () => {
@@ -852,6 +992,14 @@ function findEditRowByTitle(container: ParentNode, title: string): HTMLElement |
   return (
     (Array.from(container.querySelectorAll('.edit-exercise-row')).find(
       (row) => row.querySelector('h3')?.textContent?.trim() === title,
+    ) as HTMLElement | undefined) ?? null
+  )
+}
+
+function findTodayCardByTitle(container: ParentNode, title: string): HTMLElement | null {
+  return (
+    (Array.from(container.querySelectorAll('.today-card')).find(
+      (card) => card.querySelector('h3')?.textContent?.trim() === title,
     ) as HTMLElement | undefined) ?? null
   )
 }
