@@ -293,34 +293,47 @@ describe('RoutinesScreen behavior', () => {
 
   it('creates a new exercise record on the first add attempt when the text does not exactly match an existing exercise', async () => {
     const harness = await renderScreen()
+    const revealedRows: HTMLElement[] = []
+    const originalScrollIntoView = window.HTMLElement.prototype.scrollIntoView
+    const scrollIntoView = vi.fn(function (this: HTMLElement) {
+      revealedRows.push(this)
+    })
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoView
     await click(getButtonByText(harness.host, 'Edit'))
 
-    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
-    const exercisesBefore = await listExercises()
+    try {
+      await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+      const exercisesBefore = await listExercises()
 
-    const uniqueName = `Codex Exercise ${Date.now()}`
-    const addExerciseInput = harness.host.querySelector(
-      'input[placeholder="Add exercise"]',
-    ) as HTMLInputElement | null
+      const uniqueName = `Codex Exercise ${Date.now()}`
+      const addExerciseInput = harness.host.querySelector(
+        'input[placeholder="Add exercise"]',
+      ) as HTMLInputElement | null
 
-    expect(addExerciseInput).not.toBeNull()
+      expect(addExerciseInput).not.toBeNull()
 
-    await setInputValue(addExerciseInput!, uniqueName)
-    await click(getButtonByText(harness.host, 'Add'))
+      await setInputValue(addExerciseInput!, uniqueName)
+      await click(getButtonByText(harness.host, 'Add'))
 
-    await waitFor(
-      () =>
-        Array.from(harness.host.querySelectorAll('.edit-exercise-row h3')).some(
-          (title) => title.textContent?.trim() === uniqueName,
-        ),
-      'Added exercise did not appear in the draft list after the first add.',
-    )
+      await waitFor(
+        () =>
+          Array.from(harness.host.querySelectorAll('.edit-exercise-row h3')).some(
+            (title) => title.textContent?.trim() === uniqueName,
+          ),
+        'Added exercise did not appear in the draft list after the first add.',
+      )
 
-    const exercisesAfter = await listExercises()
-    expect(exercisesAfter).toHaveLength(exercisesBefore.length + 1)
-    expect(exercisesAfter.some((exercise) => exercise.name === uniqueName)).toBe(true)
+      await waitFor(() => scrollIntoView.mock.calls.length > 0, 'Added exercise row was not revealed.')
 
-    await harness.cleanup()
+      const addedRow = findEditRowByTitle(harness.host, uniqueName)
+      expect(revealedRows).toContain(addedRow)
+      const exercisesAfter = await listExercises()
+      expect(exercisesAfter).toHaveLength(exercisesBefore.length + 1)
+      expect(exercisesAfter.some((exercise) => exercise.name === uniqueName)).toBe(true)
+    } finally {
+      window.HTMLElement.prototype.scrollIntoView = originalScrollIntoView
+      await harness.cleanup()
+    }
   })
 
   it('reuses an existing exercise record on an exact-name add', async () => {

@@ -246,3 +246,8 @@
 - Previously tried: verified JSON upload through Settings with Playwright/WebKit using a valid backup and a malformed file.
 - Sean asked: make backup restore work so he does not have to worry about deleting the app.
 - Error after trying: a valid import writes the uploaded payload, but the next app load re-runs core routine seeding and adds built-in routines/exercises that were not in the backup, so restore is not exact.
+2026-04-28
+- Previously tried: reproduced the add-exercise flow at 390x844 before changing app code.
+- Sean asked: when adding an exercise, make it show up on the first attempt and make the add flow easier.
+- Error after trying: the draft row was created, but it was appended below the visible mobile viewport with scrollTop still 0, so the first add looked like it did nothing.
+- Result: the routine editor now reveals the added or already-staged draft row after Add, and the first-add regression plus Playwright mobile check show the row visible after the first attempt.

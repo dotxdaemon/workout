@@ -72,6 +72,7 @@ export function RoutinesScreen() {
   const historyRequestRef = useRef(0)
   const savedFeedbackTimeoutRef = useRef<number | null>(null)
   const historySheetListRef = useRef<HTMLDivElement | null>(null)
+  const exerciseDraftRowRefs = useRef<Record<string, HTMLElement | null>>({})
   const historySheetDragStartYRef = useRef<number | null>(null)
   const historySheetStartScrollTopRef = useRef(0)
   const historySheetDragOffsetRef = useRef(0)
@@ -100,6 +101,7 @@ export function RoutinesScreen() {
   const [routineNameDraft, setRoutineNameDraft] = useState('')
   const [exerciseDrafts, setExerciseDrafts] = useState<RoutineExerciseDraft[]>([])
   const [openExerciseDraftIds, setOpenExerciseDraftIds] = useState<Record<string, boolean>>({})
+  const [draftIdToReveal, setDraftIdToReveal] = useState<string | null>(null)
   const [addExerciseName, setAddExerciseName] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -366,6 +368,20 @@ export function RoutinesScreen() {
   useEffect(() => {
     setOpenExerciseDraftIds({})
   }, [mode, selectedRoutine?.id])
+
+  useEffect(() => {
+    if (!draftIdToReveal) {
+      return
+    }
+
+    const row = exerciseDraftRowRefs.current[draftIdToReveal]
+    if (!row) {
+      return
+    }
+
+    row.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+    setDraftIdToReveal(null)
+  }, [draftIdToReveal, exerciseDrafts])
 
   useEffect(() => {
     if (!historySheet) {
@@ -773,17 +789,21 @@ export function RoutinesScreen() {
   }
 
   function addExerciseDraft(exercise: Exercise): void {
-    if (draftExerciseIds.has(exercise.id)) {
+    const existingDraft = exerciseDrafts.find((draft) => draft.exerciseId === exercise.id)
+    if (existingDraft) {
+      setDraftIdToReveal(existingDraft.draftId)
       setAddExerciseName('')
       setMessage('Exercise already in routine.')
       setError('')
       return
     }
 
+    const draftId = createRoutineDraftId(exercise.id)
     setExerciseDrafts((current) => [
       ...current,
-      toRoutineExerciseDraft(exercise, createRoutineDraftId(exercise.id)),
+      toRoutineExerciseDraft(exercise, draftId),
     ])
+    setDraftIdToReveal(draftId)
     setAddExerciseName('')
     setMessage('Exercise ready. Save routine to apply changes.')
     setError('')
@@ -1338,6 +1358,14 @@ export function RoutinesScreen() {
                 return (
                   <article
                     key={draft.draftId}
+                    ref={(element) => {
+                      if (element) {
+                        exerciseDraftRowRefs.current[draft.draftId] = element
+                        return
+                      }
+
+                      delete exerciseDraftRowRefs.current[draft.draftId]
+                    }}
                     className="list-card edit-exercise-row"
                   >
                     <div className="edit-exercise-row__header">
