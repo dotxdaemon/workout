@@ -34,7 +34,7 @@ async function main() {
   const before = await readMetrics(page)
   await page.screenshot({ path: beforePath, fullPage: true })
 
-  await targetCard.locator('.today-card__complete-button').click()
+  await targetCard.locator('.today-card__save-button').click()
   await page.waitForTimeout(400)
   await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }))
   await page.waitForTimeout(300)

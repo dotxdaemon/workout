@@ -256,3 +256,8 @@
 - Sean asked: fix the routed app UX bugs where unsaved routine edits are discarded silently, saved newly-added exercises are hidden below the Today viewport, validation errors can appear off-screen, routine deletion has no confirmation, and edit-row exercise names truncate badly on 390px width.
 - Error after trying: not attempted yet in this run; next step is baseline verification, symptom-level regressions, and then one minimal fix path for the routine editor flow.
 - Result: added failing regressions for the four routine-flow bugs plus a 390x844 Playwright repro for edit-row title truncation; fixed draft hydration, save reveal, validation reveal, delete confirmation, and mobile edit-row layout. Verification passed with npm test, npm run lint, npm run typecheck, and the mobile repro script.
+2026-05-01
+- Previously tried: no code attempt yet in this run; repo starts on main with prior commits ahead of origin and an unrelated untracked image.png.
+- Sean asked: inspect the repo, find the highest-impact issue or rough edge, fix it with the smallest change, run checks, and commit to main.
+- Error after trying: not attempted yet; next step is baseline verification, targeted inspection, one failing regression, and a minimal fix.
+- Result: selected the stale mobile scroll-reachability repro as the highest-impact deterministic rough edge after baseline tests exposed intermittent non-pristine output that did not reproduce. The repro failed on `.today-card__complete-button`; updating it to `.today-card__save-button` made the same script pass and produce reachability screenshots.
