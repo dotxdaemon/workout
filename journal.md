@@ -261,3 +261,8 @@
 - Sean asked: inspect the repo, find the highest-impact issue or rough edge, fix it with the smallest change, run checks, and commit to main.
 - Error after trying: not attempted yet; next step is baseline verification, targeted inspection, one failing regression, and a minimal fix.
 - Result: selected the stale mobile scroll-reachability repro as the highest-impact deterministic rough edge after baseline tests exposed intermittent non-pristine output that did not reproduce. The repro failed on `.today-card__complete-button`; updating it to `.today-card__save-button` made the same script pass and produce reachability screenshots.
+2026-05-12
+- Previously tried: no code attempt yet in this run; repo starts clean on main with prior local commits ahead of origin.
+- Sean asked: find three bugs and fix them.
+- Error after trying: not attempted yet; next step is baseline verification, inspection for three reproducible bugs, failing checks, and minimal fixes.
+- Result: found three import validation bugs: invalid exercise progression settings were accepted, routines could reference missing exercises, and set entries could reference missing sessions or exercises. Added failing integration tests first, then tightened import validation before database writes; targeted tests now pass.

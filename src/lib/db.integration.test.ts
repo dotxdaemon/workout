@@ -29,6 +29,7 @@ import { applyJsonImport } from './exportImport'
 
 describe('IndexedDB integration', () => {
   beforeEach(async () => {
+    localStorage.clear()
     await db.transaction('rw', db.exercises, db.routines, db.sessions, db.setEntries, async () => {
       await db.setEntries.clear()
       await db.sessions.clear()
@@ -428,4 +429,107 @@ describe('IndexedDB integration', () => {
       },
     ])
   })
+
+  it('rejects imported exercises with invalid progression settings', async () => {
+    const payload = buildImportPayload({
+      exercises: [
+        {
+          id: 'bad-progression',
+          name: 'Bad Progression',
+          unitDefault: 'lb',
+          progressionSettings: {
+            repMin: 10,
+            repMax: 6,
+            workSetsTarget: 3,
+            weightIncrement: 5,
+            unit: 'lb',
+          },
+        },
+      ],
+    })
+
+    await expect(applyJsonImport(JSON.stringify(payload))).rejects.toThrow(
+      'Import failed: data.exercises[0].progressionSettings.repMax must be greater than or equal to repMin.',
+    )
+    await expect(listExercises()).resolves.toEqual([])
+  })
+
+  it('rejects imported routines that reference missing exercises', async () => {
+    const payload = buildImportPayload({
+      routines: [
+        {
+          id: 'missing-exercise-routine',
+          name: 'Missing Exercise Routine',
+          splitId: '3-day-split',
+          exerciseIds: ['missing-exercise'],
+        },
+      ],
+    })
+
+    await expect(applyJsonImport(JSON.stringify(payload))).rejects.toThrow(
+      'Import failed: data.routines[0].exerciseIds[0] references an unknown exercise.',
+    )
+    await expect(listRoutines()).resolves.toEqual([])
+  })
+
+  it('rejects imported set entries that reference missing parent records', async () => {
+    const payload = buildImportPayload({
+      exercises: [
+        {
+          id: 'known-exercise',
+          name: 'Known Exercise',
+          unitDefault: 'lb',
+          progressionSettings: {
+            repMin: 6,
+            repMax: 10,
+            workSetsTarget: 3,
+            weightIncrement: 5,
+            unit: 'lb',
+          },
+        },
+      ],
+      setEntries: [
+        {
+          id: 'orphan-set',
+          sessionId: 'missing-session',
+          exerciseId: 'known-exercise',
+          index: 0,
+          weight: 135,
+          reps: 8,
+          isWarmup: false,
+          completedAt: '2026-05-12T12:00:00.000Z',
+        },
+      ],
+    })
+
+    await expect(applyJsonImport(JSON.stringify(payload))).rejects.toThrow(
+      'Import failed: data.setEntries[0].sessionId references an unknown session.',
+    )
+    await expect(listSessionSetEntries('missing-session')).resolves.toEqual([])
+  })
 })
+
+function buildImportPayload(data: Partial<{
+  exercises: unknown[]
+  routines: unknown[]
+  sessions: unknown[]
+  setEntries: unknown[]
+}>) {
+  return {
+    version: 1,
+    exportedAt: '2026-05-12T00:00:00.000Z',
+    preferences: {
+      defaultUnit: 'lb',
+      defaultWeightIncrement: 5,
+      restTimerEnabled: true,
+      restSeconds: 90,
+      theme: 'dark',
+    },
+    data: {
+      exercises: data.exercises ?? [],
+      routines: data.routines ?? [],
+      sessions: data.sessions ?? [],
+      setEntries: data.setEntries ?? [],
+    },
+  }
+}

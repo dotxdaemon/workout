@@ -9,6 +9,7 @@ import { defaultPreferences, writePreferences } from './preferences'
 import type {
   AppPreferences,
   Exercise,
+  ProgressionSettings,
   Routine,
   SessionRecord,
   SetEntry,
@@ -131,6 +132,18 @@ function validatePayload(value: unknown): WorkoutExport {
   data.sessions.forEach((session, index) => validateSession(session, index))
   data.setEntries.forEach((entry, index) => validateSetEntry(entry, index))
 
+  const exercises = data.exercises as Exercise[]
+  const routines = data.routines as Routine[]
+  const sessions = data.sessions as SessionRecord[]
+  const setEntries = data.setEntries as SetEntry[]
+
+  validateReferences({
+    exercises,
+    routines,
+    sessions,
+    setEntries,
+  })
+
   const preferences = validatePreferences(payload.preferences)
 
   return {
@@ -141,10 +154,10 @@ function validatePayload(value: unknown): WorkoutExport {
         : new Date().toISOString(),
     preferences,
     data: {
-      exercises: data.exercises as Exercise[],
-      routines: data.routines as Routine[],
-      sessions: data.sessions as SessionRecord[],
-      setEntries: data.setEntries as SetEntry[],
+      exercises,
+      routines,
+      sessions,
+      setEntries,
     },
   }
 }
@@ -201,7 +214,39 @@ function validateExercise(value: unknown, index: number): void {
   if (exercise.unitDefault !== 'lb' && exercise.unitDefault !== 'kg') {
     throw new Error(`Import failed: ${label}.unitDefault must be lb or kg.`)
   }
-  assertObject(exercise.progressionSettings, `${label}.progressionSettings`)
+  validateProgressionSettings(exercise.progressionSettings, `${label}.progressionSettings`)
+}
+
+function validateProgressionSettings(value: unknown, label: string): void {
+  assertObject(value, label)
+
+  const settings = value as Partial<ProgressionSettings>
+  if (settings.unit !== 'lb' && settings.unit !== 'kg') {
+    throw new Error(`Import failed: ${label}.unit must be lb or kg.`)
+  }
+  if (typeof settings.repMin !== 'number' || !Number.isInteger(settings.repMin) || settings.repMin < 1) {
+    throw new Error(`Import failed: ${label}.repMin must be a positive integer.`)
+  }
+  if (typeof settings.repMax !== 'number' || !Number.isInteger(settings.repMax) || settings.repMax < 1) {
+    throw new Error(`Import failed: ${label}.repMax must be a positive integer.`)
+  }
+  if (settings.repMax < settings.repMin) {
+    throw new Error(`Import failed: ${label}.repMax must be greater than or equal to repMin.`)
+  }
+  if (
+    typeof settings.workSetsTarget !== 'number' ||
+    !Number.isInteger(settings.workSetsTarget) ||
+    settings.workSetsTarget < 1
+  ) {
+    throw new Error(`Import failed: ${label}.workSetsTarget must be a positive integer.`)
+  }
+  if (
+    typeof settings.weightIncrement !== 'number' ||
+    !Number.isFinite(settings.weightIncrement) ||
+    settings.weightIncrement <= 0
+  ) {
+    throw new Error(`Import failed: ${label}.weightIncrement must be a positive number.`)
+  }
 }
 
 function validateRoutine(value: unknown, index: number): void {
@@ -271,6 +316,43 @@ function validateSetEntry(value: unknown, index: number): void {
   if (typeof entry.isWarmup !== 'boolean') {
     throw new Error(`Import failed: ${label}.isWarmup must be a boolean.`)
   }
+}
+
+function validateReferences(data: WorkoutExport['data']): void {
+  const exerciseIds = new Set(data.exercises.map((exercise) => exercise.id))
+  const routineIds = new Set(data.routines.map((routine) => routine.id))
+  const sessionIds = new Set(data.sessions.map((session) => session.id))
+
+  data.routines.forEach((routine, routineIndex) => {
+    routine.exerciseIds.forEach((exerciseId, exerciseIndex) => {
+      if (!exerciseIds.has(exerciseId)) {
+        throw new Error(
+          `Import failed: data.routines[${routineIndex}].exerciseIds[${exerciseIndex}] references an unknown exercise.`,
+        )
+      }
+    })
+  })
+
+  data.sessions.forEach((session, sessionIndex) => {
+    if (session.routineId && !routineIds.has(session.routineId)) {
+      throw new Error(
+        `Import failed: data.sessions[${sessionIndex}].routineId references an unknown routine.`,
+      )
+    }
+  })
+
+  data.setEntries.forEach((entry, entryIndex) => {
+    if (!sessionIds.has(entry.sessionId)) {
+      throw new Error(
+        `Import failed: data.setEntries[${entryIndex}].sessionId references an unknown session.`,
+      )
+    }
+    if (!exerciseIds.has(entry.exerciseId)) {
+      throw new Error(
+        `Import failed: data.setEntries[${entryIndex}].exerciseId references an unknown exercise.`,
+      )
+    }
+  })
 }
 
 function assertObject(value: unknown, label: string): void {
