@@ -35,7 +35,6 @@ import { BottomSheet } from '../components/BottomSheet'
 import { EmptyState } from '../components/EmptyState'
 import { NumberField } from '../components/NumberField'
 import { SegmentedControl } from '../components/SegmentedControl'
-import { useCountdown } from '../components/useCountdown'
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -89,8 +88,6 @@ export function RoutinesScreen() {
   const savedFeedbackTimeoutRef = useRef<number | null>(null)
   const hydratedRoutineIdRef = useRef<string | null>(null)
 
-  const restTimer = useCountdown()
-
   const [isLoading, setIsLoading] = useState(true)
   const [trackerSessionId, setTrackerSessionId] = useState('')
   const [routines, setRoutines] = useState<Routine[]>([])
@@ -106,11 +103,8 @@ export function RoutinesScreen() {
   const [draftsByExercise, setDraftsByExercise] = useState<Record<string, SetDraft>>({})
   const [notesByExercise, setNotesByExercise] = useState<Record<string, string>>({})
   const [historySheet, setHistorySheet] = useState<HistorySheetState | null>(null)
-  const [restTimerExerciseId, setRestTimerExerciseId] = useState<string | null>(null)
   const [defaultUnit, setDefaultUnit] = useState<Unit>('lb')
   const [defaultWeightIncrement, setDefaultWeightIncrement] = useState(5)
-  const [restTimerEnabled, setRestTimerEnabled] = useState(true)
-  const [restSeconds, setRestSeconds] = useState(90)
   const [routineNameDraft, setRoutineNameDraft] = useState('')
   const [exerciseDrafts, setExerciseDrafts] = useState<RoutineExerciseDraft[]>([])
   const [openExerciseDraftIds, setOpenExerciseDraftIds] = useState<Record<string, boolean>>({})
@@ -231,8 +225,6 @@ export function RoutinesScreen() {
     setSetsByExercise(groupSetsByExercise(sessionSets))
     setDefaultUnit(preferences.defaultUnit)
     setDefaultWeightIncrement(preferences.defaultWeightIncrement)
-    setRestTimerEnabled(preferences.restTimerEnabled)
-    setRestSeconds(preferences.restSeconds)
     setError('')
     setIsLoading(false)
   }, [])
@@ -488,7 +480,6 @@ export function RoutinesScreen() {
       await refreshHistoryForExercise(exerciseId)
       setError('')
       showSavedFeedback(exerciseId)
-      startRestTimer(exerciseId)
     } catch {
       setError('Could not save the set.')
     }
@@ -536,19 +527,6 @@ export function RoutinesScreen() {
     } catch {
       setError('Could not repeat the last session.')
     }
-  }
-
-  function startRestTimer(exerciseId: string): void {
-    if (!restTimerEnabled || restSeconds <= 0) {
-      return
-    }
-    setRestTimerExerciseId(exerciseId)
-    restTimer.start(restSeconds)
-  }
-
-  function stopRestTimer(): void {
-    restTimer.stop()
-    setRestTimerExerciseId(null)
   }
 
   function handleNoteChange(exerciseId: string, value: string): void {
@@ -879,7 +857,6 @@ export function RoutinesScreen() {
                     isSaved={savedExerciseId === exercise.id}
                     invalidEntry={invalidEntryExerciseId === exercise.id}
                     note={notesByExercise[exercise.id] ?? ''}
-                    restSecondsLeft={restTimerExerciseId === exercise.id ? restTimer.secondsLeft : 0}
                     onWeightChange={(value) => setDraftField(exercise.id, 'weight', value)}
                     onRepsChange={(value) => setDraftField(exercise.id, 'reps', value)}
                     onSave={() => void handleSaveSet(exercise.id)}
@@ -887,7 +864,6 @@ export function RoutinesScreen() {
                     onRepeatLast={() => void handleRepeatLastSession(exercise.id)}
                     onOpenHistory={(openedAt) => void handleOpenHistorySheet(exercise, openedAt)}
                     onNoteChange={(value) => handleNoteChange(exercise.id, value)}
-                    onStopRest={stopRestTimer}
                   />
                 )
               })}
@@ -970,7 +946,6 @@ interface ExerciseCardProps {
   isSaved: boolean
   invalidEntry: boolean
   note: string
-  restSecondsLeft: number
   onWeightChange: (value: string) => void
   onRepsChange: (value: string) => void
   onSave: () => void
@@ -978,7 +953,6 @@ interface ExerciseCardProps {
   onRepeatLast: () => void
   onOpenHistory: (openedAt: number) => void
   onNoteChange: (value: string) => void
-  onStopRest: () => void
 }
 
 function ExerciseCard(props: ExerciseCardProps) {
@@ -1054,24 +1028,6 @@ function ExerciseCard(props: ExerciseCardProps) {
           ))
         )}
       </div>
-
-      {props.restSecondsLeft > 0 ? (
-        <div className="rest-timer">
-          <span className="rest-timer__dot" aria-hidden="true" />
-          <span className="rest-timer__label">Rest</span>
-          <span className="rest-timer__time numeral" aria-label={`${props.restSecondsLeft} seconds rest remaining`}>
-            {formatClock(props.restSecondsLeft)}
-          </span>
-          <button
-            type="button"
-            className="btn btn--ghost btn--small rest-timer__skip"
-            onClick={props.onStopRest}
-            aria-label="Skip rest timer"
-          >
-            Skip
-          </button>
-        </div>
-      ) : null}
 
       <div className="quick-entry">
         <div className="quick-entry__fields">
@@ -1689,8 +1645,3 @@ function getNextRoutineName(routines: Routine[]): string {
   return `Routine ${index}`
 }
 
-function formatClock(totalSeconds: number): string {
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
-}

@@ -167,40 +167,6 @@ export function SettingsScreen() {
         </label>
       </div>
 
-      <div className="panel">
-        <h2 className="panel__title">Rest timer</h2>
-        <div className="settings-row">
-          <div className="settings-row__text">
-            <span className="settings-row__label">Auto-start after a set</span>
-            <span className="settings-row__hint">Counts down your rest between sets.</span>
-          </div>
-          <SegmentedControl
-            ariaLabel="Rest timer"
-            value={preferences.restTimerEnabled ? 'on' : 'off'}
-            onChange={(value) => updatePreference('restTimerEnabled', value === 'on')}
-            options={[
-              { value: 'on', label: 'On' },
-              { value: 'off', label: 'Off' },
-            ]}
-          />
-        </div>
-
-        <label className="field">
-          <span className="field__label">Rest length (seconds)</span>
-          <input
-            type="number"
-            min="0"
-            step="5"
-            inputMode="numeric"
-            value={preferences.restSeconds}
-            disabled={!preferences.restTimerEnabled}
-            onChange={(event) =>
-              updatePreference('restSeconds', Math.max(0, Math.round(Number(event.target.value) || 0)))
-            }
-          />
-        </label>
-      </div>
-
       <details
         className="details"
         open={isDataOpen}

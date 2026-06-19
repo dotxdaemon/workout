@@ -1,5 +1,5 @@
 // ABOUTME: Verifies settings screen layout, collapsed backup tools, and instant preference writes.
-// ABOUTME: Ensures theme, unit, and rest-timer changes persist immediately without a save button.
+// ABOUTME: Ensures theme and unit changes persist immediately without a separate save button.
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -95,7 +95,7 @@ describe('Settings screen layout', () => {
     })
   })
 
-  it('persists the rest timer toggle immediately', async () => {
+  it('persists the default unit immediately', async () => {
     const host = document.createElement('div')
     document.body.appendChild(host)
     const root = createRoot(host)
@@ -104,16 +104,16 @@ describe('Settings screen layout', () => {
       root.render(<SettingsScreen />)
     })
 
-    expect(readPreferences().restTimerEnabled).toBe(true)
+    expect(readPreferences().defaultUnit).toBe('lb')
 
-    const offButton = Array.from(host.querySelectorAll('button')).find(
-      (button) => button.textContent?.trim() === 'Off',
+    const kgButton = Array.from(host.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'kg',
     )
     await act(async () => {
-      offButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      kgButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
 
-    expect(readPreferences().restTimerEnabled).toBe(false)
+    expect(readPreferences().defaultUnit).toBe('kg')
 
     await act(async () => {
       root.unmount()
