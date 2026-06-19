@@ -473,6 +473,29 @@ export async function applySessionExerciseTemplate(
   await db.setEntries.bulkAdd(templateEntries)
 }
 
+export async function deleteSessionSet(
+  sessionId: string,
+  exerciseId: string,
+  setId: string,
+): Promise<void> {
+  await db.transaction('rw', db.setEntries, async () => {
+    await db.setEntries.delete(setId)
+
+    const remaining = await db.setEntries
+      .where('[sessionId+exerciseId]')
+      .equals([sessionId, exerciseId])
+      .toArray()
+
+    remaining.sort((a, b) => a.index - b.index)
+
+    for (let index = 0; index < remaining.length; index += 1) {
+      if (remaining[index].index !== index) {
+        await db.setEntries.update(remaining[index].id, { index })
+      }
+    }
+  })
+}
+
 export async function removeExerciseFromSession(
   sessionId: string,
   exerciseId: string,

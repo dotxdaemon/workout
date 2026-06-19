@@ -122,7 +122,7 @@ describe('App shell layout model', () => {
     )
 
     expect(nav).not.toBeNull()
-    expect(links).toEqual(expect.arrayContaining(['Routines', 'Settings']))
+    expect(links).toEqual(expect.arrayContaining(['Train', 'Settings']))
   })
 
   it('preserves the existing root theme attribute on mount', async () => {

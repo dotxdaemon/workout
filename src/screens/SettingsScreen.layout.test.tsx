@@ -1,5 +1,5 @@
-// ABOUTME: Verifies settings screen layout constraints for mobile overflow prevention.
-// ABOUTME: Ensures settings-specific file input classes are rendered for themed styling.
+// ABOUTME: Verifies settings screen layout, collapsed backup tools, and instant preference writes.
+// ABOUTME: Ensures theme, unit, and rest-timer changes persist immediately without a save button.
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -10,11 +10,13 @@ describe('Settings screen layout', () => {
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     document.body.innerHTML = ''
+    document.documentElement.removeAttribute('data-theme')
     localStorage.clear()
   })
 
   afterEach(() => {
     document.body.innerHTML = ''
+    document.documentElement.removeAttribute('data-theme')
     localStorage.clear()
   })
 
@@ -27,20 +29,17 @@ describe('Settings screen layout', () => {
       root.render(<SettingsScreen />)
     })
 
-    const page = host.querySelector('.settings-page')
     const defaultsHeading = Array.from(host.querySelectorAll('h2')).find(
-      (heading) => heading.textContent?.trim() === 'Defaults',
+      (heading) => heading.textContent?.trim() === 'Logging defaults',
     )
-    const dataPanel = host.querySelector('.settings-data-panel') as HTMLDetailsElement | null
-    const importInput = host.querySelector('.settings-file-input')
-    const exportActions = host.querySelector('.settings-export-actions')
+    const dataPanel = host.querySelector('.details') as HTMLDetailsElement | null
 
-    expect(page).not.toBeNull()
+    expect(host.querySelector('.page')).not.toBeNull()
     expect(defaultsHeading).not.toBeUndefined()
     expect(dataPanel).not.toBeNull()
     expect(dataPanel?.open).toBe(false)
-    expect(importInput).toBeNull()
-    expect(exportActions).toBeNull()
+    expect(host.querySelector('#settings-import-json')).toBeNull()
+    expect(host.querySelector('.export-actions')).toBeNull()
 
     await act(async () => {
       if (dataPanel) {
@@ -49,10 +48,11 @@ describe('Settings screen layout', () => {
       }
     })
 
-    expect(host.querySelector('.settings-file-input')).not.toBeNull()
-    expect(host.querySelector('.settings-file-button')?.textContent).toContain('Choose JSON file')
-    expect(host.querySelector('.settings-file-name')?.textContent).toContain('No file selected')
-    expect(host.querySelector('.settings-export-actions')).not.toBeNull()
+    expect(host.querySelector('#settings-import-json')).not.toBeNull()
+    expect(host.querySelector('.file-button')?.textContent).toContain('Choose JSON file')
+    expect(host.querySelector('.file-name')?.textContent).toContain('No file selected')
+    expect(host.querySelector('.export-actions')).not.toBeNull()
+    expect(host.textContent).toContain('Export log (readable .txt)')
 
     await act(async () => {
       root.unmount()
@@ -68,17 +68,52 @@ describe('Settings screen layout', () => {
       root.render(<SettingsScreen />)
     })
 
-    const lightButton = Array.from(host.querySelectorAll('button')).find(
-      (button) => button.textContent?.trim() === 'Light',
+    const dayButton = Array.from(host.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Day',
     )
-    expect(lightButton).not.toBeUndefined()
+    expect(dayButton).not.toBeUndefined()
 
     await act(async () => {
-      lightButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      dayButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('light')
     expect(readPreferences().theme).toBe('light')
+
+    const nightButton = Array.from(host.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Night',
+    )
+    await act(async () => {
+      nightButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
+    expect(readPreferences().theme).toBe('dark')
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('persists the rest timer toggle immediately', async () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<SettingsScreen />)
+    })
+
+    expect(readPreferences().restTimerEnabled).toBe(true)
+
+    const offButton = Array.from(host.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Off',
+    )
+    await act(async () => {
+      offButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(readPreferences().restTimerEnabled).toBe(false)
 
     await act(async () => {
       root.unmount()

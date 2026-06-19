@@ -8,5 +8,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     css: false,
+    // Run test files sequentially: the IndexedDB-seeding screen tests are timing
+    // sensitive, and cross-file CPU contention can starve their async setup.
+    fileParallelism: false,
   },
 })

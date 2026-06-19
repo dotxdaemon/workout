@@ -1,14 +1,13 @@
-// ABOUTME: Renders the routines tab with fast daily logging and separate routine editing mode.
-// ABOUTME: Records saved sets and history while keeping admin controls out of the today flow.
+// ABOUTME: Training screen with a fast Today logging flow and a separate routine Edit flow.
+// ABOUTME: Logs sets, surfaces progression guidance and history, and keeps admin out of logging.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { MouseEvent, TouchEvent } from 'react'
 import {
   addSetEntry,
-  applySessionExerciseTemplate,
   assignRoutineToSession,
   createExercise,
   createRoutine,
   deleteRoutine,
+  deleteSessionSet,
   ensureCoreRoutines,
   getOrCreateTrackerSession,
   listExerciseHistory,
@@ -20,13 +19,8 @@ import {
   updateRoutine,
 } from '../lib/db'
 import { formatNumber } from '../lib/format'
-import {
-  applyHistorySheetOverlayLock,
-  getHistorySheetDragOffset,
-  shouldIgnoreHistorySheetBackdropClose,
-  shouldAllowHistorySheetDrag,
-  shouldCloseHistorySheetAfterDrag,
-} from '../lib/historySheet'
+import { parseNumber, parseReps } from '../lib/numberInput'
+import { buildProgressionSuggestion } from '../lib/progression'
 import { readPreferences } from '../lib/preferences'
 import {
   readActiveRoutineSplitId,
@@ -36,6 +30,27 @@ import {
 } from '../lib/routineSelection'
 import { routineSplitOptions } from '../lib/routineSplit'
 import type { Exercise, Routine, RoutineSplitId, SessionRecord, SetEntry, Unit } from '../types'
+import { Banner } from '../components/Banner'
+import { BottomSheet } from '../components/BottomSheet'
+import { EmptyState } from '../components/EmptyState'
+import { NumberField } from '../components/NumberField'
+import { SegmentedControl } from '../components/SegmentedControl'
+import { useCountdown } from '../components/useCountdown'
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  ClockIcon,
+  CloseIcon,
+  DumbbellIcon,
+  GripIcon,
+  InboxIcon,
+  PlusIcon,
+  RepeatIcon,
+  TrashIcon,
+  TrendUpIcon,
+} from '../components/icons'
 
 interface SetDraft {
   weight: string
@@ -52,6 +67,7 @@ interface HistorySheetState {
   exerciseName: string
   rows: HistoryItem[]
   isLoading: boolean
+  openedAt: number
 }
 
 interface RoutineExerciseDraft {
@@ -71,34 +87,30 @@ const historyPreviewLimit = 5
 export function RoutinesScreen() {
   const historyRequestRef = useRef(0)
   const savedFeedbackTimeoutRef = useRef<number | null>(null)
-  const historySheetListRef = useRef<HTMLDivElement | null>(null)
-  const todayCardRefs = useRef<Record<string, HTMLElement | null>>({})
-  const exerciseDraftRowRefs = useRef<Record<string, HTMLElement | null>>({})
-  const historySheetDragStartYRef = useRef<number | null>(null)
-  const historySheetStartScrollTopRef = useRef(0)
-  const historySheetDragOffsetRef = useRef(0)
-  const historySheetDraggingRef = useRef(false)
-  const historySheetOpenedAtRef = useRef(0)
   const hydratedRoutineIdRef = useRef<string | null>(null)
 
+  const restTimer = useCountdown()
+
+  const [isLoading, setIsLoading] = useState(true)
   const [trackerSessionId, setTrackerSessionId] = useState('')
   const [routines, setRoutines] = useState<Routine[]>([])
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [setsByExercise, setSetsByExercise] = useState<Record<string, SetEntry[]>>({})
-  const [historyPreviewByExercise, setHistoryPreviewByExercise] = useState<Record<string, HistoryItem[]>>({})
-  const [activeSplitId, setActiveSplitId] = useState<RoutineSplitId>(() =>
-    readActiveRoutineSplitId(),
-  )
+  const [historyPreviewByExercise, setHistoryPreviewByExercise] = useState<
+    Record<string, HistoryItem[]>
+  >({})
+  const [activeSplitId, setActiveSplitId] = useState<RoutineSplitId>(() => readActiveRoutineSplitId())
   const [selectedRoutineId, setSelectedRoutineId] = useState('')
   const [mode, setMode] = useState<ScreenMode>('today')
   const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(null)
-  const [draftsByExercise, setDraftsByExercise] = useState<Record<string, SetDraft[]>>({})
+  const [draftsByExercise, setDraftsByExercise] = useState<Record<string, SetDraft>>({})
   const [notesByExercise, setNotesByExercise] = useState<Record<string, string>>({})
   const [historySheet, setHistorySheet] = useState<HistorySheetState | null>(null)
-  const [historySheetDragOffset, setHistorySheetDragOffset] = useState(0)
-  const [historySheetDragging, setHistorySheetDragging] = useState(false)
+  const [restTimerExerciseId, setRestTimerExerciseId] = useState<string | null>(null)
   const [defaultUnit, setDefaultUnit] = useState<Unit>('lb')
   const [defaultWeightIncrement, setDefaultWeightIncrement] = useState(5)
+  const [restTimerEnabled, setRestTimerEnabled] = useState(true)
+  const [restSeconds, setRestSeconds] = useState(90)
   const [routineNameDraft, setRoutineNameDraft] = useState('')
   const [exerciseDrafts, setExerciseDrafts] = useState<RoutineExerciseDraft[]>([])
   const [openExerciseDraftIds, setOpenExerciseDraftIds] = useState<Record<string, boolean>>({})
@@ -108,6 +120,7 @@ export function RoutinesScreen() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [savedExerciseId, setSavedExerciseId] = useState<string | null>(null)
+  const [invalidEntryExerciseId, setInvalidEntryExerciseId] = useState<string | null>(null)
 
   const exerciseMap = useMemo(
     () => Object.fromEntries(exercises.map((exercise) => [exercise.id, exercise])),
@@ -142,7 +155,6 @@ export function RoutinesScreen() {
       if (rightIndex == null) {
         return -1
       }
-
       return leftIndex - rightIndex
     })
   }, [activeSplit.routineOrder, splitRoutines])
@@ -152,10 +164,7 @@ export function RoutinesScreen() {
     [orderedRoutines, selectedRoutineId],
   )
 
-  const selectedExerciseIds = useMemo(
-    () => selectedRoutine?.exerciseIds ?? [],
-    [selectedRoutine],
-  )
+  const selectedExerciseIds = useMemo(() => selectedRoutine?.exerciseIds ?? [], [selectedRoutine])
 
   const selectedRoutineIndex = useMemo(
     () =>
@@ -174,17 +183,18 @@ export function RoutinesScreen() {
     () => getRoutineFocusLabel(selectedRoutine?.name),
     [selectedRoutine?.name],
   )
+
   const trimmedAddExerciseName = addExerciseName.trim()
   const normalizedAddExerciseName = trimmedAddExerciseName.toLowerCase()
   const draftExerciseIds = useMemo(
     () => new Set(exerciseDrafts.map((draft) => draft.exerciseId)),
     [exerciseDrafts],
   )
+
   const editExerciseSuggestions = useMemo(() => {
     if (mode !== 'edit' || !trimmedAddExerciseName) {
       return []
     }
-
     return exercises
       .filter(
         (exercise) =>
@@ -193,6 +203,16 @@ export function RoutinesScreen() {
       )
       .slice(0, 6)
   }, [draftExerciseIds, exercises, mode, normalizedAddExerciseName, trimmedAddExerciseName])
+
+  function resetPageScrollToTop(): void {
+    const screenArea = document.querySelector<HTMLElement>('.screen-area')
+    if (screenArea) {
+      screenArea.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+      return
+    }
+    const scrollingElement = document.scrollingElement ?? document.documentElement
+    scrollingElement.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }
 
   const loadData = useCallback(async () => {
     const preferences = readPreferences()
@@ -205,20 +225,22 @@ export function RoutinesScreen() {
       listSessionSetEntries(trackerSession.id),
     ])
 
-    const groupedSets = groupSetsByExercise(sessionSets)
-
     setTrackerSessionId(trackerSession.id)
     setRoutines(loadedRoutines)
     setExercises(loadedExercises)
-    setSetsByExercise(groupedSets)
+    setSetsByExercise(groupSetsByExercise(sessionSets))
     setDefaultUnit(preferences.defaultUnit)
     setDefaultWeightIncrement(preferences.defaultWeightIncrement)
+    setRestTimerEnabled(preferences.restTimerEnabled)
+    setRestSeconds(preferences.restSeconds)
     setError('')
+    setIsLoading(false)
   }, [])
 
   useEffect(() => {
     void loadData().catch(() => {
-      setError('Could not load routines.')
+      setIsLoading(false)
+      setError('Could not load your training data.')
     })
   }, [loadData])
 
@@ -256,7 +278,6 @@ export function RoutinesScreen() {
     if (!selectedInSplit) {
       return
     }
-
     writeSelectedRoutineId(activeSplit.id, selectedRoutineId)
   }, [activeSplit.id, orderedRoutines, selectedRoutineId])
 
@@ -264,9 +285,8 @@ export function RoutinesScreen() {
     if (!trackerSessionId || !selectedRoutine?.id) {
       return
     }
-
     void assignRoutineToSession(trackerSessionId, selectedRoutine.id).catch(() => {
-      setError('Could not associate routine with the current session.')
+      setError('Could not associate this routine with the current session.')
     })
   }, [selectedRoutine?.id, trackerSessionId])
 
@@ -285,11 +305,9 @@ export function RoutinesScreen() {
       }),
     )
       .then((pairs) => {
-        if (!isCurrent) {
-          return
+        if (isCurrent) {
+          setHistoryPreviewByExercise(Object.fromEntries(pairs))
         }
-
-        setHistoryPreviewByExercise(Object.fromEntries(pairs))
       })
       .catch(() => {
         if (isCurrent) {
@@ -303,45 +321,14 @@ export function RoutinesScreen() {
   }, [selectedExerciseIds])
 
   useEffect(() => {
-    if (!selectedRoutine) {
-      setDraftsByExercise({})
-      return
-    }
-
-    setDraftsByExercise((current) => {
-      const next: Record<string, SetDraft[]> = {}
-
-      for (const exerciseId of selectedRoutine.exerciseIds) {
-        const exercise = exerciseMap[exerciseId]
-        if (!exercise) {
-          continue
-        }
-
-        const setEntries = setsByExercise[exerciseId] ?? []
-        next[exerciseId] = buildSetDraftsFromEntries(
-          setEntries,
-          exercise.progressionSettings.workSetsTarget,
-          current[exerciseId],
-        )
-      }
-
-      return next
-    })
-  }, [exerciseMap, selectedRoutine, setsByExercise])
-
-  useEffect(() => {
     if (!trackerSessionId || !selectedRoutine) {
       setNotesByExercise({})
       return
     }
-
     const next: Record<string, string> = {}
-
     for (const exerciseId of selectedRoutine.exerciseIds) {
-      const key = noteStorageKey(trackerSessionId, exerciseId)
-      next[exerciseId] = localStorage.getItem(key) ?? ''
+      next[exerciseId] = localStorage.getItem(noteStorageKey(trackerSessionId, exerciseId)) ?? ''
     }
-
     setNotesByExercise(next)
   }, [selectedRoutine, trackerSessionId])
 
@@ -350,15 +337,12 @@ export function RoutinesScreen() {
       hydratedRoutineIdRef.current = null
       return
     }
-
     if (mode !== 'edit') {
       return
     }
-
     if (hydratedRoutineIdRef.current === selectedRoutine.id) {
       return
     }
-
     hydratedRoutineIdRef.current = selectedRoutine.id
 
     setRoutineNameDraft(selectedRoutine.name)
@@ -379,35 +363,12 @@ export function RoutinesScreen() {
     if (!draftIdToReveal) {
       return
     }
-
-    const row = exerciseDraftRowRefs.current[draftIdToReveal]
-    if (!row) {
-      return
-    }
-
-    row.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+    const row = document.querySelector<HTMLElement>(
+      `[data-draft-id="${cssAttrEscape(draftIdToReveal)}"]`,
+    )
+    row?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
     setDraftIdToReveal(null)
   }, [draftIdToReveal, exerciseDrafts])
-
-  useEffect(() => {
-    if (!historySheet) {
-      return
-    }
-
-    const bottomNav = document.querySelector<HTMLElement>('.bottom-nav')
-    return applyHistorySheetOverlayLock({ bottomNav })
-  }, [historySheet])
-
-  function resetPageScrollToTop(): void {
-    const screenArea = document.querySelector<HTMLElement>('.screen-area')
-    if (screenArea) {
-      screenArea.scrollTo({ top: 0, left: 0, behavior: 'auto' })
-      return
-    }
-
-    const scrollingElement = document.scrollingElement ?? document.documentElement
-    scrollingElement.scrollTo({ top: 0, left: 0, behavior: 'auto' })
-  }
 
   useEffect(() => {
     return () => {
@@ -419,11 +380,9 @@ export function RoutinesScreen() {
 
   useEffect(() => {
     resetPageScrollToTop()
-
     const frameId = window.requestAnimationFrame(() => {
       resetPageScrollToTop()
     })
-
     return () => {
       window.cancelAnimationFrame(frameId)
     }
@@ -433,17 +392,16 @@ export function RoutinesScreen() {
     if (mode !== 'today' || !todayExerciseIdToReveal) {
       return
     }
-
-    const card = todayCardRefs.current[todayExerciseIdToReveal]
+    const card = document.querySelector<HTMLElement>(
+      `[data-exercise-id="${cssAttrEscape(todayExerciseIdToReveal)}"]`,
+    )
     if (!card) {
       return
     }
-
     const frameId = window.requestAnimationFrame(() => {
       card.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
       setTodayExerciseIdToReveal(null)
     })
-
     return () => {
       window.cancelAnimationFrame(frameId)
     }
@@ -453,326 +411,190 @@ export function RoutinesScreen() {
     if (!exerciseId) {
       return
     }
-
     setSavedExerciseId(exerciseId)
-
     if (savedFeedbackTimeoutRef.current != null) {
       window.clearTimeout(savedFeedbackTimeoutRef.current)
     }
-
     savedFeedbackTimeoutRef.current = window.setTimeout(() => {
       setSavedExerciseId((current) => (current === exerciseId ? null : current))
       savedFeedbackTimeoutRef.current = null
     }, 1400)
   }
 
+  function derivePrefill(exerciseId: string): SetDraft {
+    const todaySets = setsByExercise[exerciseId] ?? []
+    const lastToday = [...todaySets].reverse().find((set) => !set.isWarmup)
+    if (lastToday) {
+      return toDraft(lastToday)
+    }
+    const lastSession = historyPreviewByExercise[exerciseId]?.[0]
+    const lastWorkSet = lastSession
+      ? [...lastSession.sets].reverse().find((set) => !set.isWarmup)
+      : undefined
+    return lastWorkSet ? toDraft(lastWorkSet) : { weight: '', reps: '' }
+  }
+
+  function effectiveDraft(exerciseId: string): SetDraft {
+    return draftsByExercise[exerciseId] ?? derivePrefill(exerciseId)
+  }
+
+  function setDraftField(exerciseId: string, field: keyof SetDraft, value: string): void {
+    setInvalidEntryExerciseId((current) => (current === exerciseId ? null : current))
+    setDraftsByExercise((current) => {
+      const base = current[exerciseId] ?? derivePrefill(exerciseId)
+      return { ...current, [exerciseId]: { ...base, [field]: value } }
+    })
+  }
+
+  function clearDraft(exerciseId: string): void {
+    setDraftsByExercise((current) => {
+      if (!(exerciseId in current)) {
+        return current
+      }
+      const next = { ...current }
+      delete next[exerciseId]
+      return next
+    })
+  }
+
   async function refreshHistoryForExercise(exerciseId: string): Promise<void> {
     const rows = await listExerciseHistory(exerciseId, historyPreviewLimit)
-    setHistoryPreviewByExercise((current) => ({
-      ...current,
-      [exerciseId]: rows,
-    }))
+    setHistoryPreviewByExercise((current) => ({ ...current, [exerciseId]: rows }))
   }
 
-  function updateDraftSet(
-    exerciseId: string,
-    setIndex: number,
-    updater: (draft: SetDraft) => SetDraft,
-  ): void {
-    setDraftsByExercise((current) => {
-      const exercise = exerciseMap[exerciseId]
-      const targetSets = exercise?.progressionSettings.workSetsTarget ?? setIndex + 1
-      const base = ensureSetDraftLength(current[exerciseId] ?? [], targetSets)
-      const nextSet = updater(base[setIndex])
-
-      base[setIndex] = nextSet
-
-      return {
-        ...current,
-        [exerciseId]: base,
-      }
-    })
-  }
-
-  function handleSetDraftChange(
-    exerciseId: string,
-    setIndex: number,
-    field: keyof SetDraft,
-    value: string,
-  ): void {
-    updateDraftSet(exerciseId, setIndex, (draft) => ({
-      ...draft,
-      [field]: value,
-    }))
-  }
-
-  function handleSetStepAdjust(
-    exerciseId: string,
-    setIndex: number,
-    field: keyof SetDraft,
-    step: number,
-    direction: -1 | 1,
-  ): void {
-    updateDraftSet(exerciseId, setIndex, (draft) => {
-      const currentValue = field === 'weight' ? parseWeight(draft.weight) : parseReps(draft.reps)
-      const nextValue = Math.max(0, currentValue + step * direction)
-
-      if (field === 'weight') {
-        return {
-          ...draft,
-          weight: nextValue <= 0 ? '' : formatNumber(nextValue),
-        }
-      }
-
-      return {
-        ...draft,
-        reps: nextValue <= 0 ? '' : String(Math.round(nextValue)),
-      }
-    })
-  }
-
-  function handleCardClick(exerciseId: string): void {
-    setExpandedExerciseId((current) => (current === exerciseId ? null : exerciseId))
-  }
-
-  function stopCardToggle(event: MouseEvent<HTMLElement>): void {
-    event.stopPropagation()
-  }
-
-  async function handleUseTemplate(exerciseId: string, sets: SetEntry[]): Promise<void> {
+  async function handleSaveSet(exerciseId: string): Promise<void> {
     if (!trackerSessionId) {
       return
     }
+    const draft = effectiveDraft(exerciseId)
+    const weight = parseNumber(draft.weight)
+    const reps = parseReps(draft.reps)
 
-    const workSets = sets.filter((set) => !set.isWarmup)
-
-    await applySessionExerciseTemplate(
-      trackerSessionId,
-      exerciseId,
-      workSets.map((set) => ({
-        weight: set.weight,
-        reps: set.reps,
-      })),
-    )
-
-    const entries = await listSessionExerciseEntries(trackerSessionId, exerciseId)
-
-    setSetsByExercise((current) => ({
-      ...current,
-      [exerciseId]: entries,
-    }))
-
-    const exercise = exerciseMap[exerciseId]
-    if (exercise) {
-      setDraftsByExercise((current) => ({
-        ...current,
-        [exerciseId]: buildSetDraftsFromEntries(entries, exercise.progressionSettings.workSetsTarget),
-      }))
+    if (weight <= 0 || reps <= 0) {
+      setError('Enter both weight and reps before saving.')
+      setInvalidEntryExerciseId(exerciseId)
+      resetPageScrollToTop()
+      return
     }
 
-    await refreshHistoryForExercise(exerciseId)
-    closeHistorySheet('user')
-    setError('')
-    showSavedFeedback()
+    try {
+      const entry = await addSetEntry(trackerSessionId, exerciseId, { weight, reps, completed: true })
+      setSetsByExercise((current) => ({
+        ...current,
+        [exerciseId]: [...(current[exerciseId] ?? []), entry],
+      }))
+      setInvalidEntryExerciseId((current) => (current === exerciseId ? null : current))
+      clearDraft(exerciseId)
+      await refreshHistoryForExercise(exerciseId)
+      setError('')
+      showSavedFeedback(exerciseId)
+      startRestTimer(exerciseId)
+    } catch {
+      setError('Could not save the set.')
+    }
   }
 
-  async function handleOpenHistorySheet(
-    exercise: Exercise,
-    openedAtMs: number,
-  ): Promise<void> {
-    const cachedRows = historyPreviewByExercise[exercise.id] ?? []
-    historySheetOpenedAtRef.current = openedAtMs
+  async function handleRemoveSet(exerciseId: string, setId: string): Promise<void> {
+    if (!trackerSessionId) {
+      return
+    }
+    try {
+      await deleteSessionSet(trackerSessionId, exerciseId, setId)
+      const entries = await listSessionExerciseEntries(trackerSessionId, exerciseId)
+      setSetsByExercise((current) => ({ ...current, [exerciseId]: entries }))
+      clearDraft(exerciseId)
+      await refreshHistoryForExercise(exerciseId)
+      setError('')
+    } catch {
+      setError('Could not remove the set.')
+    }
+  }
 
+  async function handleRepeatLastSession(exerciseId: string): Promise<void> {
+    if (!trackerSessionId) {
+      return
+    }
+    const lastSession = historyPreviewByExercise[exerciseId]?.[0]
+    const workSets = (lastSession?.sets ?? []).filter((set) => !set.isWarmup)
+    if (workSets.length === 0) {
+      return
+    }
+    try {
+      for (const set of workSets) {
+        await addSetEntry(trackerSessionId, exerciseId, {
+          weight: set.weight,
+          reps: set.reps,
+          completed: true,
+        })
+      }
+      const entries = await listSessionExerciseEntries(trackerSessionId, exerciseId)
+      setSetsByExercise((current) => ({ ...current, [exerciseId]: entries }))
+      clearDraft(exerciseId)
+      await refreshHistoryForExercise(exerciseId)
+      setError('')
+      showSavedFeedback(exerciseId)
+    } catch {
+      setError('Could not repeat the last session.')
+    }
+  }
+
+  function startRestTimer(exerciseId: string): void {
+    if (!restTimerEnabled || restSeconds <= 0) {
+      return
+    }
+    setRestTimerExerciseId(exerciseId)
+    restTimer.start(restSeconds)
+  }
+
+  function stopRestTimer(): void {
+    restTimer.stop()
+    setRestTimerExerciseId(null)
+  }
+
+  function handleNoteChange(exerciseId: string, value: string): void {
+    setNotesByExercise((current) => ({ ...current, [exerciseId]: value }))
+    if (trackerSessionId) {
+      localStorage.setItem(noteStorageKey(trackerSessionId, exerciseId), value)
+    }
+  }
+
+  async function handleOpenHistorySheet(exercise: Exercise, openedAt: number): Promise<void> {
     setHistorySheet({
       exerciseId: exercise.id,
       exerciseName: exercise.name,
-      rows: cachedRows,
+      rows: historyPreviewByExercise[exercise.id] ?? [],
       isLoading: true,
+      openedAt,
     })
-    resetHistorySheetDrag()
 
     const requestId = historyRequestRef.current + 1
     historyRequestRef.current = requestId
 
     try {
       const rows = await listExerciseHistory(exercise.id)
-
       if (historyRequestRef.current !== requestId) {
         return
       }
-
       setHistorySheet((current) =>
-        current && current.exerciseId === exercise.id
-          ? {
-              ...current,
-              rows,
-              isLoading: false,
-            }
-          : current,
+        current && current.exerciseId === exercise.id ? { ...current, rows, isLoading: false } : current,
       )
     } catch {
       if (historyRequestRef.current !== requestId) {
         return
       }
-
       setError('Could not load exercise history.')
-      setHistorySheet((current) =>
-        current
-          ? {
-              ...current,
-              rows: [],
-              isLoading: false,
-            }
-          : current,
-      )
+      setHistorySheet((current) => (current ? { ...current, rows: [], isLoading: false } : current))
     }
   }
 
-  function closeHistorySheet(
-    reason: 'backdrop' | 'user' | 'drag' = 'user',
-    actionAtMs?: number,
-  ): void {
-    if (
-      reason === 'backdrop' &&
-      shouldIgnoreHistorySheetBackdropClose(
-        historySheetOpenedAtRef.current,
-        actionAtMs ?? historySheetOpenedAtRef.current,
-      )
-    ) {
-      return
-    }
-
+  function closeHistorySheet(): void {
     historyRequestRef.current += 1
-    resetHistorySheetDrag()
-    historySheetOpenedAtRef.current = 0
     setHistorySheet(null)
-  }
-
-  function handleHistoryBackdropClick(event: MouseEvent<HTMLDivElement>): void {
-    closeHistorySheet('backdrop', event.timeStamp)
-  }
-
-  function resetHistorySheetDrag(): void {
-    historySheetDragStartYRef.current = null
-    historySheetStartScrollTopRef.current = 0
-    historySheetDragOffsetRef.current = 0
-    historySheetDraggingRef.current = false
-    setHistorySheetDragOffset(0)
-    setHistorySheetDragging(false)
-  }
-
-  function handleHistorySheetTouchStart(event: TouchEvent<HTMLElement>): void {
-    const touch = event.touches[0]
-    if (!touch) {
-      return
-    }
-
-    historySheetDragStartYRef.current = touch.clientY
-
-    const listElement = historySheetListRef.current
-    const targetNode = event.target as Node | null
-    const startedInList = Boolean(listElement && targetNode && listElement.contains(targetNode))
-    historySheetStartScrollTopRef.current = startedInList ? (listElement?.scrollTop ?? 0) : 0
-  }
-
-  function handleHistorySheetTouchMove(event: TouchEvent<HTMLElement>): void {
-    const touch = event.touches[0]
-    const startY = historySheetDragStartYRef.current
-
-    if (!touch || startY == null) {
-      return
-    }
-
-    const dragOffset = getHistorySheetDragOffset(startY, touch.clientY)
-
-    if (!shouldAllowHistorySheetDrag(historySheetStartScrollTopRef.current, dragOffset)) {
-      return
-    }
-
-    if (event.cancelable) {
-      event.preventDefault()
-    }
-
-    historySheetDragOffsetRef.current = dragOffset
-    historySheetDraggingRef.current = true
-    setHistorySheetDragOffset(dragOffset)
-    setHistorySheetDragging(true)
-  }
-
-  function handleHistorySheetTouchEnd(): void {
-    historySheetDragStartYRef.current = null
-
-    if (!historySheetDraggingRef.current) {
-      historySheetDragOffsetRef.current = 0
-      setHistorySheetDragOffset(0)
-      return
-    }
-
-    if (shouldCloseHistorySheetAfterDrag(historySheetDragOffsetRef.current)) {
-      closeHistorySheet('drag')
-      return
-    }
-
-    historySheetDragOffsetRef.current = 0
-    historySheetDraggingRef.current = false
-    setHistorySheetDragOffset(0)
-    setHistorySheetDragging(false)
-  }
-
-  async function handleSaveQuickEntry(exerciseId: string): Promise<boolean> {
-    if (!trackerSessionId) {
-      return false
-    }
-
-    const quickDraft = ensureSetDraftLength(draftsByExercise[exerciseId] ?? [], 1)[0]
-    const weight = parseWeight(quickDraft.weight)
-    const reps = parseReps(quickDraft.reps)
-
-    if (weight <= 0 || reps <= 0) {
-      setError('Enter both weight and reps before saving.')
-      resetPageScrollToTop()
-      return false
-    }
-
-    try {
-      const entry = await addSetEntry(trackerSessionId, exerciseId, {
-        weight,
-        reps,
-        completed: true,
-      })
-
-      setSetsByExercise((current) => ({
-        ...current,
-        [exerciseId]: [...(current[exerciseId] ?? []), entry],
-      }))
-
-      await refreshHistoryForExercise(exerciseId)
-      setMessage('')
-      setError('')
-      showSavedFeedback(exerciseId)
-      return true
-    } catch {
-      setError('Could not save set.')
-      return false
-    }
-  }
-
-  function handleNoteChange(exerciseId: string, value: string): void {
-    setNotesByExercise((current) => ({
-      ...current,
-      [exerciseId]: value,
-    }))
-
-    if (trackerSessionId) {
-      localStorage.setItem(noteStorageKey(trackerSessionId, exerciseId), value)
-      showSavedFeedback()
-    }
   }
 
   async function handleCreateRoutine(): Promise<void> {
     const routineName = getNextRoutineName(splitRoutines)
     const routine = await createRoutine(routineName, [], activeSplit.id)
-
     setRoutines((current) => [...current, routine])
     setSelectedRoutineId(routine.id)
     setMode('edit')
@@ -784,33 +606,18 @@ export function RoutinesScreen() {
     if (!trimmedAddExerciseName) {
       return
     }
-
-    const exactMatch = exercises.find(
-      (item) => item.name.toLowerCase() === normalizedAddExerciseName,
-    )
-
+    const exactMatch = exercises.find((item) => item.name.toLowerCase() === normalizedAddExerciseName)
     if (exactMatch) {
       addExerciseDraft(exactMatch)
       return
     }
 
-    const created = await createExercise({
-      name: trimmedAddExerciseName,
-      unitDefault: defaultUnit,
-    })
-
+    const created = await createExercise({ name: trimmedAddExerciseName, unitDefault: defaultUnit })
     const createdExercise: Exercise = {
       ...created,
-      progressionSettings: {
-        ...created.progressionSettings,
-        weightIncrement: defaultWeightIncrement,
-      },
+      progressionSettings: { ...created.progressionSettings, weightIncrement: defaultWeightIncrement },
     }
-
-    await updateExercise(createdExercise.id, {
-      progressionSettings: createdExercise.progressionSettings,
-    })
-
+    await updateExercise(createdExercise.id, { progressionSettings: createdExercise.progressionSettings })
     setExercises((current) => sortExercisesByName([...current, createdExercise]))
     addExerciseDraft(createdExercise)
   }
@@ -820,27 +627,20 @@ export function RoutinesScreen() {
     if (existingDraft) {
       setDraftIdToReveal(existingDraft.draftId)
       setAddExerciseName('')
-      setMessage('Exercise already in routine.')
+      setMessage('That exercise is already in this routine.')
       setError('')
       return
     }
-
     const draftId = createRoutineDraftId(exercise.id)
-    setExerciseDrafts((current) => [
-      ...current,
-      toRoutineExerciseDraft(exercise, draftId),
-    ])
+    setExerciseDrafts((current) => [...current, toRoutineExerciseDraft(exercise, draftId)])
     setDraftIdToReveal(draftId)
     setAddExerciseName('')
-    setMessage('Exercise ready. Save routine to apply changes.')
+    setMessage('Exercise added. Save the routine to apply changes.')
     setError('')
   }
 
   function toggleExerciseDraftDetails(draftId: string): void {
-    setOpenExerciseDraftIds((current) => ({
-      ...current,
-      [draftId]: !current[draftId],
-    }))
+    setOpenExerciseDraftIds((current) => ({ ...current, [draftId]: !current[draftId] }))
   }
 
   function removeExerciseDraft(draftId: string): void {
@@ -858,23 +658,29 @@ export function RoutinesScreen() {
       if (index < 0) {
         return current
       }
-
       const nextIndex = index + direction
       if (nextIndex < 0 || nextIndex >= current.length) {
         return current
       }
-
       const next = [...current]
       ;[next[index], next[nextIndex]] = [next[nextIndex], next[index]]
       return next
     })
   }
 
+  function updateExerciseDraft(
+    draftId: string,
+    updater: (current: RoutineExerciseDraft) => RoutineExerciseDraft,
+  ): void {
+    setExerciseDrafts((current) =>
+      current.map((item) => (item.draftId === draftId ? updater(item) : item)),
+    )
+  }
+
   async function handleSaveRoutineEdits(): Promise<void> {
     if (!selectedRoutine) {
       return
     }
-
     const routineName = routineNameDraft.trim()
     if (!routineName) {
       setError('Routine name is required.')
@@ -887,15 +693,7 @@ export function RoutinesScreen() {
       const repMax = Math.max(repMin, Math.round(Number(draft.repMax) || repMin))
       const workSetsTarget = Math.max(1, Math.round(Number(draft.workSetsTarget) || 1))
       const weightIncrement = Math.max(0.1, Number(draft.weightIncrement) || 0.1)
-
-      return {
-        ...draft,
-        name: draft.name.trim(),
-        repMin,
-        repMax,
-        workSetsTarget,
-        weightIncrement,
-      }
+      return { ...draft, name: draft.name.trim(), repMin, repMax, workSetsTarget, weightIncrement }
     })
 
     if (sanitized.some((draft) => !draft.name)) {
@@ -919,11 +717,7 @@ export function RoutinesScreen() {
       const normalizedExerciseName = currentExercise.name.trim().toLowerCase()
 
       if (normalizedDraftName !== normalizedExerciseName) {
-        const createdExercise = await createExercise({
-          name: draft.name,
-          unitDefault: draft.unit,
-        })
-
+        const createdExercise = await createExercise({ name: draft.name, unitDefault: draft.unit })
         const progressionSettings = {
           ...currentExercise.progressionSettings,
           unit: draft.unit,
@@ -932,17 +726,8 @@ export function RoutinesScreen() {
           workSetsTarget: draft.workSetsTarget,
           weightIncrement: draft.weightIncrement,
         }
-
-        await updateExercise(createdExercise.id, {
-          progressionSettings,
-          unitDefault: draft.unit,
-        })
-
-        createdExercises.push({
-          ...createdExercise,
-          progressionSettings,
-          unitDefault: draft.unit,
-        })
+        await updateExercise(createdExercise.id, { progressionSettings, unitDefault: draft.unit })
+        createdExercises.push({ ...createdExercise, progressionSettings, unitDefault: draft.unit })
         nextExerciseIds.push(createdExercise.id)
         continue
       }
@@ -959,7 +744,6 @@ export function RoutinesScreen() {
           weightIncrement: draft.weightIncrement,
         },
       })
-
       nextExerciseIds.push(draft.exerciseId)
     }
 
@@ -967,10 +751,7 @@ export function RoutinesScreen() {
       setExercises((current) => sortExercisesByName([...current, ...createdExercises]))
     }
 
-    await updateRoutine(selectedRoutine.id, {
-      name: routineName,
-      exerciseIds: nextExerciseIds,
-    })
+    await updateRoutine(selectedRoutine.id, { name: routineName, exerciseIds: nextExerciseIds })
 
     const exerciseIdToReveal =
       nextExerciseIds.find((exerciseId) => !currentExerciseIds.has(exerciseId)) ?? null
@@ -990,18 +771,15 @@ export function RoutinesScreen() {
     if (!selectedRoutine) {
       return
     }
-
     if (splitRoutines.length <= 1) {
-      setError('At least one routine is required.')
+      setError('Keep at least one routine in this split.')
       return
     }
-
-    if (!window.confirm(`Delete ${selectedRoutine.name}?`)) {
+    if (!window.confirm(`Delete ${selectedRoutine.name}? This cannot be undone.`)) {
       return
     }
 
     await deleteRoutine(selectedRoutine.id)
-
     const remaining = routines.filter((routine) => routine.id !== selectedRoutine.id)
     const remainingInSplit = remaining.filter((routine) => routine.splitId === activeSplit.id)
     hydratedRoutineIdRef.current = null
@@ -1012,731 +790,740 @@ export function RoutinesScreen() {
     setError('')
   }
 
-  function updateExerciseDraft(
-    draftId: string,
-    updater: (current: RoutineExerciseDraft) => RoutineExerciseDraft,
-  ): void {
-    setExerciseDrafts((current) =>
-      current.map((item) => (item.draftId === draftId ? updater(item) : item)),
-    )
-  }
-
   return (
     <section className="page">
-      <header className="page-header routines-header">
-        <div className="routines-header__row">
-          <div className="routines-header__title">
-            <p className="routines-header__split">{formatSplitHeaderLabel(activeSplit.label)}</p>
-            <h1>Routines</h1>
+      <header className="train-header">
+        <div className="train-header__top">
+          <div>
+            <p className="eyebrow eyebrow--jade">{formatSplitHeaderLabel(activeSplit.label)}</p>
+            <h1 className="page-title">Train</h1>
           </div>
-          <div className="pill-toggle" role="tablist" aria-label="Routine modes">
-            <button
-              type="button"
-              className={
-                mode === 'today'
-                  ? 'pill-toggle__button pill-toggle__button--active'
-                  : 'pill-toggle__button'
-              }
-              onClick={() => setMode('today')}
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              className={
-                mode === 'edit'
-                  ? 'pill-toggle__button pill-toggle__button--active'
-                  : 'pill-toggle__button'
-              }
-              onClick={() => setMode('edit')}
-            >
-              Edit
-            </button>
-          </div>
+          <SegmentedControl
+            ariaLabel="Training mode"
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: 'today', label: 'Today' },
+              { value: 'edit', label: 'Edit' },
+            ]}
+          />
         </div>
-        <div className="routines-header__rule" aria-hidden="true" />
+        {mode === 'today' && orderedRoutines.length > 1 ? (
+          <div className="day-chips" role="tablist" aria-label="Select training day">
+            {orderedRoutines.map((routine, index) => {
+              const isActive = routine.id === selectedRoutine?.id
+              return (
+                <button
+                  key={routine.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  tabIndex={isActive ? 0 : -1}
+                  className={isActive ? 'day-chip day-chip--active' : 'day-chip'}
+                  onClick={() => setSelectedRoutineId(routine.id)}
+                >
+                  <span className="day-chip__index numeral">
+                    {getRoutineDayNumber(routine.name, index)}
+                  </span>
+                  <span className="day-chip__name">{routine.name}</span>
+                </button>
+              )
+            })}
+          </div>
+        ) : null}
       </header>
 
-      {message ? <p className="success-banner">{message}</p> : null}
-      {error ? <p className="error-banner">{error}</p> : null}
+      {message ? <Banner tone="success">{message}</Banner> : null}
+      {error ? <Banner tone="error">{error}</Banner> : null}
 
-      {mode === 'today' ? (
-        <div className="today-mode">
-          {orderedRoutines.length > 1 ? (
-            <div
-              className="day-chips"
-              role="tablist"
-              aria-label="Select training day"
-            >
-              {orderedRoutines.map((routine, index) => {
-                const isActive = routine.id === selectedRoutine?.id
-                return (
-                  <button
-                    key={routine.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={isActive}
-                    className={
-                      isActive ? 'day-chip day-chip--active' : 'day-chip'
-                    }
-                    onClick={() => setSelectedRoutineId(routine.id)}
-                  >
-                    <span className="day-chip__index">
-                      {getRoutineDayNumber(routine.name, index)}
-                    </span>
-                    <span className="day-chip__name">{routine.name}</span>
-                  </button>
-                )
-              })}
-            </div>
-          ) : null}
-
-          <header className="today-active-day-header">
-            <div className="today-active-day-header__meta">
-              <p className="today-active-day-header__day">{dayHeading.dayLabel}</p>
-              <p className="today-active-day-header__count">
+      {isLoading ? (
+        <div className="exercise-list" aria-hidden="true">
+          <div className="skeleton skeleton-card" />
+          <div className="skeleton skeleton-card" />
+          <div className="skeleton skeleton-card" />
+        </div>
+      ) : mode === 'today' ? (
+        <div className="train-today stack">
+          <header className="active-day">
+            <div className="active-day__meta">
+              <p className="eyebrow eyebrow--jade">{dayHeading.dayLabel}</p>
+              <p className="muted">
                 {selectedRoutine ? `${selectedExerciseIds.length} exercises` : '0 exercises'}
               </p>
             </div>
-            <h2>{dayHeading.title}</h2>
+            <h2 className="active-day__title">{dayHeading.title}</h2>
           </header>
 
-          {selectedRoutine ? (
-            <div className="today-list">
+          {selectedRoutine && selectedExerciseIds.length > 0 ? (
+            <div className="exercise-list">
               {selectedExerciseIds.map((exerciseId) => {
                 const exercise = exerciseMap[exerciseId]
                 if (!exercise) {
                   return null
                 }
-
-                const isExpanded = expandedExerciseId === exercise.id
-                const targetSets = exercise.progressionSettings.workSetsTarget
-                const setDrafts = ensureSetDraftLength(draftsByExercise[exercise.id] ?? [], targetSets)
-                const historyRows = historyPreviewByExercise[exercise.id] ?? []
-                const lastSummary = formatLastSummary(historyRows[0]?.sets)
-
                 return (
-                  <article
+                  <ExerciseCard
                     key={exercise.id}
-                    ref={(element) => {
-                      if (element) {
-                        todayCardRefs.current[exercise.id] = element
-                        return
-                      }
-
-                      delete todayCardRefs.current[exercise.id]
-                    }}
-                    className={isExpanded ? 'today-card today-card--expanded' : 'today-card'}
-                    onClick={() => handleCardClick(exercise.id)}
-                  >
-                    <div className="today-card__top">
-                      <div>
-                        <p className="today-card__group">{routineFocusLabel}</p>
-                        <h3>{exercise.name}</h3>
-                      </div>
-                      <div className="today-card__actions">
-                        <button
-                          type="button"
-                          className="today-card__history-button"
-                          aria-label={`Open history for ${exercise.name}`}
-                          onClick={(event) => {
-                            stopCardToggle(event)
-                            void handleOpenHistorySheet(exercise, event.timeStamp)
-                          }}
-                        >
-                          History
-                        </button>
-                        <button
-                          type="button"
-                          className="today-card__save-button"
-                          aria-label={`Save set for ${exercise.name}`}
-                          onClick={(event) => {
-                            stopCardToggle(event)
-                            void handleSaveQuickEntry(exercise.id)
-                          }}
-                        >
-                          {savedExerciseId === exercise.id ? 'Saved' : 'Save'}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="today-card__stats">
-                      <span className="today-card__stats-label">Last</span>
-                      <span className="today-card__stats-value">{lastSummary}</span>
-                    </div>
-
-                    <div className="today-input-row" onClick={stopCardToggle}>
-                      <CompactField
-                        label="Weight"
-                        inputMode="decimal"
-                        value={setDrafts[0].weight}
-                        step={exercise.progressionSettings.weightIncrement}
-                        onValueChange={(value) =>
-                          handleSetDraftChange(exercise.id, 0, 'weight', value)
-                        }
-                      />
-                      <CompactField
-                        label="Reps"
-                        inputMode="numeric"
-                        value={setDrafts[0].reps}
-                        step={1}
-                        onValueChange={(value) =>
-                          handleSetDraftChange(exercise.id, 0, 'reps', value)
-                        }
-                      />
-                    </div>
-
-                    {isExpanded ? (
-                      <div className="today-card__expanded" onClick={stopCardToggle}>
-                        <div className="set-editor-list">
-                          {Array.from({ length: targetSets }).map((_, index) => (
-                            <div key={`${exercise.id}-${index}`} className="set-editor-row">
-                              <span className="set-editor-row__label">Set {index + 1}</span>
-                              <div className="set-editor-row__fields">
-                                <StepperField
-                                  label="Weight"
-                                  inputMode="decimal"
-                                  value={setDrafts[index].weight}
-                                  step={exercise.progressionSettings.weightIncrement}
-                                  onValueChange={(value) =>
-                                    handleSetDraftChange(exercise.id, index, 'weight', value)
-                                  }
-                                  onStepAdjust={(direction) =>
-                                    handleSetStepAdjust(
-                                      exercise.id,
-                                      index,
-                                      'weight',
-                                      exercise.progressionSettings.weightIncrement,
-                                      direction,
-                                    )
-                                  }
-                                />
-                                <StepperField
-                                  label="Reps"
-                                  inputMode="numeric"
-                                  value={setDrafts[index].reps}
-                                  step={1}
-                                  onValueChange={(value) =>
-                                    handleSetDraftChange(exercise.id, index, 'reps', value)
-                                  }
-                                  onStepAdjust={(direction) =>
-                                    handleSetStepAdjust(exercise.id, index, 'reps', 1, direction)
-                                  }
-                                />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        <button
-                          type="button"
-                          className="button button--small"
-                          onClick={() =>
-                            void handleUseTemplate(exercise.id, historyRows[0]?.sets ?? [])
-                          }
-                          disabled={!historyRows[0]?.sets.length}
-                        >
-                          Use last session as template
-                        </button>
-
-                        <label className="stack stack--tight">
-                          <span>Notes</span>
-                          <textarea
-                            className="notes-input"
-                            value={notesByExercise[exercise.id] ?? ''}
-                            onChange={(event) => handleNoteChange(exercise.id, event.target.value)}
-                            rows={2}
-                          />
-                        </label>
-                      </div>
-                    ) : null}
-                  </article>
+                    exercise={exercise}
+                    groupLabel={routineFocusLabel}
+                    isExpanded={expandedExerciseId === exercise.id}
+                    onToggle={() =>
+                      setExpandedExerciseId((current) =>
+                        current === exercise.id ? null : exercise.id,
+                      )
+                    }
+                    todaySets={setsByExercise[exercise.id] ?? []}
+                    lastSession={historyPreviewByExercise[exercise.id]?.[0]}
+                    draft={effectiveDraft(exercise.id)}
+                    weightStep={exercise.progressionSettings.weightIncrement}
+                    isSaved={savedExerciseId === exercise.id}
+                    invalidEntry={invalidEntryExerciseId === exercise.id}
+                    note={notesByExercise[exercise.id] ?? ''}
+                    restSecondsLeft={restTimerExerciseId === exercise.id ? restTimer.secondsLeft : 0}
+                    onWeightChange={(value) => setDraftField(exercise.id, 'weight', value)}
+                    onRepsChange={(value) => setDraftField(exercise.id, 'reps', value)}
+                    onSave={() => void handleSaveSet(exercise.id)}
+                    onRemoveSet={(setId) => void handleRemoveSet(exercise.id, setId)}
+                    onRepeatLast={() => void handleRepeatLastSession(exercise.id)}
+                    onOpenHistory={(openedAt) => void handleOpenHistorySheet(exercise, openedAt)}
+                    onNoteChange={(value) => handleNoteChange(exercise.id, value)}
+                    onStopRest={stopRestTimer}
+                  />
                 )
               })}
             </div>
-          ) : orderedRoutines[0] ? (
-            <button
-              type="button"
-              className="button button--primary"
-              onClick={() => setSelectedRoutineId(orderedRoutines[0].id)}
-            >
-              Start {dayHeading.dayLabel}
-            </button>
+          ) : selectedRoutine ? (
+            <EmptyState
+              glyph={<DumbbellIcon width={38} height={38} />}
+              title="No exercises in this day yet"
+              body="Switch to Edit to add exercises, then come back here to log your sets."
+              action={
+                <button type="button" className="btn btn--primary" onClick={() => setMode('edit')}>
+                  Edit this routine
+                </button>
+              }
+            />
           ) : (
-            <p className="muted">Create a routine in edit mode to start logging.</p>
+            <EmptyState
+              glyph={<DumbbellIcon width={38} height={38} />}
+              title="No routines yet"
+              body="Create a routine in Edit mode to start logging your workouts."
+              action={
+                <button type="button" className="btn btn--primary" onClick={() => void handleCreateRoutine()}>
+                  Create a routine
+                </button>
+              }
+            />
           )}
         </div>
       ) : (
-        <div className="edit-mode stack">
-          <div className="panel panel--compact">
-            <div className="edit-split-row">
-              <span className="edit-split-row__label">Split type</span>
-              <div className="split-toggle-small" role="tablist" aria-label="Routine split">
-                {routineSplitOptions.map((split) => (
-                  <button
-                    key={split.id}
-                    type="button"
-                    className={
-                      activeSplit.id === split.id
-                        ? 'split-toggle-small__button split-toggle-small__button--active'
-                        : 'split-toggle-small__button'
-                    }
-                    onClick={() => setActiveSplitId(split.id)}
-                  >
-                    {formatSplitOptionLabel(split.id)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <hr className="edit-split-divider" />
-
-            <div className="day-picker">
-              {orderedRoutines.map((routine, index) => {
-                const cardState = getRoutineCardState(index, selectedRoutineIndex)
-                const cardClassName = getDayButtonClassName(cardState)
-                const badgeText = cardState === 'completed' ? '✓' : getRoutineDayNumber(routine.name, index)
-
-                return (
-                  <button
-                    key={routine.id}
-                    type="button"
-                    className={cardClassName}
-                    onClick={() => setSelectedRoutineId(routine.id)}
-                  >
-                    <span className={getDayBadgeClassName(cardState)} aria-hidden="true">
-                      {badgeText}
-                    </span>
-                    <span className="day-button__content">
-                      <span className="day-button__name">{routine.name}</span>
-                      <span className="day-button__meta">
-                        <span>{routine.exerciseIds.length} exercises</span>
-                        {cardState === 'active' ? (
-                          <span className="day-button__status day-button__status--today">TODAY</span>
-                        ) : cardState === 'completed' ? (
-                          <span className="day-button__status day-button__status--done">DONE</span>
-                        ) : null}
-                      </span>
-                    </span>
-                    <span className="day-button__chevron" aria-hidden="true">
-                      ›
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-
-            <button
-              type="button"
-              className="create-routine-button"
-              onClick={() => void handleCreateRoutine()}
-            >
-              <span className="create-routine-button__icon" aria-hidden="true">
-                +
-              </span>
-              <span>Create routine</span>
-            </button>
-          </div>
-
-          <div className="panel panel--compact">
-            <h2>Edit routine</h2>
-
-            <label className="stack stack--tight">
-              <span>Routine name</span>
-              <input
-                value={routineNameDraft}
-                onChange={(event) => setRoutineNameDraft(event.target.value)}
-              />
-            </label>
-
-            <div className="add-row">
-              <input
-                value={addExerciseName}
-                onChange={(event) => setAddExerciseName(event.target.value)}
-                placeholder="Add exercise"
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    void handleAddExerciseToDraft()
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className="button button--small"
-                onClick={() => void handleAddExerciseToDraft()}
-              >
-                Add
-              </button>
-            </div>
-
-            {editExerciseSuggestions.length > 0 ? (
-              <div className="suggestions-list">
-                {editExerciseSuggestions.map((exercise) => (
-                  <button
-                    key={exercise.id}
-                    type="button"
-                    className="suggestion-button"
-                    onClick={() => addExerciseDraft(exercise)}
-                  >
-                    {exercise.name}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
-            <div className="button-row edit-actions-sticky">
-              <button
-                type="button"
-                className="button button--primary"
-                onClick={() => void handleSaveRoutineEdits()}
-              >
-                Save routine
-              </button>
-              <button
-                type="button"
-                className="button button--danger"
-                onClick={() => void handleDeleteRoutine()}
-              >
-                Delete routine
-              </button>
-            </div>
-
-            <div className="edit-exercise-list">
-              {exerciseDrafts.map((draft, index) => {
-                const isAdvancedOpen = Boolean(openExerciseDraftIds[draft.draftId])
-
-                return (
-                  <article
-                    key={draft.draftId}
-                    ref={(element) => {
-                      if (element) {
-                        exerciseDraftRowRefs.current[draft.draftId] = element
-                        return
-                      }
-
-                      delete exerciseDraftRowRefs.current[draft.draftId]
-                    }}
-                    className="list-card edit-exercise-row"
-                  >
-                    <div className="edit-exercise-row__header">
-                      <div className="row row--center edit-exercise-row__title">
-                        <span className="drag-handle" aria-hidden="true">
-                          ⋮⋮
-                        </span>
-                        <h3>{draft.name || 'Exercise'}</h3>
-                      </div>
-                      <div className="edit-exercise-row__actions">
-                        <button
-                          type="button"
-                          className="icon-link"
-                          onClick={() => toggleExerciseDraftDetails(draft.draftId)}
-                          aria-expanded={isAdvancedOpen}
-                        >
-                          Advanced
-                        </button>
-                        <button
-                          type="button"
-                          className="icon-link"
-                          onClick={() => moveExerciseDraft(draft.draftId, -1)}
-                          disabled={index === 0}
-                        >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          className="icon-link"
-                          onClick={() => moveExerciseDraft(draft.draftId, 1)}
-                          disabled={index === exerciseDrafts.length - 1}
-                        >
-                          ↓
-                        </button>
-                        <button
-                          type="button"
-                          className="icon-link icon-link--danger"
-                          onClick={() => removeExerciseDraft(draft.draftId)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-
-                    {isAdvancedOpen ? (
-                      <div className="edit-exercise-row__advanced">
-                        <label className="stack stack--tight">
-                          <span>Name</span>
-                          <input
-                            value={draft.name}
-                            onChange={(event) =>
-                              updateExerciseDraft(draft.draftId, (current) => ({
-                                ...current,
-                                name: event.target.value,
-                              }))
-                            }
-                          />
-                        </label>
-
-                        <div className="edit-exercise-row__field-grid">
-                          <label className="stack stack--tight">
-                            <span>Unit</span>
-                            <select
-                              value={draft.unit}
-                              onChange={(event) =>
-                                updateExerciseDraft(draft.draftId, (current) => ({
-                                  ...current,
-                                  unit: event.target.value as Unit,
-                                }))
-                              }
-                            >
-                              <option value="lb">lb</option>
-                              <option value="kg">kg</option>
-                            </select>
-                          </label>
-
-                          <label className="stack stack--tight">
-                            <span>Rep min</span>
-                            <input
-                              type="number"
-                              inputMode="numeric"
-                              min="1"
-                              step="1"
-                              value={draft.repMin}
-                              onChange={(event) =>
-                                updateExerciseDraft(draft.draftId, (current) => ({
-                                  ...current,
-                                  repMin: event.target.value,
-                                }))
-                              }
-                            />
-                          </label>
-
-                          <label className="stack stack--tight">
-                            <span>Rep max</span>
-                            <input
-                              type="number"
-                              inputMode="numeric"
-                              min="1"
-                              step="1"
-                              value={draft.repMax}
-                              onChange={(event) =>
-                                updateExerciseDraft(draft.draftId, (current) => ({
-                                  ...current,
-                                  repMax: event.target.value,
-                                }))
-                              }
-                            />
-                          </label>
-
-                          <label className="stack stack--tight">
-                            <span>Work sets</span>
-                            <input
-                              type="number"
-                              inputMode="numeric"
-                              min="1"
-                              step="1"
-                              value={draft.workSetsTarget}
-                              onChange={(event) =>
-                                updateExerciseDraft(draft.draftId, (current) => ({
-                                  ...current,
-                                  workSetsTarget: event.target.value,
-                                }))
-                              }
-                            />
-                          </label>
-
-                          <label className="stack stack--tight">
-                            <span>Increment</span>
-                            <input
-                              type="number"
-                              inputMode="decimal"
-                              min="0.1"
-                              step="0.1"
-                              value={draft.weightIncrement}
-                              onChange={(event) =>
-                                updateExerciseDraft(draft.draftId, (current) => ({
-                                  ...current,
-                                  weightIncrement: event.target.value,
-                                }))
-                              }
-                            />
-                          </label>
-                        </div>
-                      </div>
-                    ) : null}
-                  </article>
-                )
-              })}
-            </div>
-          </div>
-        </div>
+        <EditMode
+          activeSplitId={activeSplit.id}
+          orderedRoutines={orderedRoutines}
+          selectedRoutineIndex={selectedRoutineIndex}
+          routineNameDraft={routineNameDraft}
+          exerciseDrafts={exerciseDrafts}
+          openExerciseDraftIds={openExerciseDraftIds}
+          addExerciseName={addExerciseName}
+          editExerciseSuggestions={editExerciseSuggestions}
+          onSelectSplit={setActiveSplitId}
+          onSelectRoutine={setSelectedRoutineId}
+          onCreateRoutine={() => void handleCreateRoutine()}
+          onRoutineNameChange={setRoutineNameDraft}
+          onAddExerciseNameChange={setAddExerciseName}
+          onAddExercise={() => void handleAddExerciseToDraft()}
+          onAddSuggestion={addExerciseDraft}
+          onToggleAdvanced={toggleExerciseDraftDetails}
+          onMoveDraft={moveExerciseDraft}
+          onRemoveDraft={removeExerciseDraft}
+          onUpdateDraft={updateExerciseDraft}
+          onSave={() => void handleSaveRoutineEdits()}
+          onDelete={() => void handleDeleteRoutine()}
+        />
       )}
 
       {historySheet ? (
-        <div className="modal-backdrop" onClick={handleHistoryBackdropClick}>
-          <section
-            className={historySheetDragging ? 'history-modal history-modal--dragging' : 'history-modal'}
-            role="dialog"
-            aria-modal="true"
-            aria-label={`${historySheet.exerciseName} history`}
-            onClick={(event) => event.stopPropagation()}
-            onTouchStart={handleHistorySheetTouchStart}
-            onTouchMove={handleHistorySheetTouchMove}
-            onTouchEnd={handleHistorySheetTouchEnd}
-            onTouchCancel={handleHistorySheetTouchEnd}
-            style={{ transform: `translateY(${historySheetDragOffset}px)` }}
-          >
-            <span className="history-modal__grabber" aria-hidden="true" />
-            <header className="history-modal__header">
-              <div className="history-modal__title">
-                <p className="history-modal__eyebrow">History</p>
-                <h2>{historySheet.exerciseName}</h2>
-              </div>
-              <button
-                type="button"
-                className="history-modal__close"
-                onClick={() => closeHistorySheet('user')}
-                aria-label="Close history"
-              >
-                <span aria-hidden="true">×</span>
-              </button>
-            </header>
-
-            <div className="history-modal__table" ref={historySheetListRef}>
-              {historySheet.rows.length === 0 ? (
-                historySheet.isLoading ? (
-                  <p className="muted">Loading history…</p>
-                ) : (
-                  <div className="history-empty-state">
-                    <p className="history-empty-state__title">No history yet.</p>
-                    <p className="history-empty-state__body">
-                      Log a set and it will show up here.
-                    </p>
-                  </div>
-                )
-              ) : (
-                historySheet.rows.map((row) => {
-                  const timestamp = getHistoryTimestamp(row.session, row.sets)
-                  const workSets = row.sets.filter((set) => !set.isWarmup)
-                  const topSet = getTopWorkSet(row.sets)
-                  const totalReps = workSets.reduce((sum, set) => sum + set.reps, 0)
-
-                  return (
-                    <article key={row.session.id} className="history-row">
-                      <header className="history-row__header">
-                        <span className="history-row__date">{formatHistoryDate(timestamp)}</span>
-                        {topSet ? (
-                          <span className="history-row__top">
-                            <span className="history-row__top-label">Top</span>
-                            <span className="history-row__top-value">
-                              {formatNumber(topSet.weight)}
-                              <span className="history-row__top-x">×</span>
-                              {topSet.reps}
-                            </span>
-                          </span>
-                        ) : null}
-                      </header>
-
-                      {workSets.length > 0 ? (
-                        <div className="history-row__chips">
-                          {workSets.map((set) => {
-                            const isTop = topSet?.id === set.id
-                            return (
-                              <span
-                                key={set.id}
-                                className={
-                                  isTop
-                                    ? 'history-chip history-chip--top'
-                                    : 'history-chip'
-                                }
-                              >
-                                <span className="history-chip__weight">
-                                  {formatNumber(set.weight)}
-                                </span>
-                                <span className="history-chip__x">×</span>
-                                <span className="history-chip__reps">{set.reps}</span>
-                              </span>
-                            )
-                          })}
-                        </div>
-                      ) : (
-                        <p className="history-row__empty">No work sets recorded.</p>
-                      )}
-
-                      {workSets.length > 0 ? (
-                        <footer className="history-row__footer">
-                          <span>{workSets.length} {workSets.length === 1 ? 'set' : 'sets'}</span>
-                          <span aria-hidden="true">·</span>
-                          <span>{totalReps} total reps</span>
-                        </footer>
-                      ) : null}
-                    </article>
-                  )
-                })
-              )}
-            </div>
-          </section>
-        </div>
+        <BottomSheet
+          eyebrow="History"
+          title={historySheet.exerciseName}
+          openedAt={historySheet.openedAt}
+          onClose={closeHistorySheet}
+        >
+          <HistorySheetBody historySheet={historySheet} />
+        </BottomSheet>
       ) : null}
     </section>
   )
 }
 
-type RoutineCardState = 'active' | 'completed' | 'upcoming'
+/* ---------------- Exercise card ---------------- */
 
-interface CompactFieldProps {
-  label: string
-  inputMode: 'decimal' | 'numeric'
-  value: string
-  step: number
-  onValueChange: (value: string) => void
+interface ExerciseCardProps {
+  exercise: Exercise
+  groupLabel: string
+  isExpanded: boolean
+  onToggle: () => void
+  todaySets: SetEntry[]
+  lastSession: HistoryItem | undefined
+  draft: SetDraft
+  weightStep: number
+  isSaved: boolean
+  invalidEntry: boolean
+  note: string
+  restSecondsLeft: number
+  onWeightChange: (value: string) => void
+  onRepsChange: (value: string) => void
+  onSave: () => void
+  onRemoveSet: (setId: string) => void
+  onRepeatLast: () => void
+  onOpenHistory: (openedAt: number) => void
+  onNoteChange: (value: string) => void
+  onStopRest: () => void
 }
 
-interface StepperFieldProps {
-  label: string
-  inputMode: 'decimal' | 'numeric'
-  value: string
-  step: number
-  onValueChange: (value: string) => void
-  onStepAdjust: (direction: -1 | 1) => void
-}
+function ExerciseCard(props: ExerciseCardProps) {
+  const { exercise, todaySets, lastSession } = props
+  const unit = exercise.progressionSettings.unit
+  const workSets = todaySets.filter((set) => !set.isWarmup)
+  const topToday = getTopWorkSet(todaySets)
+  const lastSummary = formatLastSummary(lastSession?.sets, unit)
+  const suggestion = buildProgressionSuggestion(exercise.progressionSettings, todaySets)
+  const hasHistory = (lastSession?.sets.filter((set) => !set.isWarmup).length ?? 0) > 0
 
-function CompactField(props: CompactFieldProps) {
   return (
-    <label className="compact-field">
-      <span>{props.label}</span>
-      <input
-        type="number"
-        inputMode={props.inputMode}
-        min="0"
-        step={props.step}
-        value={props.value}
-        onChange={(event) => props.onValueChange(event.target.value)}
-      />
-    </label>
-  )
-}
-
-function StepperField(props: StepperFieldProps) {
-  return (
-    <label className="stepper-field">
-      <span>{props.label}</span>
-      <div className="stepper-control">
-        <button type="button" className="stepper-button" onClick={() => props.onStepAdjust(-1)}>
-          -
+    <article
+      data-exercise-id={exercise.id}
+      className={props.isExpanded ? 'exercise-card exercise-card--active' : 'exercise-card'}
+    >
+      <div className="exercise-card__head">
+        <button
+          type="button"
+          className="exercise-card__title-btn"
+          aria-expanded={props.isExpanded}
+          aria-controls={`exercise-${exercise.id}-details`}
+          onClick={props.onToggle}
+        >
+          <span className="exercise-card__group">{props.groupLabel}</span>
+          <span className="exercise-card__name">
+            {exercise.name}
+            <ChevronDownIcon className="exercise-card__chevron" width={18} height={18} />
+          </span>
         </button>
-        <input
-          type="number"
-          inputMode={props.inputMode}
-          min="0"
-          step={props.step}
-          value={props.value}
-          onChange={(event) => props.onValueChange(event.target.value)}
-        />
-        <button type="button" className="stepper-button" onClick={() => props.onStepAdjust(1)}>
-          +
+        <div className="exercise-card__head-actions">
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label={`Open history for ${exercise.name}`}
+            onClick={(event) => props.onOpenHistory(event.timeStamp)}
+          >
+            <ClockIcon />
+          </button>
+        </div>
+      </div>
+
+      <p className="last-line">
+        <span className="eyebrow">Last</span>
+        <span className="last-line__value">{lastSummary}</span>
+      </p>
+
+      <div className="set-track" aria-label="Sets logged today">
+        <span className="set-track__label">Today</span>
+        {workSets.length === 0 ? (
+          <span className="set-track__empty">No sets yet</span>
+        ) : (
+          workSets.map((set, index) => (
+            <span
+              key={set.id}
+              className={topToday?.id === set.id ? 'set-pill set-pill--top' : 'set-pill'}
+            >
+              <span className="set-pill__num">{index + 1}</span>
+              <span>
+                {formatNumber(set.weight)}
+                <span className="set-pill__x"> × </span>
+                {set.reps}
+              </span>
+              <button
+                type="button"
+                className="set-pill__remove"
+                aria-label={`Remove set ${index + 1} (${formatNumber(set.weight)} ${unit} by ${set.reps} reps)`}
+                onClick={() => props.onRemoveSet(set.id)}
+              >
+                <CloseIcon width={13} height={13} />
+              </button>
+            </span>
+          ))
+        )}
+      </div>
+
+      {props.restSecondsLeft > 0 ? (
+        <div className="rest-timer">
+          <span className="rest-timer__dot" aria-hidden="true" />
+          <span className="rest-timer__label">Rest</span>
+          <span className="rest-timer__time numeral" aria-label={`${props.restSecondsLeft} seconds rest remaining`}>
+            {formatClock(props.restSecondsLeft)}
+          </span>
+          <button
+            type="button"
+            className="btn btn--ghost btn--small rest-timer__skip"
+            onClick={props.onStopRest}
+            aria-label="Skip rest timer"
+          >
+            Skip
+          </button>
+        </div>
+      ) : null}
+
+      <div className="quick-entry">
+        <div className="quick-entry__fields">
+          <NumberField
+            label="Weight"
+            ariaLabel={`${exercise.name} weight`}
+            value={props.draft.weight}
+            step={props.weightStep}
+            invalid={props.invalidEntry}
+            onValueChange={props.onWeightChange}
+          />
+          <NumberField
+            label="Reps"
+            ariaLabel={`${exercise.name} reps`}
+            value={props.draft.reps}
+            step={1}
+            integer
+            invalid={props.invalidEntry}
+            onValueChange={props.onRepsChange}
+          />
+        </div>
+        <button
+          type="button"
+          className="btn btn--primary btn--block quick-entry__save"
+          onClick={props.onSave}
+        >
+          {props.isSaved ? 'Saved' : 'Save set'}
         </button>
       </div>
-    </label>
+
+      {suggestion && (suggestion.kind === 'increase_weight' || suggestion.kind === 'add_reps') ? (
+        <p
+          className={
+            suggestion.kind === 'increase_weight' ? 'suggestion suggestion--increase' : 'suggestion suggestion--reps'
+          }
+        >
+          {suggestion.kind === 'increase_weight' ? (
+            <TrendUpIcon className="suggestion__icon" />
+          ) : (
+            <RepeatIcon className="suggestion__icon" />
+          )}
+          <span>{suggestion.message}</span>
+        </p>
+      ) : null}
+
+      {props.isExpanded ? (
+        <div className="exercise-card__expanded" id={`exercise-${exercise.id}-details`}>
+          <button
+            type="button"
+            className="btn btn--ghost btn--block"
+            onClick={props.onRepeatLast}
+            disabled={!hasHistory || workSets.length > 0}
+          >
+            <RepeatIcon width={17} height={17} />
+            Repeat last session
+          </button>
+          <label className="field">
+            <span className="field__label">Notes</span>
+            <textarea
+              className="notes-input"
+              value={props.note}
+              rows={2}
+              onChange={(event) => props.onNoteChange(event.target.value)}
+            />
+          </label>
+        </div>
+      ) : null}
+    </article>
   )
+}
+
+/* ---------------- History sheet body ---------------- */
+
+function HistorySheetBody({ historySheet }: { historySheet: HistorySheetState }) {
+  if (historySheet.rows.length === 0) {
+    if (historySheet.isLoading) {
+      return (
+        <div className="stack">
+          <div className="skeleton" style={{ height: '76px' }} />
+          <div className="skeleton" style={{ height: '76px' }} />
+        </div>
+      )
+    }
+    return (
+      <EmptyState
+        glyph={<InboxIcon width={38} height={38} />}
+        title="No history yet"
+        body="Log a set and it will show up here."
+      />
+    )
+  }
+
+  return (
+    <>
+      {historySheet.rows.map((row) => {
+        const timestamp = getHistoryTimestamp(row.session, row.sets)
+        const workSets = row.sets.filter((set) => !set.isWarmup)
+        const topSet = getTopWorkSet(row.sets)
+        const totalReps = workSets.reduce((sum, set) => sum + set.reps, 0)
+
+        return (
+          <article key={row.session.id} className="history-row">
+            <header className="history-row__head">
+              <span className="history-row__date">{formatHistoryDate(timestamp)}</span>
+              {topSet ? (
+                <span className="history-row__top">
+                  <span className="history-row__top-label">Top</span>
+                  <span className="history-row__top-value">
+                    {formatNumber(topSet.weight)} × {topSet.reps}
+                  </span>
+                </span>
+              ) : null}
+            </header>
+            {workSets.length > 0 ? (
+              <div className="history-row__chips">
+                {workSets.map((set) => (
+                  <span
+                    key={set.id}
+                    className={topSet?.id === set.id ? 'set-pill set-pill--top' : 'set-pill'}
+                  >
+                    <span>
+                      {formatNumber(set.weight)}
+                      <span className="set-pill__x"> × </span>
+                      {set.reps}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="muted">No work sets recorded.</p>
+            )}
+            {workSets.length > 0 ? (
+              <footer className="history-row__footer">
+                <span>
+                  {workSets.length} {workSets.length === 1 ? 'set' : 'sets'}
+                </span>
+                <span aria-hidden="true">·</span>
+                <span>{totalReps} total reps</span>
+              </footer>
+            ) : null}
+          </article>
+        )
+      })}
+    </>
+  )
+}
+
+/* ---------------- Edit mode ---------------- */
+
+type RoutineCardState = 'active' | 'completed' | 'upcoming'
+
+interface EditModeProps {
+  activeSplitId: RoutineSplitId
+  orderedRoutines: Routine[]
+  selectedRoutineIndex: number
+  routineNameDraft: string
+  exerciseDrafts: RoutineExerciseDraft[]
+  openExerciseDraftIds: Record<string, boolean>
+  addExerciseName: string
+  editExerciseSuggestions: Exercise[]
+  onSelectSplit: (splitId: RoutineSplitId) => void
+  onSelectRoutine: (routineId: string) => void
+  onCreateRoutine: () => void
+  onRoutineNameChange: (value: string) => void
+  onAddExerciseNameChange: (value: string) => void
+  onAddExercise: () => void
+  onAddSuggestion: (exercise: Exercise) => void
+  onToggleAdvanced: (draftId: string) => void
+  onMoveDraft: (draftId: string, direction: -1 | 1) => void
+  onRemoveDraft: (draftId: string) => void
+  onUpdateDraft: (
+    draftId: string,
+    updater: (current: RoutineExerciseDraft) => RoutineExerciseDraft,
+  ) => void
+  onSave: () => void
+  onDelete: () => void
+}
+
+function EditMode(props: EditModeProps) {
+  return (
+    <div className="edit-mode">
+      <div className="panel">
+        <div className="split-row">
+          <span className="field__label">Split</span>
+          <SegmentedControl
+            ariaLabel="Routine split"
+            value={props.activeSplitId}
+            onChange={props.onSelectSplit}
+            options={routineSplitOptions.map((split) => ({
+              value: split.id,
+              label: formatSplitOptionLabel(split.id),
+            }))}
+          />
+        </div>
+        <hr className="hairline" />
+        <div className="day-picker">
+          {props.orderedRoutines.map((routine, index) => {
+            const state = getRoutineCardState(index, props.selectedRoutineIndex)
+            return (
+              <button
+                key={routine.id}
+                type="button"
+                className={dayRowClassName(state)}
+                aria-current={state === 'active'}
+                onClick={() => props.onSelectRoutine(routine.id)}
+              >
+                <span className="day-row__badge">
+                  {state === 'completed' ? '✓' : getRoutineDayNumber(routine.name, index)}
+                </span>
+                <span className="day-row__content">
+                  <span className="day-row__name">{routine.name}</span>
+                  <span className="day-row__meta">
+                    <span>{routine.exerciseIds.length} exercises</span>
+                    {state === 'active' ? (
+                      <span className="day-row__tag day-row__tag--today">Selected</span>
+                    ) : null}
+                  </span>
+                </span>
+                <ChevronRightIcon className="day-row__chevron" width={18} height={18} />
+              </button>
+            )
+          })}
+        </div>
+        <button type="button" className="btn btn--dashed btn--block" onClick={props.onCreateRoutine}>
+          <PlusIcon width={16} height={16} />
+          Create routine
+        </button>
+      </div>
+
+      <div className="panel">
+        <h2 className="panel__title">Edit routine</h2>
+
+        <label className="field">
+          <span className="field__label">Routine name</span>
+          <input
+            value={props.routineNameDraft}
+            onChange={(event) => props.onRoutineNameChange(event.target.value)}
+          />
+        </label>
+
+        <div className="add-row">
+          <input
+            value={props.addExerciseName}
+            onChange={(event) => props.onAddExerciseNameChange(event.target.value)}
+            placeholder="Add exercise"
+            aria-label="Add exercise"
+            aria-describedby="add-exercise-hint"
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                props.onAddExercise()
+              }
+            }}
+          />
+          <button type="button" className="btn btn--small" onClick={props.onAddExercise}>
+            Add
+          </button>
+        </div>
+        <p id="add-exercise-hint" className="visually-hidden">
+          Type a name and press Enter, or choose a matching exercise from the suggestions that appear
+          below. New exercises are added when you save the routine.
+        </p>
+
+        {props.editExerciseSuggestions.length > 0 ? (
+          <div className="suggestions">
+            {props.editExerciseSuggestions.map((exercise) => (
+              <button
+                key={exercise.id}
+                type="button"
+                className="suggestion-option"
+                onClick={() => props.onAddSuggestion(exercise)}
+              >
+                {exercise.name}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="sticky-actions">
+          <button type="button" className="btn btn--primary" onClick={props.onSave}>
+            Save routine
+          </button>
+          <button type="button" className="btn btn--danger" onClick={props.onDelete}>
+            Delete routine
+          </button>
+        </div>
+
+        <div className="edit-exercise-list">
+          {props.exerciseDrafts.map((draft, index) => {
+            const isAdvancedOpen = Boolean(props.openExerciseDraftIds[draft.draftId])
+            return (
+              <article key={draft.draftId} data-draft-id={draft.draftId} className="edit-exercise">
+                <div className="edit-exercise__head">
+                  <div className="edit-exercise__title">
+                    <GripIcon className="edit-exercise__handle" width={16} height={16} />
+                    <h3 className="edit-exercise__name">{draft.name || 'Exercise'}</h3>
+                  </div>
+                  <div className="edit-exercise__actions">
+                    <button
+                      type="button"
+                      className="link-btn"
+                      onClick={() => props.onToggleAdvanced(draft.draftId)}
+                      aria-expanded={isAdvancedOpen}
+                    >
+                      Advanced
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      onClick={() => props.onMoveDraft(draft.draftId, -1)}
+                      disabled={index === 0}
+                      aria-label={`Move ${draft.name || 'exercise'} up`}
+                    >
+                      <ArrowUpIcon width={16} height={16} />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      onClick={() => props.onMoveDraft(draft.draftId, 1)}
+                      disabled={index === props.exerciseDrafts.length - 1}
+                      aria-label={`Move ${draft.name || 'exercise'} down`}
+                    >
+                      <ArrowDownIcon width={16} height={16} />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn icon-btn--danger"
+                      onClick={() => props.onRemoveDraft(draft.draftId)}
+                      aria-label={`Remove ${draft.name || 'exercise'}`}
+                    >
+                      <TrashIcon width={16} height={16} />
+                    </button>
+                  </div>
+                </div>
+
+                {isAdvancedOpen ? (
+                  <div className="edit-exercise__advanced">
+                    <label className="field">
+                      <span className="field__label">Name</span>
+                      <input
+                        value={draft.name}
+                        onChange={(event) =>
+                          props.onUpdateDraft(draft.draftId, (current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <div className="field-grid">
+                      <label className="field">
+                        <span className="field__label">Unit</span>
+                        <select
+                          value={draft.unit}
+                          onChange={(event) =>
+                            props.onUpdateDraft(draft.draftId, (current) => ({
+                              ...current,
+                              unit: event.target.value as Unit,
+                            }))
+                          }
+                        >
+                          <option value="lb">lb</option>
+                          <option value="kg">kg</option>
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span className="field__label">Rep min</span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min="1"
+                          step="1"
+                          value={draft.repMin}
+                          onChange={(event) =>
+                            props.onUpdateDraft(draft.draftId, (current) => ({
+                              ...current,
+                              repMin: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span className="field__label">Rep max</span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min="1"
+                          step="1"
+                          value={draft.repMax}
+                          onChange={(event) =>
+                            props.onUpdateDraft(draft.draftId, (current) => ({
+                              ...current,
+                              repMax: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span className="field__label">Work sets</span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min="1"
+                          step="1"
+                          value={draft.workSetsTarget}
+                          onChange={(event) =>
+                            props.onUpdateDraft(draft.draftId, (current) => ({
+                              ...current,
+                              workSetsTarget: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span className="field__label">Increment</span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min="0.1"
+                          step="0.1"
+                          value={draft.weightIncrement}
+                          onChange={(event) =>
+                            props.onUpdateDraft(draft.draftId, (current) => ({
+                              ...current,
+                              weightIncrement: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ) : null}
+              </article>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ---------------- helpers ---------------- */
+
+function cssAttrEscape(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
+function toDraft(set: SetEntry): SetDraft {
+  return {
+    weight: set.weight > 0 ? formatNumber(set.weight) : '',
+    reps: set.reps > 0 ? String(set.reps) : '',
+  }
 }
 
 function noteStorageKey(sessionId: string, exerciseId: string): string {
@@ -1745,58 +1532,16 @@ function noteStorageKey(sessionId: string, exerciseId: string): string {
 
 function groupSetsByExercise(entries: SetEntry[]): Record<string, SetEntry[]> {
   const grouped: Record<string, SetEntry[]> = {}
-
   for (const entry of entries) {
     if (!grouped[entry.exerciseId]) {
       grouped[entry.exerciseId] = []
     }
-
     grouped[entry.exerciseId].push(entry)
   }
-
   for (const exerciseId of Object.keys(grouped)) {
     grouped[exerciseId].sort((left, right) => left.index - right.index)
   }
-
   return grouped
-}
-
-function ensureSetDraftLength(drafts: SetDraft[], target: number): SetDraft[] {
-  const next = drafts.map((draft) => ({ ...draft }))
-
-  while (next.length < target) {
-    next.push({ weight: '', reps: '' })
-  }
-
-  return next.slice(0, target)
-}
-
-function buildSetDraftsFromEntries(
-  entries: SetEntry[],
-  target: number,
-  existingDrafts?: SetDraft[],
-): SetDraft[] {
-  const next = ensureSetDraftLength(existingDrafts ?? [], target)
-
-  for (let index = 0; index < target; index += 1) {
-    const entry = entries.find((item) => item.index === index)
-    if (!entry) {
-      continue
-    }
-
-    const existingDraft = existingDrafts?.[index]
-    const hasTypedValue = Boolean(existingDraft?.weight) || Boolean(existingDraft?.reps)
-    if (hasTypedValue) {
-      continue
-    }
-
-    next[index] = {
-      weight: entry.weight > 0 ? formatNumber(entry.weight) : '',
-      reps: entry.reps > 0 ? String(entry.reps) : '',
-    }
-  }
-
-  return next
 }
 
 function toRoutineExerciseDraft(exercise: Exercise, draftId: string): RoutineExerciseDraft {
@@ -1814,8 +1559,7 @@ function toRoutineExerciseDraft(exercise: Exercise, draftId: string): RoutineExe
 
 function createRoutineDraftId(exerciseId: string): string {
   const token =
-    globalThis.crypto?.randomUUID?.() ??
-    `${Date.now()}-${Math.round(Math.random() * 1_000_000_000)}`
+    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.round(Math.random() * 1_000_000_000)}`
   return `${exerciseId}:${token}`
 }
 
@@ -1823,62 +1567,27 @@ function sortExercisesByName(exercises: Exercise[]): Exercise[] {
   return [...exercises].sort((left, right) => left.name.localeCompare(right.name))
 }
 
-function parseWeight(value: string): number {
-  const numeric = Number(value)
-  if (!Number.isFinite(numeric) || numeric < 0) {
-    return 0
-  }
-
-  return numeric
-}
-
-function parseReps(value: string): number {
-  const numeric = Number(value)
-  if (!Number.isFinite(numeric) || numeric < 0) {
-    return 0
-  }
-
-  return Math.round(numeric)
-}
-
 function getRoutineCardState(index: number, activeIndex: number): RoutineCardState {
   if (activeIndex < 0) {
     return 'upcoming'
   }
-
   if (index === activeIndex) {
     return 'active'
   }
-
   if (index < activeIndex) {
     return 'completed'
   }
-
   return 'upcoming'
 }
 
-function getDayButtonClassName(state: RoutineCardState): string {
+function dayRowClassName(state: RoutineCardState): string {
   if (state === 'active') {
-    return 'day-button day-button--active'
+    return 'day-row day-row--active'
   }
-
   if (state === 'completed') {
-    return 'day-button day-button--completed'
+    return 'day-row day-row--completed'
   }
-
-  return 'day-button day-button--upcoming'
-}
-
-function getDayBadgeClassName(state: RoutineCardState): string {
-  if (state === 'active') {
-    return 'day-button__badge day-button__badge--active'
-  }
-
-  if (state === 'completed') {
-    return 'day-button__badge day-button__badge--completed'
-  }
-
-  return 'day-button__badge day-button__badge--upcoming'
+  return 'day-row'
 }
 
 function getRoutineDayNumber(routineName: string, index: number): string {
@@ -1887,10 +1596,7 @@ function getRoutineDayNumber(routineName: string, index: number): string {
 }
 
 function formatSplitHeaderLabel(label: string): string {
-  return label
-    .replace(/^(\d)\s+day/i, '$1-Day')
-    .replace('split', 'Split')
-    .toUpperCase()
+  return label.replace(/^(\d)\s+day/i, '$1-Day').replace('split', 'Split').toUpperCase()
 }
 
 function formatSplitOptionLabel(splitId: RoutineSplitId): string {
@@ -1903,43 +1609,32 @@ function buildDayHeading(
 ): { dayLabel: string; title: string } {
   if (!routineName) {
     const fallbackIndex = Math.max(1, selectedRoutineIndex + 1)
-    return {
-      dayLabel: `DAY ${fallbackIndex}`,
-      title: `Day ${fallbackIndex}`,
-    }
+    return { dayLabel: `DAY ${fallbackIndex}`, title: `Day ${fallbackIndex}` }
   }
-
   const dayNumber = getRoutineDayNumber(routineName, selectedRoutineIndex)
   const titleSource = routineName.replace(/^day\s*\d+\s*[–-]\s*/i, '').trim() || routineName
   const title = titleSource.replace(/\s*\/\s*/g, ' · ')
-
-  return {
-    dayLabel: `DAY ${dayNumber}`,
-    title,
-  }
+  return { dayLabel: `DAY ${dayNumber}`, title }
 }
 
 function getRoutineFocusLabel(routineName: string | undefined): string {
   if (!routineName) {
     return 'WORKING SET'
   }
-
   const source = routineName.replace(/^day\s*\d+\s*[–-]\s*/i, '').trim() || routineName
   const normalized = source.replace(/\s+/g, ' ').trim()
   return normalized ? normalized.toUpperCase() : 'WORKING SET'
 }
 
-function formatLastSummary(lastSets: SetEntry[] | undefined): string {
+function formatLastSummary(lastSets: SetEntry[] | undefined, unit: Unit): string {
   if (!lastSets || lastSets.length === 0) {
-    return 'none'
+    return 'No previous session'
   }
-
   const latestWorkSet = [...lastSets].reverse().find((set) => !set.isWarmup)
   if (!latestWorkSet) {
-    return 'none'
+    return 'No previous session'
   }
-
-  return `${formatNumber(latestWorkSet.weight)} x ${latestWorkSet.reps}`
+  return `${formatNumber(latestWorkSet.weight)} ${unit} × ${latestWorkSet.reps}`
 }
 
 function getHistoryTimestamp(session: SessionRecord, sets: SetEntry[]): string {
@@ -1947,7 +1642,6 @@ function getHistoryTimestamp(session: SessionRecord, sets: SetEntry[]): string {
     .map((set) => set.completedAt)
     .filter((value): value is string => Boolean(value))
     .sort((left, right) => right.localeCompare(left))
-
   return completedAtValues[0] ?? session.endedAt ?? session.startedAt
 }
 
@@ -1956,21 +1650,17 @@ function formatHistoryDate(value: string, now: Date = new Date()): string {
   if (Number.isNaN(date.getTime())) {
     return 'Unknown date'
   }
-
   const startOfDay = (input: Date) => {
     const copy = new Date(input)
     copy.setHours(0, 0, 0, 0)
     return copy.getTime()
   }
-
   const dayDiff = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000)
-
   if (dayDiff === 0) return 'Today'
   if (dayDiff === 1) return 'Yesterday'
   if (dayDiff > 1 && dayDiff < 7) {
     return new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(date)
   }
-
   return new Intl.DateTimeFormat(undefined, {
     weekday: 'short',
     month: 'short',
@@ -1992,11 +1682,15 @@ function getTopWorkSet(sets: SetEntry[]): SetEntry | null {
 
 function getNextRoutineName(routines: Routine[]): string {
   const names = new Set(routines.map((routine) => routine.name.toLowerCase()))
-
   let index = 1
   while (names.has(`routine ${index}`)) {
     index += 1
   }
-
   return `Routine ${index}`
+}
+
+function formatClock(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
