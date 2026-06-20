@@ -87,6 +87,7 @@ export function RoutinesScreen() {
   const historyRequestRef = useRef(0)
   const savedFeedbackTimeoutRef = useRef<number | null>(null)
   const hydratedRoutineIdRef = useRef<string | null>(null)
+  const dayChipsRef = useRef<HTMLDivElement | null>(null)
 
   const [isLoading, setIsLoading] = useState(true)
   const [trackerSessionId, setTrackerSessionId] = useState('')
@@ -398,6 +399,19 @@ export function RoutinesScreen() {
       window.cancelAnimationFrame(frameId)
     }
   }, [mode, selectedExerciseIds, todayExerciseIdToReveal])
+
+  useEffect(() => {
+    if (mode !== 'today') {
+      return
+    }
+    const container = dayChipsRef.current
+    const active = container?.querySelector<HTMLElement>('.day-chip--active')
+    if (!container || !active || typeof container.scrollTo !== 'function') {
+      return
+    }
+    const target = active.offsetLeft - (container.clientWidth - active.clientWidth) / 2
+    container.scrollTo({ left: Math.max(0, target) })
+  }, [mode, selectedRoutine?.id, orderedRoutines.length])
 
   function showSavedFeedback(exerciseId?: string): void {
     if (!exerciseId) {
@@ -787,7 +801,7 @@ export function RoutinesScreen() {
           />
         </div>
         {mode === 'today' && orderedRoutines.length > 1 ? (
-          <div className="day-chips" role="tablist" aria-label="Select training day">
+          <div className="day-chips" role="tablist" aria-label="Select training day" ref={dayChipsRef}>
             {orderedRoutines.map((routine, index) => {
               const isActive = routine.id === selectedRoutine?.id
               return (
@@ -803,7 +817,7 @@ export function RoutinesScreen() {
                   <span className="day-chip__index numeral">
                     {getRoutineDayNumber(routine.name, index)}
                   </span>
-                  <span className="day-chip__name">{routine.name}</span>
+                  <span className="day-chip__name">{getRoutineChipLabel(routine.name)}</span>
                 </button>
               )
             })}
@@ -1549,6 +1563,11 @@ function dayRowClassName(state: RoutineCardState): string {
 function getRoutineDayNumber(routineName: string, index: number): string {
   const matched = routineName.match(/day\s*(\d+)/i)
   return matched?.[1] ?? String(index + 1)
+}
+
+function getRoutineChipLabel(routineName: string): string {
+  const stripped = routineName.replace(/^day\s*\d+\s*[–-]\s*/i, '').trim()
+  return (stripped || routineName).replace(/\s*\/\s*/g, ' · ')
 }
 
 function formatSplitHeaderLabel(label: string): string {

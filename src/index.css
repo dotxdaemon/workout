@@ -855,8 +855,21 @@ select {
   margin: 0 -0.95rem;
   padding-inline: 0.95rem;
   scrollbar-width: none;
-  scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 0.95rem,
+    #000 calc(100% - 0.95rem),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 0.95rem,
+    #000 calc(100% - 0.95rem),
+    transparent 100%
+  );
 }
 
 .day-chips::-webkit-scrollbar {
@@ -877,7 +890,6 @@ select {
   font-weight: 650;
   cursor: pointer;
   touch-action: manipulation;
-  scroll-snap-align: start;
   min-height: 2.5rem;
   transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
 }
@@ -902,7 +914,7 @@ select {
 }
 
 .day-chip__name {
-  max-width: 12rem;
+  max-width: 10rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
