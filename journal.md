@@ -294,3 +294,8 @@
 - Sean asked: redo the interface structurally.
 - Root cause: the original Today screen retained a stack of self-contained exercise cards and the Settings screen retained a panel stack, so token changes could not change the app's composition.
 - Result: rebuilt the Train page around a console masthead, horizontal day rail, and numbered continuous exercise ledger; rebuilt Settings as a divided workspace; preserved all existing handlers, fields, routes, data calls, schemas, local storage keys, and service-worker files. Added a rendered-behavior regression asserting the masthead and ledger. A parallel verification run starved the IndexedDB-seeded test harness and failed initial render once; the isolated failing test passed, and the serial full run passed with 89 tests, lint, and typecheck. Chromium 390x844 shows five ledger rows with the nav still ending at y=844.
+
+2026-06-22
+- Sean asked: make the Day theme actually day themed.
+- Root cause: theme switching correctly set `data-theme="light"`, but literal night backgrounds in `body`, the app shell, bottom nav, console headers, default controls, day chips, sheets, and edit rows bypassed the light surface tokens.
+- Result: replaced those literal surfaces with the existing theme variables and reduced the Day rain overlay. Chromium at 390x844 changed the Day body from `rgb(3, 7, 8)` to `rgb(231, 227, 218)` and the nav to `rgb(243, 239, 231)`; both Settings and Train render as light interfaces. npm test (89 passed), lint, and typecheck exit 0.
