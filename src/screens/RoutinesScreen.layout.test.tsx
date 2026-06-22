@@ -16,7 +16,8 @@ describe('RoutinesScreen behavior', () => {
   const originalWindowScrollTo = window.scrollTo
 
   beforeEach(async () => {
-    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
+      true
     vi.useRealTimers()
     localStorage.clear()
     document.body.innerHTML = ''
@@ -62,6 +63,18 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
+  it('organizes Today around a session masthead and a continuous exercise ledger', async () => {
+    const harness = await renderScreen()
+
+    expect(harness.host.querySelector('.training-console')).not.toBeNull()
+    expect(harness.host.querySelector('.training-ledger')).not.toBeNull()
+    expect(
+      harness.host.querySelectorAll('.training-ledger .exercise-card').length,
+    ).toBeGreaterThan(0)
+
+    await harness.cleanup()
+  })
+
   it('logs a quick-entry set as a removable set pill without a success banner', async () => {
     const harness = await renderScreen()
     const firstCard = harness.host.querySelector('.exercise-card') as HTMLElement | null
@@ -94,7 +107,9 @@ describe('RoutinesScreen behavior', () => {
       'Set pill did not appear before removal.',
     )
 
-    const removeButton = firstCard!.querySelector('.set-pill__remove') as HTMLButtonElement | null
+    const removeButton = firstCard!.querySelector(
+      '.set-pill__remove',
+    ) as HTMLButtonElement | null
     expect(removeButton).not.toBeNull()
     await click(removeButton!)
 
@@ -121,7 +136,9 @@ describe('RoutinesScreen behavior', () => {
       'Progression suggestion did not surface after three completed work sets.',
     )
 
-    expect(firstCard!.querySelector('.suggestion')?.textContent ?? '').toMatch(/rep|increase/i)
+    expect(firstCard!.querySelector('.suggestion')?.textContent ?? '').toMatch(
+      /rep|increase/i,
+    )
 
     await harness.cleanup()
   })
@@ -131,13 +148,17 @@ describe('RoutinesScreen behavior', () => {
     const firstCard = harness.host.querySelector('.exercise-card') as HTMLElement | null
     expect(firstCard).not.toBeNull()
 
-    const saveButton = firstCard!.querySelector('.quick-entry__save') as HTMLButtonElement | null
+    const saveButton = firstCard!.querySelector(
+      '.quick-entry__save',
+    ) as HTMLButtonElement | null
     expect(saveButton?.textContent?.trim()).toBe('Save set')
 
     await logSet(firstCard!, '100', '8')
 
     await waitFor(
-      () => (firstCard!.querySelector('.quick-entry__save')?.textContent ?? '').trim() === 'Saved',
+      () =>
+        (firstCard!.querySelector('.quick-entry__save')?.textContent ?? '').trim() ===
+        'Saved',
       'Save action did not surface saved feedback.',
     )
 
@@ -161,8 +182,12 @@ describe('RoutinesScreen behavior', () => {
     const firstCard = harness.host.querySelector('.exercise-card') as HTMLElement | null
     expect(firstCard).not.toBeNull()
 
-    const weightInput = firstCard!.querySelector('input[inputmode="decimal"]') as HTMLInputElement
-    const repsInput = firstCard!.querySelector('input[inputmode="numeric"]') as HTMLInputElement
+    const weightInput = firstCard!.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement
+    const repsInput = firstCard!.querySelector(
+      'input[inputmode="numeric"]',
+    ) as HTMLInputElement
     const saveButton = firstCard!.querySelector('.quick-entry__save') as HTMLButtonElement
 
     await act(async () => {
@@ -210,7 +235,9 @@ describe('RoutinesScreen behavior', () => {
 
   it('reveals the error banner and resets scroll when a set is saved empty', async () => {
     const harness = await renderScreen()
-    const cards = Array.from(harness.host.querySelectorAll('.exercise-card')) as HTMLElement[]
+    const cards = Array.from(
+      harness.host.querySelectorAll('.exercise-card'),
+    ) as HTMLElement[]
     const lastCard = cards.at(-1)
     expect(lastCard).not.toBeUndefined()
 
@@ -234,7 +261,9 @@ describe('RoutinesScreen behavior', () => {
       'Empty save validation error did not render.',
     )
 
-    const weightInput = lastCard!.querySelector('input[inputmode="decimal"]') as HTMLInputElement
+    const weightInput = lastCard!.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement
     expect(weightInput.getAttribute('aria-invalid')).toBe('true')
 
     // Typing clears the inline invalid state.
@@ -256,12 +285,18 @@ describe('RoutinesScreen behavior', () => {
     harness.host.scrollTo = scrollSpy as unknown as typeof harness.host.scrollTo
 
     await click(getButtonByText(harness.host, 'Edit'))
-    await waitFor(() => scrollSpy.mock.calls.length > 0, 'Scroll reset was not triggered for edit mode.')
+    await waitFor(
+      () => scrollSpy.mock.calls.length > 0,
+      'Scroll reset was not triggered for edit mode.',
+    )
     expect(scrollSpy).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
 
     scrollSpy.mockClear()
     await click(getButtonByText(harness.host, 'Today'))
-    await waitFor(() => scrollSpy.mock.calls.length > 0, 'Scroll reset was not triggered for today mode.')
+    await waitFor(
+      () => scrollSpy.mock.calls.length > 0,
+      'Scroll reset was not triggered for today mode.',
+    )
     expect(scrollSpy).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
 
     await harness.cleanup()
@@ -270,7 +305,10 @@ describe('RoutinesScreen behavior', () => {
   it('keeps advanced exercise settings hidden until one row is opened', async () => {
     const harness = await renderScreen()
     await click(getButtonByText(harness.host, 'Edit'))
-    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.edit-mode')),
+      'Edit mode did not open.',
+    )
 
     const benchRow = findEditRowByTitle(harness.host, 'Barbell Bench Press')
     expect(benchRow).not.toBeNull()
@@ -279,7 +317,9 @@ describe('RoutinesScreen behavior', () => {
 
     await click(getButtonByTextWithin(benchRow!, 'Advanced'))
     await waitFor(
-      () => (benchRow?.textContent ?? '').includes('Rep min') && Boolean(benchRow?.querySelector('select')),
+      () =>
+        (benchRow?.textContent ?? '').includes('Rep min') &&
+        Boolean(benchRow?.querySelector('select')),
       'Advanced exercise settings did not appear after opening a row.',
     )
 
@@ -296,24 +336,42 @@ describe('RoutinesScreen behavior', () => {
   it('closes advanced exercise settings when leaving edit mode and switching routines', async () => {
     const harness = await renderScreen()
     await click(getButtonByText(harness.host, 'Edit'))
-    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.edit-mode')),
+      'Edit mode did not open.',
+    )
 
     const benchRow = findEditRowByTitle(harness.host, 'Barbell Bench Press')
     await click(getButtonByTextWithin(benchRow!, 'Advanced'))
-    await waitFor(() => (benchRow?.textContent ?? '').includes('Rep min'), 'Advanced did not open.')
+    await waitFor(
+      () => (benchRow?.textContent ?? '').includes('Rep min'),
+      'Advanced did not open.',
+    )
 
     await click(getButtonByText(harness.host, 'Today'))
-    await waitFor(() => Boolean(harness.host.querySelector('.train-today')), 'Today mode did not open.')
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.train-today')),
+      'Today mode did not open.',
+    )
     await click(getButtonByText(harness.host, 'Edit'))
-    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not reopen.')
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.edit-mode')),
+      'Edit mode did not reopen.',
+    )
 
     const reopenedBenchRow = findEditRowByTitle(harness.host, 'Barbell Bench Press')
     expect(reopenedBenchRow?.textContent).not.toContain('Rep min')
 
     await click(getButtonByText(harness.host, '4 day'))
-    await waitFor(() => getButtonByTextIncludes(harness.host, 'Day 2') !== null, '4-day cards missing.')
+    await waitFor(
+      () => getButtonByTextIncludes(harness.host, 'Day 2') !== null,
+      '4-day cards missing.',
+    )
     await click(getButtonByTextIncludes(harness.host, 'Day 2')!)
-    await waitFor(() => Boolean(findEditRowByTitle(harness.host, 'Leg Press')), 'Day 2 did not render.')
+    await waitFor(
+      () => Boolean(findEditRowByTitle(harness.host, 'Leg Press')),
+      'Day 2 did not render.',
+    )
 
     const legPressRow = findEditRowByTitle(harness.host, 'Leg Press')
     expect(legPressRow?.textContent).not.toContain('Rep min')
@@ -332,7 +390,10 @@ describe('RoutinesScreen behavior', () => {
     await click(getButtonByText(harness.host, 'Edit'))
 
     try {
-      await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+      await waitFor(
+        () => Boolean(harness.host.querySelector('.edit-mode')),
+        'Edit mode did not open.',
+      )
       const exercisesBefore = await listExercises()
 
       const uniqueName = `Codex Exercise ${Date.now()}`
@@ -346,7 +407,10 @@ describe('RoutinesScreen behavior', () => {
         () => Boolean(findEditRowByTitle(harness.host, uniqueName)),
         'Added exercise did not appear on the first add.',
       )
-      await waitFor(() => scrollIntoView.mock.calls.length > 0, 'Added exercise row was not revealed.')
+      await waitFor(
+        () => scrollIntoView.mock.calls.length > 0,
+        'Added exercise row was not revealed.',
+      )
 
       expect(revealedRows).toContain(findEditRowByTitle(harness.host, uniqueName))
       const exercisesAfter = await listExercises()
@@ -361,18 +425,32 @@ describe('RoutinesScreen behavior', () => {
   it('keeps unsaved exercise drafts when leaving and returning to edit mode', async () => {
     const harness = await renderScreen()
     await click(getButtonByText(harness.host, 'Edit'))
-    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.edit-mode')),
+      'Edit mode did not open.',
+    )
 
     const uniqueName = `Unsaved Probe ${Date.now()}`
-    const addInput = harness.host.querySelector('input[placeholder="Add exercise"]') as HTMLInputElement
+    const addInput = harness.host.querySelector(
+      'input[placeholder="Add exercise"]',
+    ) as HTMLInputElement
     await setInputValue(addInput, uniqueName)
     await click(getButtonByText(harness.host, 'Add'))
-    await waitFor(() => Boolean(findEditRowByTitle(harness.host, uniqueName)), 'Draft did not appear.')
+    await waitFor(
+      () => Boolean(findEditRowByTitle(harness.host, uniqueName)),
+      'Draft did not appear.',
+    )
 
     await click(getButtonByText(harness.host, 'Today'))
-    await waitFor(() => Boolean(harness.host.querySelector('.train-today')), 'Today mode did not open.')
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.train-today')),
+      'Today mode did not open.',
+    )
     await click(getButtonByText(harness.host, 'Edit'))
-    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not reopen.')
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.edit-mode')),
+      'Edit mode did not reopen.',
+    )
 
     expect(findEditRowByTitle(harness.host, uniqueName)).not.toBeNull()
     await harness.cleanup()
@@ -389,7 +467,10 @@ describe('RoutinesScreen behavior', () => {
     await click(getButtonByText(harness.host, 'Edit'))
 
     try {
-      await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+      await waitFor(
+        () => Boolean(harness.host.querySelector('.edit-mode')),
+        'Edit mode did not open.',
+      )
 
       const uniqueName = `Saved Probe ${Date.now()}`
       const addInput = harness.host.querySelector(
@@ -397,18 +478,27 @@ describe('RoutinesScreen behavior', () => {
       ) as HTMLInputElement
       await setInputValue(addInput, uniqueName)
       await click(getButtonByText(harness.host, 'Add'))
-      await waitFor(() => Boolean(findEditRowByTitle(harness.host, uniqueName)), 'Draft did not appear.')
+      await waitFor(
+        () => Boolean(findEditRowByTitle(harness.host, uniqueName)),
+        'Draft did not appear.',
+      )
 
       scrollIntoView.mockClear()
       revealed.length = 0
 
       await click(getButtonByText(harness.host, 'Save routine'))
-      await waitFor(() => Boolean(harness.host.querySelector('.train-today')), 'Save did not return to today.')
+      await waitFor(
+        () => Boolean(harness.host.querySelector('.train-today')),
+        'Save did not return to today.',
+      )
       await waitFor(
         () => Boolean(findExerciseCardByTitle(harness.host, uniqueName)),
         'Saved exercise did not appear in Today mode.',
       )
-      await waitFor(() => scrollIntoView.mock.calls.length > 0, 'Saved card was not revealed.')
+      await waitFor(
+        () => scrollIntoView.mock.calls.length > 0,
+        'Saved card was not revealed.',
+      )
 
       expect(revealed).toContain(findExerciseCardByTitle(harness.host, uniqueName))
     } finally {
@@ -420,11 +510,16 @@ describe('RoutinesScreen behavior', () => {
   it('reuses an existing exercise record on an exact-name add', async () => {
     const harness = await renderScreen()
     await click(getButtonByText(harness.host, 'Edit'))
-    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.edit-mode')),
+      'Edit mode did not open.',
+    )
 
     const exercisesBefore = await listExercises()
     const rowsBefore = harness.host.querySelectorAll('.edit-exercise').length
-    const addInput = harness.host.querySelector('input[placeholder="Add exercise"]') as HTMLInputElement
+    const addInput = harness.host.querySelector(
+      'input[placeholder="Add exercise"]',
+    ) as HTMLInputElement
 
     await setInputValue(addInput, 'bench press')
     await click(getButtonByText(harness.host, 'Add'))
@@ -444,11 +539,16 @@ describe('RoutinesScreen behavior', () => {
   it('reuses an existing exercise from an inline suggestion', async () => {
     const harness = await renderScreen()
     await click(getButtonByText(harness.host, 'Edit'))
-    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.edit-mode')),
+      'Edit mode did not open.',
+    )
 
     const exercisesBefore = await listExercises()
     const rowsBefore = harness.host.querySelectorAll('.edit-exercise').length
-    const addInput = harness.host.querySelector('input[placeholder="Add exercise"]') as HTMLInputElement
+    const addInput = harness.host.querySelector(
+      'input[placeholder="Add exercise"]',
+    ) as HTMLInputElement
 
     await setInputValue(addInput, 'bench')
     await waitFor(
@@ -473,8 +573,13 @@ describe('RoutinesScreen behavior', () => {
     await click(getButtonByText(harness.host, 'Edit'))
 
     try {
-      await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
-      const nameInput = harness.host.querySelector('.panel label input') as HTMLInputElement
+      await waitFor(
+        () => Boolean(harness.host.querySelector('.edit-mode')),
+        'Edit mode did not open.',
+      )
+      const nameInput = harness.host.querySelector(
+        '.panel label input',
+      ) as HTMLInputElement
       const routineName = nameInput?.value ?? ''
       expect(routineName).not.toBe('')
 
@@ -482,9 +587,9 @@ describe('RoutinesScreen behavior', () => {
 
       expect(confirmSpy).toHaveBeenCalledTimes(1)
       expect(harness.host.querySelector('.edit-mode')).not.toBeNull()
-      expect((harness.host.querySelector('.panel label input') as HTMLInputElement)?.value).toBe(
-        routineName,
-      )
+      expect(
+        (harness.host.querySelector('.panel label input') as HTMLInputElement)?.value,
+      ).toBe(routineName)
     } finally {
       confirmSpy.mockRestore()
       await harness.cleanup()
@@ -494,7 +599,10 @@ describe('RoutinesScreen behavior', () => {
   it('does not blur the active edit input when saving a routine', async () => {
     const harness = await renderScreen()
     await click(getButtonByText(harness.host, 'Edit'))
-    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.edit-mode')),
+      'Edit mode did not open.',
+    )
 
     const nameInput = harness.host.querySelector('.panel label input') as HTMLInputElement
     await act(async () => {
@@ -510,7 +618,10 @@ describe('RoutinesScreen behavior', () => {
     await act(async () => {
       await click(getButtonByText(harness.host, 'Save routine'))
     })
-    await waitFor(() => Boolean(harness.host.querySelector('.train-today')), 'Save did not return to today.')
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.train-today')),
+      'Save did not return to today.',
+    )
 
     expect(blurCount).toBe(0)
     await harness.cleanup()
@@ -519,32 +630,50 @@ describe('RoutinesScreen behavior', () => {
   it('does not rename exercises in other routines when one edit-row name changes', async () => {
     const harness = await renderScreen()
     await click(getButtonByText(harness.host, 'Edit'))
-    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.edit-mode')),
+      'Edit mode did not open.',
+    )
     await click(getButtonByText(harness.host, '4 day'))
-    await waitFor(() => getButtonByTextIncludes(harness.host, 'Day 2') !== null, '4-day cards missing.')
+    await waitFor(
+      () => getButtonByTextIncludes(harness.host, 'Day 2') !== null,
+      '4-day cards missing.',
+    )
     await click(getButtonByTextIncludes(harness.host, 'Day 2')!)
-    await waitFor(() => Boolean(findEditRowByTitle(harness.host, 'Leg Press')), 'Day 2 did not render.')
+    await waitFor(
+      () => Boolean(findEditRowByTitle(harness.host, 'Leg Press')),
+      'Day 2 did not render.',
+    )
 
     const legPressRow = findEditRowByTitle(harness.host, 'Leg Press')
     await click(getButtonByTextWithin(legPressRow!, 'Advanced'))
-    await waitFor(() => Boolean(legPressRow?.querySelector('label input')), 'Advanced did not open.')
+    await waitFor(
+      () => Boolean(legPressRow?.querySelector('label input')),
+      'Advanced did not open.',
+    )
 
     const nameInput = legPressRow?.querySelector('label input') as HTMLInputElement
     await setInputValue(nameInput, 'Hamstring Curl')
     await click(getButtonByText(harness.host, 'Save routine'))
-    await waitFor(() => Boolean(harness.host.querySelector('.train-today')), 'Save did not return to today.')
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.train-today')),
+      'Save did not return to today.',
+    )
 
     await click(getButtonByText(harness.host, 'Edit'))
-    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not reopen.')
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.edit-mode')),
+      'Edit mode did not reopen.',
+    )
     await click(getButtonByTextIncludes(harness.host, 'Day 4')!)
     await waitFor(
       () => harness.host.querySelectorAll('.edit-exercise__name').length > 0,
       'Day 4 exercises did not load.',
     )
 
-    const day4Titles = Array.from(harness.host.querySelectorAll('.edit-exercise__name')).map(
-      (node) => node.textContent?.trim() ?? '',
-    )
+    const day4Titles = Array.from(
+      harness.host.querySelectorAll('.edit-exercise__name'),
+    ).map((node) => node.textContent?.trim() ?? '')
     expect(day4Titles).toContain('Leg Press')
     await harness.cleanup()
   })
@@ -552,24 +681,42 @@ describe('RoutinesScreen behavior', () => {
   it('creates an isolated exercise record when renaming to an existing exercise name', async () => {
     const harness = await renderScreen()
     await click(getButtonByText(harness.host, 'Edit'))
-    await waitFor(() => Boolean(harness.host.querySelector('.edit-mode')), 'Edit mode did not open.')
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.edit-mode')),
+      'Edit mode did not open.',
+    )
     await click(getButtonByText(harness.host, '4 day'))
-    await waitFor(() => getButtonByTextIncludes(harness.host, 'Day 2') !== null, '4-day cards missing.')
+    await waitFor(
+      () => getButtonByTextIncludes(harness.host, 'Day 2') !== null,
+      '4-day cards missing.',
+    )
     await click(getButtonByTextIncludes(harness.host, 'Day 2')!)
-    await waitFor(() => Boolean(findEditRowByTitle(harness.host, 'Leg Press')), 'Day 2 did not render.')
+    await waitFor(
+      () => Boolean(findEditRowByTitle(harness.host, 'Leg Press')),
+      'Day 2 did not render.',
+    )
 
     const legPressRow = findEditRowByTitle(harness.host, 'Leg Press')
     await click(getButtonByTextWithin(legPressRow!, 'Advanced'))
-    await waitFor(() => Boolean(legPressRow?.querySelector('label input')), 'Advanced did not open.')
+    await waitFor(
+      () => Boolean(legPressRow?.querySelector('label input')),
+      'Advanced did not open.',
+    )
 
     const nameInput = legPressRow?.querySelector('label input') as HTMLInputElement
     await setInputValue(nameInput, 'Lying Hamstring Curl')
     await click(getButtonByText(harness.host, 'Save routine'))
-    await waitFor(() => Boolean(harness.host.querySelector('.train-today')), 'Save did not return to today.')
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.train-today')),
+      'Save did not return to today.',
+    )
 
     await waitForAsync(async () => {
       const exercises = await listExercises()
-      return exercises.filter((exercise) => exercise.name === 'Lying Hamstring Curl').length === 2
+      return (
+        exercises.filter((exercise) => exercise.name === 'Lying Hamstring Curl')
+          .length === 2
+      )
     }, 'Renaming to an existing exercise name did not create an isolated record.')
 
     await harness.cleanup()
@@ -593,7 +740,10 @@ describe('RoutinesScreen behavior', () => {
     const backdrop = document.body.querySelector('.sheet-backdrop') as HTMLDivElement
     await click(backdrop, { timeStamp: 320 })
 
-    await waitFor(() => !document.body.querySelector('.sheet'), 'History sheet did not close.')
+    await waitFor(
+      () => !document.body.querySelector('.sheet'),
+      'History sheet did not close.',
+    )
 
     expect(nav?.style.visibility).toBe('')
     expect(nav?.style.pointerEvents).toBe('')
@@ -605,7 +755,10 @@ describe('RoutinesScreen behavior', () => {
     const historyButton = getButtonByAriaLabelPrefix(harness.host, 'Open history for')
     await click(historyButton)
 
-    await waitFor(() => Boolean(document.body.querySelector('.sheet')), 'History sheet did not open.')
+    await waitFor(
+      () => Boolean(document.body.querySelector('.sheet')),
+      'History sheet did not open.',
+    )
     await waitFor(
       () =>
         (document.body.textContent ?? '').includes('No history yet') &&
@@ -617,7 +770,9 @@ describe('RoutinesScreen behavior', () => {
   })
 })
 
-async function renderScreen(options?: { withBottomNav?: boolean }): Promise<RenderHarness> {
+async function renderScreen(options?: {
+  withBottomNav?: boolean
+}): Promise<RenderHarness> {
   const shell = document.createElement('div')
   shell.className = 'app-shell'
 
@@ -641,7 +796,8 @@ async function renderScreen(options?: { withBottomNav?: boolean }): Promise<Rend
   })
 
   await waitFor(
-    () => Boolean(host.querySelector('.exercise-card') || host.querySelector('.empty-state')),
+    () =>
+      Boolean(host.querySelector('.exercise-card') || host.querySelector('.empty-state')),
     'Training screen did not finish initial render.',
   )
 
@@ -670,10 +826,16 @@ async function logSet(card: HTMLElement, weight: string, reps: string): Promise<
   await click(saveButton)
 }
 
-async function click(element: HTMLElement, options?: { timeStamp?: number }): Promise<void> {
+async function click(
+  element: HTMLElement,
+  options?: { timeStamp?: number },
+): Promise<void> {
   const event = new MouseEvent('click', { bubbles: true, cancelable: true })
   if (options?.timeStamp != null) {
-    Object.defineProperty(event, 'timeStamp', { configurable: true, value: options.timeStamp })
+    Object.defineProperty(event, 'timeStamp', {
+      configurable: true,
+      value: options.timeStamp,
+    })
   }
   await act(async () => {
     element.dispatchEvent(event)
@@ -685,7 +847,10 @@ async function click(element: HTMLElement, options?: { timeStamp?: number }): Pr
 }
 
 async function setInputValue(input: HTMLInputElement, value: string): Promise<void> {
-  const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
+  const descriptor = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype,
+    'value',
+  )
   descriptor?.set?.call(input, value)
   await act(async () => {
     input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -712,7 +877,10 @@ function getButtonByTextWithin(container: ParentNode, label: string): HTMLButton
   return getButtonByText(container, label)
 }
 
-function getButtonByTextIncludes(container: ParentNode, labelPart: string): HTMLButtonElement | null {
+function getButtonByTextIncludes(
+  container: ParentNode,
+  labelPart: string,
+): HTMLButtonElement | null {
   return (
     (Array.from(container.querySelectorAll('button')).find((button) =>
       (button.textContent ?? '').toLowerCase().includes(labelPart.toLowerCase()),
@@ -720,7 +888,10 @@ function getButtonByTextIncludes(container: ParentNode, labelPart: string): HTML
   )
 }
 
-function getButtonByAriaLabelPrefix(container: ParentNode, prefix: string): HTMLButtonElement {
+function getButtonByAriaLabelPrefix(
+  container: ParentNode,
+  prefix: string,
+): HTMLButtonElement {
   const target = Array.from(container.querySelectorAll('button')).find((button) =>
     (button.getAttribute('aria-label') ?? '').startsWith(prefix),
   )
@@ -738,7 +909,10 @@ function findEditRowByTitle(container: ParentNode, title: string): HTMLElement |
   )
 }
 
-function findExerciseCardByTitle(container: ParentNode, title: string): HTMLElement | null {
+function findExerciseCardByTitle(
+  container: ParentNode,
+  title: string,
+): HTMLElement | null {
   return (
     (Array.from(container.querySelectorAll('.exercise-card')).find(
       (card) => card.querySelector('.exercise-card__name')?.textContent?.trim() === title,
@@ -746,7 +920,11 @@ function findExerciseCardByTitle(container: ParentNode, title: string): HTMLElem
   )
 }
 
-async function waitFor(condition: () => boolean, failureMessage: string, maxPasses = 1500): Promise<void> {
+async function waitFor(
+  condition: () => boolean,
+  failureMessage: string,
+  maxPasses = 1500,
+): Promise<void> {
   for (let pass = 0; pass < maxPasses; pass += 1) {
     if (condition()) {
       return
@@ -790,10 +968,17 @@ async function flushFrame(): Promise<void> {
 }
 
 async function clearDatabase(): Promise<void> {
-  await db.transaction('rw', db.exercises, db.routines, db.sessions, db.setEntries, async () => {
-    await db.setEntries.clear()
-    await db.sessions.clear()
-    await db.routines.clear()
-    await db.exercises.clear()
-  })
+  await db.transaction(
+    'rw',
+    db.exercises,
+    db.routines,
+    db.sessions,
+    db.setEntries,
+    async () => {
+      await db.setEntries.clear()
+      await db.sessions.clear()
+      await db.routines.clear()
+      await db.exercises.clear()
+    },
+  )
 }

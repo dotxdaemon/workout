@@ -288,3 +288,9 @@
 2026-06-21 (visual evidence follow-up)
 - Sean approved installing the local Chromium runtime to produce the required screenshots.
 - Result: captured the pre-change `ca4bb59` and current `292efd3` first viewports at 390x844 outside the repo. Runtime values changed from `--bg #07090A`, `--jade #4FE6C4`, 18px exercise-card corners, and 999px day-chip corners to `--bg #030708`, `--jade #91E8E5`, 4px exercise-card corners, and 2px day-chip corners. The shell remained 844px high; the nav ended at y=844 and the screen area ended at y=779.8125. Captured Settings at the same viewport. Temporary historical worktree and development server were removed after capture.
+
+2026-06-21 (structural UI redo)
+- Previously tried: changed only visual tokens and presented that as a total redo.
+- Sean asked: redo the interface structurally.
+- Root cause: the original Today screen retained a stack of self-contained exercise cards and the Settings screen retained a panel stack, so token changes could not change the app's composition.
+- Result: rebuilt the Train page around a console masthead, horizontal day rail, and numbered continuous exercise ledger; rebuilt Settings as a divided workspace; preserved all existing handlers, fields, routes, data calls, schemas, local storage keys, and service-worker files. Added a rendered-behavior regression asserting the masthead and ledger. A parallel verification run starved the IndexedDB-seeded test harness and failed initial render once; the isolated failing test passed, and the serial full run passed with 89 tests, lint, and typecheck. Chromium 390x844 shows five ledger rows with the nav still ending at y=844.

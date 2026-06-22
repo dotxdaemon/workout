@@ -2,7 +2,12 @@
 // ABOUTME: Persists preferences immediately and exports JSON, CSV, and a readable text log.
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
-import { buildCsvExport, buildJsonExport, applyJsonImport, triggerDownload } from '../lib/exportImport'
+import {
+  buildCsvExport,
+  buildJsonExport,
+  applyJsonImport,
+  triggerDownload,
+} from '../lib/exportImport'
 import { buildTextLogExport } from '../lib/textLog'
 import { readPreferences, writePreferences } from '../lib/preferences'
 import type { AppPreferences, ThemeMode, Unit } from '../types'
@@ -29,7 +34,10 @@ export function SettingsScreen() {
     writePreferences(next)
   }
 
-  function updatePreference<K extends keyof AppPreferences>(key: K, value: AppPreferences[K]): void {
+  function updatePreference<K extends keyof AppPreferences>(
+    key: K,
+    value: AppPreferences[K],
+  ): void {
     persist({ ...readPreferences(), [key]: value })
     setMessage('')
     setError('')
@@ -38,7 +46,11 @@ export function SettingsScreen() {
   async function handleExportJson(): Promise<void> {
     try {
       const json = await buildJsonExport(preferences)
-      await triggerDownload(`workout-backup-${dateStamp()}.json`, json, 'application/json;charset=utf-8')
+      await triggerDownload(
+        `workout-backup-${dateStamp()}.json`,
+        json,
+        'application/json;charset=utf-8',
+      )
       setError('')
       setMessage('Exported full backup as JSON.')
     } catch {
@@ -49,7 +61,11 @@ export function SettingsScreen() {
   async function handleExportCsv(): Promise<void> {
     try {
       const csv = await buildCsvExport()
-      await triggerDownload(`workout-sessions-${dateStamp()}.csv`, csv, 'text/csv;charset=utf-8')
+      await triggerDownload(
+        `workout-sessions-${dateStamp()}.csv`,
+        csv,
+        'text/csv;charset=utf-8',
+      )
       setError('')
       setMessage('Exported sessions and sets as CSV.')
     } catch {
@@ -60,7 +76,11 @@ export function SettingsScreen() {
   async function handleExportText(): Promise<void> {
     try {
       const text = await buildTextLogExport(preferences)
-      await triggerDownload(`workout-log-${dateStamp()}.txt`, text, 'text/plain;charset=utf-8')
+      await triggerDownload(
+        `workout-log-${dateStamp()}.txt`,
+        text,
+        'text/plain;charset=utf-8',
+      )
       setError('')
       setMessage('Exported a readable log of every set and rep.')
     } catch {
@@ -94,7 +114,9 @@ export function SettingsScreen() {
       setMessage('Import completed. Your data has been restored.')
     } catch (caughtError) {
       setError(
-        caughtError instanceof Error ? caughtError.message : 'Import failed for an unknown reason.',
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Import failed for an unknown reason.',
       )
     } finally {
       setIsImporting(false)
@@ -104,8 +126,8 @@ export function SettingsScreen() {
   }
 
   return (
-    <section className="page">
-      <header className="page-header">
+    <section className="page settings-page">
+      <header className="settings-console">
         <p className="eyebrow eyebrow--jade">Configure</p>
         <h1 className="page-title">Settings</h1>
         <p className="page-subtitle">Training defaults and data backup.</p>
@@ -114,57 +136,65 @@ export function SettingsScreen() {
       {message ? <Banner tone="success">{message}</Banner> : null}
       {error ? <Banner tone="error">{error}</Banner> : null}
 
-      <div className="panel">
-        <h2 className="panel__title">Appearance</h2>
-        <div className="settings-row">
-          <div className="settings-row__text">
-            <span className="settings-row__label">Theme</span>
-            <span className="settings-row__hint">Switch between the night and overcast looks.</span>
+      <div className="settings-workspace">
+        <section className="panel settings-panel">
+          <h2 className="panel__title">Appearance</h2>
+          <div className="settings-row">
+            <div className="settings-row__text">
+              <span className="settings-row__label">Theme</span>
+              <span className="settings-row__hint">
+                Switch between the night and overcast looks.
+              </span>
+            </div>
+            <SegmentedControl
+              ariaLabel="Theme"
+              value={preferences.theme}
+              onChange={(theme: ThemeMode) => updatePreference('theme', theme)}
+              options={[
+                { value: 'dark', label: 'Night' },
+                { value: 'light', label: 'Day' },
+              ]}
+            />
           </div>
-          <SegmentedControl
-            ariaLabel="Theme"
-            value={preferences.theme}
-            onChange={(theme: ThemeMode) => updatePreference('theme', theme)}
-            options={[
-              { value: 'dark', label: 'Night' },
-              { value: 'light', label: 'Day' },
-            ]}
-          />
-        </div>
-      </div>
+        </section>
 
-      <div className="panel">
-        <h2 className="panel__title">Logging defaults</h2>
-        <div className="settings-row">
-          <div className="settings-row__text">
-            <span className="settings-row__label">Default unit</span>
-            <span className="settings-row__hint">Used for new exercises.</span>
+        <section className="panel settings-panel">
+          <h2 className="panel__title">Logging defaults</h2>
+          <div className="settings-row">
+            <div className="settings-row__text">
+              <span className="settings-row__label">Default unit</span>
+              <span className="settings-row__hint">Used for new exercises.</span>
+            </div>
+            <SegmentedControl
+              ariaLabel="Default unit"
+              value={preferences.defaultUnit}
+              onChange={(unit: Unit) => updatePreference('defaultUnit', unit)}
+              options={[
+                { value: 'lb', label: 'lb' },
+                { value: 'kg', label: 'kg' },
+              ]}
+            />
           </div>
-          <SegmentedControl
-            ariaLabel="Default unit"
-            value={preferences.defaultUnit}
-            onChange={(unit: Unit) => updatePreference('defaultUnit', unit)}
-            options={[
-              { value: 'lb', label: 'lb' },
-              { value: 'kg', label: 'kg' },
-            ]}
-          />
-        </div>
-
-        <label className="field">
-          <span className="field__label">Default weight increment</span>
-          <input
-            type="number"
-            min="0.1"
-            step="0.1"
-            inputMode="decimal"
-            value={preferences.defaultWeightIncrement}
-            onChange={(event) =>
-              updatePreference('defaultWeightIncrement', Math.max(0.1, Number(event.target.value) || 0.1))
-            }
-          />
-          <span className="field__hint">Step size for the +/- buttons when logging.</span>
-        </label>
+          <label className="field">
+            <span className="field__label">Default weight increment</span>
+            <input
+              type="number"
+              min="0.1"
+              step="0.1"
+              inputMode="decimal"
+              value={preferences.defaultWeightIncrement}
+              onChange={(event) =>
+                updatePreference(
+                  'defaultWeightIncrement',
+                  Math.max(0.1, Number(event.target.value) || 0.1),
+                )
+              }
+            />
+            <span className="field__hint">
+              Step size for the +/- buttons when logging.
+            </span>
+          </label>
+        </section>
       </div>
 
       <details
@@ -178,21 +208,34 @@ export function SettingsScreen() {
             <div className="stack stack--tight">
               <h3 className="field__label">Export</h3>
               <div className="export-actions">
-                <button type="button" className="btn" onClick={() => void handleExportText()}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => void handleExportText()}
+                >
                   <FileTextIcon width={18} height={18} />
                   Export log (readable .txt)
                 </button>
-                <button type="button" className="btn" onClick={() => void handleExportJson()}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => void handleExportJson()}
+                >
                   <DownloadIcon width={18} height={18} />
                   Export full backup (JSON)
                 </button>
-                <button type="button" className="btn" onClick={() => void handleExportCsv()}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => void handleExportCsv()}
+                >
                   <DownloadIcon width={18} height={18} />
                   Export sessions (CSV)
                 </button>
               </div>
               <p className="field__hint">
-                The readable log lists every set and rep. JSON is a complete backup you can re-import.
+                The readable log lists every set and rep. JSON is a complete backup you
+                can re-import.
               </p>
             </div>
 
@@ -200,7 +243,9 @@ export function SettingsScreen() {
               <h3 className="field__label">Import</h3>
               <div className="file-picker">
                 <label
-                  className={isImporting ? 'file-button file-button--disabled' : 'file-button'}
+                  className={
+                    isImporting ? 'file-button file-button--disabled' : 'file-button'
+                  }
                   htmlFor="settings-import-json"
                 >
                   <UploadIcon width={18} height={18} />
@@ -216,7 +261,9 @@ export function SettingsScreen() {
                   disabled={isImporting}
                 />
               </div>
-              <p className="field__hint">Importing replaces all current data with the backup file.</p>
+              <p className="field__hint">
+                Importing replaces all current data with the backup file.
+              </p>
             </div>
           </div>
         ) : null}

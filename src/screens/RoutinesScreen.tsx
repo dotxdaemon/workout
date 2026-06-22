@@ -29,7 +29,14 @@ import {
   writeSelectedRoutineId,
 } from '../lib/routineSelection'
 import { routineSplitOptions } from '../lib/routineSplit'
-import type { Exercise, Routine, RoutineSplitId, SessionRecord, SetEntry, Unit } from '../types'
+import type {
+  Exercise,
+  Routine,
+  RoutineSplitId,
+  SessionRecord,
+  SetEntry,
+  Unit,
+} from '../types'
 import { Banner } from '../components/Banner'
 import { BottomSheet } from '../components/BottomSheet'
 import { EmptyState } from '../components/EmptyState'
@@ -97,7 +104,9 @@ export function RoutinesScreen() {
   const [historyPreviewByExercise, setHistoryPreviewByExercise] = useState<
     Record<string, HistoryItem[]>
   >({})
-  const [activeSplitId, setActiveSplitId] = useState<RoutineSplitId>(() => readActiveRoutineSplitId())
+  const [activeSplitId, setActiveSplitId] = useState<RoutineSplitId>(() =>
+    readActiveRoutineSplitId(),
+  )
   const [selectedRoutineId, setSelectedRoutineId] = useState('')
   const [mode, setMode] = useState<ScreenMode>('today')
   const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(null)
@@ -108,14 +117,20 @@ export function RoutinesScreen() {
   const [defaultWeightIncrement, setDefaultWeightIncrement] = useState(5)
   const [routineNameDraft, setRoutineNameDraft] = useState('')
   const [exerciseDrafts, setExerciseDrafts] = useState<RoutineExerciseDraft[]>([])
-  const [openExerciseDraftIds, setOpenExerciseDraftIds] = useState<Record<string, boolean>>({})
+  const [openExerciseDraftIds, setOpenExerciseDraftIds] = useState<
+    Record<string, boolean>
+  >({})
   const [draftIdToReveal, setDraftIdToReveal] = useState<string | null>(null)
-  const [todayExerciseIdToReveal, setTodayExerciseIdToReveal] = useState<string | null>(null)
+  const [todayExerciseIdToReveal, setTodayExerciseIdToReveal] = useState<string | null>(
+    null,
+  )
   const [addExerciseName, setAddExerciseName] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [savedExerciseId, setSavedExerciseId] = useState<string | null>(null)
-  const [invalidEntryExerciseId, setInvalidEntryExerciseId] = useState<string | null>(null)
+  const [invalidEntryExerciseId, setInvalidEntryExerciseId] = useState<string | null>(
+    null,
+  )
 
   const exerciseMap = useMemo(
     () => Object.fromEntries(exercises.map((exercise) => [exercise.id, exercise])),
@@ -123,7 +138,9 @@ export function RoutinesScreen() {
   )
 
   const activeSplit = useMemo(
-    () => routineSplitOptions.find((option) => option.id === activeSplitId) ?? routineSplitOptions[0],
+    () =>
+      routineSplitOptions.find((option) => option.id === activeSplitId) ??
+      routineSplitOptions[0],
     [activeSplitId],
   )
 
@@ -155,11 +172,16 @@ export function RoutinesScreen() {
   }, [activeSplit.routineOrder, splitRoutines])
 
   const selectedRoutine = useMemo(
-    () => orderedRoutines.find((routine) => routine.id === selectedRoutineId) ?? orderedRoutines[0],
+    () =>
+      orderedRoutines.find((routine) => routine.id === selectedRoutineId) ??
+      orderedRoutines[0],
     [orderedRoutines, selectedRoutineId],
   )
 
-  const selectedExerciseIds = useMemo(() => selectedRoutine?.exerciseIds ?? [], [selectedRoutine])
+  const selectedExerciseIds = useMemo(
+    () => selectedRoutine?.exerciseIds ?? [],
+    [selectedRoutine],
+  )
 
   const selectedRoutineIndex = useMemo(
     () =>
@@ -197,7 +219,13 @@ export function RoutinesScreen() {
           exercise.name.toLowerCase().includes(normalizedAddExerciseName),
       )
       .slice(0, 6)
-  }, [draftExerciseIds, exercises, mode, normalizedAddExerciseName, trimmedAddExerciseName])
+  }, [
+    draftExerciseIds,
+    exercises,
+    mode,
+    normalizedAddExerciseName,
+    trimmedAddExerciseName,
+  ])
 
   function resetPageScrollToTop(): void {
     const screenArea = document.querySelector<HTMLElement>('.screen-area')
@@ -242,13 +270,18 @@ export function RoutinesScreen() {
   }, [activeSplit.id])
 
   useEffect(() => {
-    const selectedInSplit = orderedRoutines.find((routine) => routine.id === selectedRoutineId)
+    const selectedInSplit = orderedRoutines.find(
+      (routine) => routine.id === selectedRoutineId,
+    )
     if (selectedInSplit) {
       return
     }
 
     const storedRoutineId = readSelectedRoutineId(activeSplit.id)
-    if (storedRoutineId && orderedRoutines.some((routine) => routine.id === storedRoutineId)) {
+    if (
+      storedRoutineId &&
+      orderedRoutines.some((routine) => routine.id === storedRoutineId)
+    ) {
       setSelectedRoutineId(storedRoutineId)
       return
     }
@@ -264,10 +297,17 @@ export function RoutinesScreen() {
     }
 
     setSelectedRoutineId(orderedRoutines[0]?.id ?? '')
-  }, [activeSplit.fallbackRoutineNames, activeSplit.id, orderedRoutines, selectedRoutineId])
+  }, [
+    activeSplit.fallbackRoutineNames,
+    activeSplit.id,
+    orderedRoutines,
+    selectedRoutineId,
+  ])
 
   useEffect(() => {
-    const selectedInSplit = orderedRoutines.some((routine) => routine.id === selectedRoutineId)
+    const selectedInSplit = orderedRoutines.some(
+      (routine) => routine.id === selectedRoutineId,
+    )
     if (!selectedInSplit) {
       return
     }
@@ -320,7 +360,8 @@ export function RoutinesScreen() {
     }
     const next: Record<string, string> = {}
     for (const exerciseId of selectedRoutine.exerciseIds) {
-      next[exerciseId] = localStorage.getItem(noteStorageKey(trackerSessionId, exerciseId)) ?? ''
+      next[exerciseId] =
+        localStorage.getItem(noteStorageKey(trackerSessionId, exerciseId)) ?? ''
     }
     setNotesByExercise(next)
   }, [selectedRoutine, trackerSessionId])
@@ -343,7 +384,9 @@ export function RoutinesScreen() {
       selectedRoutine.exerciseIds
         .map((exerciseId) => exerciseMap[exerciseId])
         .filter((exercise): exercise is Exercise => Boolean(exercise))
-        .map((exercise) => toRoutineExerciseDraft(exercise, createRoutineDraftId(exercise.id))),
+        .map((exercise) =>
+          toRoutineExerciseDraft(exercise, createRoutineDraftId(exercise.id)),
+        ),
     )
     setAddExerciseName('')
   }, [exerciseMap, mode, selectedRoutine])
@@ -484,7 +527,11 @@ export function RoutinesScreen() {
     }
 
     try {
-      const entry = await addSetEntry(trackerSessionId, exerciseId, { weight, reps, completed: true })
+      const entry = await addSetEntry(trackerSessionId, exerciseId, {
+        weight,
+        reps,
+        completed: true,
+      })
       setSetsByExercise((current) => ({
         ...current,
         [exerciseId]: [...(current[exerciseId] ?? []), entry],
@@ -550,7 +597,10 @@ export function RoutinesScreen() {
     }
   }
 
-  async function handleOpenHistorySheet(exercise: Exercise, openedAt: number): Promise<void> {
+  async function handleOpenHistorySheet(
+    exercise: Exercise,
+    openedAt: number,
+  ): Promise<void> {
     setHistorySheet({
       exerciseId: exercise.id,
       exerciseName: exercise.name,
@@ -568,14 +618,18 @@ export function RoutinesScreen() {
         return
       }
       setHistorySheet((current) =>
-        current && current.exerciseId === exercise.id ? { ...current, rows, isLoading: false } : current,
+        current && current.exerciseId === exercise.id
+          ? { ...current, rows, isLoading: false }
+          : current,
       )
     } catch {
       if (historyRequestRef.current !== requestId) {
         return
       }
       setError('Could not load exercise history.')
-      setHistorySheet((current) => (current ? { ...current, rows: [], isLoading: false } : current))
+      setHistorySheet((current) =>
+        current ? { ...current, rows: [], isLoading: false } : current,
+      )
     }
   }
 
@@ -598,18 +652,28 @@ export function RoutinesScreen() {
     if (!trimmedAddExerciseName) {
       return
     }
-    const exactMatch = exercises.find((item) => item.name.toLowerCase() === normalizedAddExerciseName)
+    const exactMatch = exercises.find(
+      (item) => item.name.toLowerCase() === normalizedAddExerciseName,
+    )
     if (exactMatch) {
       addExerciseDraft(exactMatch)
       return
     }
 
-    const created = await createExercise({ name: trimmedAddExerciseName, unitDefault: defaultUnit })
+    const created = await createExercise({
+      name: trimmedAddExerciseName,
+      unitDefault: defaultUnit,
+    })
     const createdExercise: Exercise = {
       ...created,
-      progressionSettings: { ...created.progressionSettings, weightIncrement: defaultWeightIncrement },
+      progressionSettings: {
+        ...created.progressionSettings,
+        weightIncrement: defaultWeightIncrement,
+      },
     }
-    await updateExercise(createdExercise.id, { progressionSettings: createdExercise.progressionSettings })
+    await updateExercise(createdExercise.id, {
+      progressionSettings: createdExercise.progressionSettings,
+    })
     setExercises((current) => sortExercisesByName([...current, createdExercise]))
     addExerciseDraft(createdExercise)
   }
@@ -624,7 +688,10 @@ export function RoutinesScreen() {
       return
     }
     const draftId = createRoutineDraftId(exercise.id)
-    setExerciseDrafts((current) => [...current, toRoutineExerciseDraft(exercise, draftId)])
+    setExerciseDrafts((current) => [
+      ...current,
+      toRoutineExerciseDraft(exercise, draftId),
+    ])
     setDraftIdToReveal(draftId)
     setAddExerciseName('')
     setMessage('Exercise added. Save the routine to apply changes.')
@@ -685,7 +752,14 @@ export function RoutinesScreen() {
       const repMax = Math.max(repMin, Math.round(Number(draft.repMax) || repMin))
       const workSetsTarget = Math.max(1, Math.round(Number(draft.workSetsTarget) || 1))
       const weightIncrement = Math.max(0.1, Number(draft.weightIncrement) || 0.1)
-      return { ...draft, name: draft.name.trim(), repMin, repMax, workSetsTarget, weightIncrement }
+      return {
+        ...draft,
+        name: draft.name.trim(),
+        repMin,
+        repMax,
+        workSetsTarget,
+        weightIncrement,
+      }
     })
 
     if (sanitized.some((draft) => !draft.name)) {
@@ -709,7 +783,10 @@ export function RoutinesScreen() {
       const normalizedExerciseName = currentExercise.name.trim().toLowerCase()
 
       if (normalizedDraftName !== normalizedExerciseName) {
-        const createdExercise = await createExercise({ name: draft.name, unitDefault: draft.unit })
+        const createdExercise = await createExercise({
+          name: draft.name,
+          unitDefault: draft.unit,
+        })
         const progressionSettings = {
           ...currentExercise.progressionSettings,
           unit: draft.unit,
@@ -718,8 +795,15 @@ export function RoutinesScreen() {
           workSetsTarget: draft.workSetsTarget,
           weightIncrement: draft.weightIncrement,
         }
-        await updateExercise(createdExercise.id, { progressionSettings, unitDefault: draft.unit })
-        createdExercises.push({ ...createdExercise, progressionSettings, unitDefault: draft.unit })
+        await updateExercise(createdExercise.id, {
+          progressionSettings,
+          unitDefault: draft.unit,
+        })
+        createdExercises.push({
+          ...createdExercise,
+          progressionSettings,
+          unitDefault: draft.unit,
+        })
         nextExerciseIds.push(createdExercise.id)
         continue
       }
@@ -743,7 +827,10 @@ export function RoutinesScreen() {
       setExercises((current) => sortExercisesByName([...current, ...createdExercises]))
     }
 
-    await updateRoutine(selectedRoutine.id, { name: routineName, exerciseIds: nextExerciseIds })
+    await updateRoutine(selectedRoutine.id, {
+      name: routineName,
+      exerciseIds: nextExerciseIds,
+    })
 
     const exerciseIdToReveal =
       nextExerciseIds.find((exerciseId) => !currentExerciseIds.has(exerciseId)) ?? null
@@ -773,7 +860,9 @@ export function RoutinesScreen() {
 
     await deleteRoutine(selectedRoutine.id)
     const remaining = routines.filter((routine) => routine.id !== selectedRoutine.id)
-    const remainingInSplit = remaining.filter((routine) => routine.splitId === activeSplit.id)
+    const remainingInSplit = remaining.filter(
+      (routine) => routine.splitId === activeSplit.id,
+    )
     hydratedRoutineIdRef.current = null
     setRoutines(remaining)
     setSelectedRoutineId(remainingInSplit[0]?.id ?? '')
@@ -783,11 +872,13 @@ export function RoutinesScreen() {
   }
 
   return (
-    <section className="page">
-      <header className="train-header">
-        <div className="train-header__top">
+    <section className="page training-page">
+      <header className="training-console">
+        <div className="training-console__top">
           <div>
-            <p className="eyebrow eyebrow--jade">{formatSplitHeaderLabel(activeSplit.label)}</p>
+            <p className="eyebrow eyebrow--jade">
+              {formatSplitHeaderLabel(activeSplit.label)}
+            </p>
             <h1 className="page-title">Train</h1>
           </div>
           <SegmentedControl
@@ -801,7 +892,12 @@ export function RoutinesScreen() {
           />
         </div>
         {mode === 'today' && orderedRoutines.length > 1 ? (
-          <div className="day-chips" role="tablist" aria-label="Select training day" ref={dayChipsRef}>
+          <div
+            className="day-chips training-console__days"
+            role="tablist"
+            aria-label="Select training day"
+            ref={dayChipsRef}
+          >
             {orderedRoutines.map((routine, index) => {
               const isActive = routine.id === selectedRoutine?.id
               return (
@@ -817,7 +913,9 @@ export function RoutinesScreen() {
                   <span className="day-chip__index numeral">
                     {getRoutineDayNumber(routine.name, index)}
                   </span>
-                  <span className="day-chip__name">{getRoutineChipLabel(routine.name)}</span>
+                  <span className="day-chip__name">
+                    {getRoutineChipLabel(routine.name)}
+                  </span>
                 </button>
               )
             })}
@@ -835,60 +933,73 @@ export function RoutinesScreen() {
           <div className="skeleton skeleton-card" />
         </div>
       ) : mode === 'today' ? (
-        <div className="train-today stack">
-          <header className="active-day">
-            <div className="active-day__meta">
-              <p className="eyebrow eyebrow--jade">{dayHeading.dayLabel}</p>
-              <p className="muted">
-                {selectedRoutine ? `${selectedExerciseIds.length} exercises` : '0 exercises'}
-              </p>
-            </div>
-            <h2 className="active-day__title">{dayHeading.title}</h2>
-          </header>
-
+        <div className="train-today">
           {selectedRoutine && selectedExerciseIds.length > 0 ? (
-            <div className="exercise-list">
-              {selectedExerciseIds.map((exerciseId) => {
-                const exercise = exerciseMap[exerciseId]
-                if (!exercise) {
-                  return null
-                }
-                return (
-                  <ExerciseCard
-                    key={exercise.id}
-                    exercise={exercise}
-                    groupLabel={routineFocusLabel}
-                    isExpanded={expandedExerciseId === exercise.id}
-                    onToggle={() =>
-                      setExpandedExerciseId((current) =>
-                        current === exercise.id ? null : exercise.id,
-                      )
-                    }
-                    todaySets={setsByExercise[exercise.id] ?? []}
-                    lastSession={historyPreviewByExercise[exercise.id]?.[0]}
-                    draft={effectiveDraft(exercise.id)}
-                    weightStep={exercise.progressionSettings.weightIncrement}
-                    isSaved={savedExerciseId === exercise.id}
-                    invalidEntry={invalidEntryExerciseId === exercise.id}
-                    note={notesByExercise[exercise.id] ?? ''}
-                    onWeightChange={(value) => setDraftField(exercise.id, 'weight', value)}
-                    onRepsChange={(value) => setDraftField(exercise.id, 'reps', value)}
-                    onSave={() => void handleSaveSet(exercise.id)}
-                    onRemoveSet={(setId) => void handleRemoveSet(exercise.id, setId)}
-                    onRepeatLast={() => void handleRepeatLastSession(exercise.id)}
-                    onOpenHistory={(openedAt) => void handleOpenHistorySheet(exercise, openedAt)}
-                    onNoteChange={(value) => handleNoteChange(exercise.id, value)}
-                  />
-                )
-              })}
-            </div>
+            <main className="training-ledger">
+              <header className="training-ledger__masthead">
+                <div>
+                  <p className="eyebrow eyebrow--jade">{dayHeading.dayLabel}</p>
+                  <h2 className="training-ledger__title">{dayHeading.title}</h2>
+                </div>
+                <p className="training-ledger__count">
+                  {selectedRoutine
+                    ? `${selectedExerciseIds.length} exercises`
+                    : '0 exercises'}
+                </p>
+              </header>
+              <div className="training-ledger__rule" aria-hidden="true" />
+              <div className="exercise-list training-ledger__entries">
+                {selectedExerciseIds.map((exerciseId, index) => {
+                  const exercise = exerciseMap[exerciseId]
+                  if (!exercise) {
+                    return null
+                  }
+                  return (
+                    <ExerciseCard
+                      key={exercise.id}
+                      exercise={exercise}
+                      groupLabel={routineFocusLabel}
+                      position={index + 1}
+                      isExpanded={expandedExerciseId === exercise.id}
+                      onToggle={() =>
+                        setExpandedExerciseId((current) =>
+                          current === exercise.id ? null : exercise.id,
+                        )
+                      }
+                      todaySets={setsByExercise[exercise.id] ?? []}
+                      lastSession={historyPreviewByExercise[exercise.id]?.[0]}
+                      draft={effectiveDraft(exercise.id)}
+                      weightStep={exercise.progressionSettings.weightIncrement}
+                      isSaved={savedExerciseId === exercise.id}
+                      invalidEntry={invalidEntryExerciseId === exercise.id}
+                      note={notesByExercise[exercise.id] ?? ''}
+                      onWeightChange={(value) =>
+                        setDraftField(exercise.id, 'weight', value)
+                      }
+                      onRepsChange={(value) => setDraftField(exercise.id, 'reps', value)}
+                      onSave={() => void handleSaveSet(exercise.id)}
+                      onRemoveSet={(setId) => void handleRemoveSet(exercise.id, setId)}
+                      onRepeatLast={() => void handleRepeatLastSession(exercise.id)}
+                      onOpenHistory={(openedAt) =>
+                        void handleOpenHistorySheet(exercise, openedAt)
+                      }
+                      onNoteChange={(value) => handleNoteChange(exercise.id, value)}
+                    />
+                  )
+                })}
+              </div>
+            </main>
           ) : selectedRoutine ? (
             <EmptyState
               glyph={<DumbbellIcon width={38} height={38} />}
               title="No exercises in this day yet"
               body="Switch to Edit to add exercises, then come back here to log your sets."
               action={
-                <button type="button" className="btn btn--primary" onClick={() => setMode('edit')}>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => setMode('edit')}
+                >
                   Edit this routine
                 </button>
               }
@@ -899,7 +1010,11 @@ export function RoutinesScreen() {
               title="No routines yet"
               body="Create a routine in Edit mode to start logging your workouts."
               action={
-                <button type="button" className="btn btn--primary" onClick={() => void handleCreateRoutine()}>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => void handleCreateRoutine()}
+                >
                   Create a routine
                 </button>
               }
@@ -951,6 +1066,7 @@ export function RoutinesScreen() {
 interface ExerciseCardProps {
   exercise: Exercise
   groupLabel: string
+  position: number
   isExpanded: boolean
   onToggle: () => void
   todaySets: SetEntry[]
@@ -981,9 +1097,14 @@ function ExerciseCard(props: ExerciseCardProps) {
   return (
     <article
       data-exercise-id={exercise.id}
-      className={props.isExpanded ? 'exercise-card exercise-card--active' : 'exercise-card'}
+      className={
+        props.isExpanded ? 'exercise-card exercise-card--active' : 'exercise-card'
+      }
     >
       <div className="exercise-card__head">
+        <span className="exercise-card__position numeral" aria-hidden="true">
+          {String(props.position).padStart(2, '0')}
+        </span>
         <button
           type="button"
           className="exercise-card__title-btn"
@@ -1009,38 +1130,42 @@ function ExerciseCard(props: ExerciseCardProps) {
         </div>
       </div>
 
-      <p className="last-line">
-        <span className="eyebrow">Last</span>
-        <span className="last-line__value">{lastSummary}</span>
-      </p>
+      <div className="exercise-card__record">
+        <p className="last-line">
+          <span className="eyebrow">Last</span>
+          <span className="last-line__value">{lastSummary}</span>
+        </p>
 
-      <div className="set-track" aria-label="Sets logged today">
-        <span className="set-track__label">Today</span>
-        {workSets.length === 0 ? (
-          <span className="set-track__empty">No sets yet</span>
-        ) : (
-          workSets.map((set, index) => (
-            <span
-              key={set.id}
-              className={topToday?.id === set.id ? 'set-pill set-pill--top' : 'set-pill'}
-            >
-              <span className="set-pill__num">{index + 1}</span>
-              <span>
-                {formatNumber(set.weight)}
-                <span className="set-pill__x"> × </span>
-                {set.reps}
-              </span>
-              <button
-                type="button"
-                className="set-pill__remove"
-                aria-label={`Remove set ${index + 1} (${formatNumber(set.weight)} ${unit} by ${set.reps} reps)`}
-                onClick={() => props.onRemoveSet(set.id)}
+        <div className="set-track" aria-label="Sets logged today">
+          <span className="set-track__label">Today</span>
+          {workSets.length === 0 ? (
+            <span className="set-track__empty">No sets yet</span>
+          ) : (
+            workSets.map((set, index) => (
+              <span
+                key={set.id}
+                className={
+                  topToday?.id === set.id ? 'set-pill set-pill--top' : 'set-pill'
+                }
               >
-                <CloseIcon width={13} height={13} />
-              </button>
-            </span>
-          ))
-        )}
+                <span className="set-pill__num">{index + 1}</span>
+                <span>
+                  {formatNumber(set.weight)}
+                  <span className="set-pill__x"> × </span>
+                  {set.reps}
+                </span>
+                <button
+                  type="button"
+                  className="set-pill__remove"
+                  aria-label={`Remove set ${index + 1} (${formatNumber(set.weight)} ${unit} by ${set.reps} reps)`}
+                  onClick={() => props.onRemoveSet(set.id)}
+                >
+                  <CloseIcon width={13} height={13} />
+                </button>
+              </span>
+            ))
+          )}
+        </div>
       </div>
 
       <div className="quick-entry">
@@ -1072,10 +1197,13 @@ function ExerciseCard(props: ExerciseCardProps) {
         </button>
       </div>
 
-      {suggestion && (suggestion.kind === 'increase_weight' || suggestion.kind === 'add_reps') ? (
+      {suggestion &&
+      (suggestion.kind === 'increase_weight' || suggestion.kind === 'add_reps') ? (
         <p
           className={
-            suggestion.kind === 'increase_weight' ? 'suggestion suggestion--increase' : 'suggestion suggestion--reps'
+            suggestion.kind === 'increase_weight'
+              ? 'suggestion suggestion--increase'
+              : 'suggestion suggestion--reps'
           }
         >
           {suggestion.kind === 'increase_weight' ? (
@@ -1160,7 +1288,9 @@ function HistorySheetBody({ historySheet }: { historySheet: HistorySheetState })
                 {workSets.map((set) => (
                   <span
                     key={set.id}
-                    className={topSet?.id === set.id ? 'set-pill set-pill--top' : 'set-pill'}
+                    className={
+                      topSet?.id === set.id ? 'set-pill set-pill--top' : 'set-pill'
+                    }
                   >
                     <span>
                       {formatNumber(set.weight)}
@@ -1265,7 +1395,11 @@ function EditMode(props: EditModeProps) {
             )
           })}
         </div>
-        <button type="button" className="btn btn--dashed btn--block" onClick={props.onCreateRoutine}>
+        <button
+          type="button"
+          className="btn btn--dashed btn--block"
+          onClick={props.onCreateRoutine}
+        >
           <PlusIcon width={16} height={16} />
           Create routine
         </button>
@@ -1301,8 +1435,8 @@ function EditMode(props: EditModeProps) {
           </button>
         </div>
         <p id="add-exercise-hint" className="visually-hidden">
-          Type a name and press Enter, or choose a matching exercise from the suggestions that appear
-          below. New exercises are added when you save the routine.
+          Type a name and press Enter, or choose a matching exercise from the suggestions
+          that appear below. New exercises are added when you save the routine.
         </p>
 
         {props.editExerciseSuggestions.length > 0 ? (
@@ -1333,7 +1467,11 @@ function EditMode(props: EditModeProps) {
           {props.exerciseDrafts.map((draft, index) => {
             const isAdvancedOpen = Boolean(props.openExerciseDraftIds[draft.draftId])
             return (
-              <article key={draft.draftId} data-draft-id={draft.draftId} className="edit-exercise">
+              <article
+                key={draft.draftId}
+                data-draft-id={draft.draftId}
+                className="edit-exercise"
+              >
                 <div className="edit-exercise__head">
                   <div className="edit-exercise__title">
                     <GripIcon className="edit-exercise__handle" width={16} height={16} />
@@ -1514,7 +1652,10 @@ function groupSetsByExercise(entries: SetEntry[]): Record<string, SetEntry[]> {
   return grouped
 }
 
-function toRoutineExerciseDraft(exercise: Exercise, draftId: string): RoutineExerciseDraft {
+function toRoutineExerciseDraft(
+  exercise: Exercise,
+  draftId: string,
+): RoutineExerciseDraft {
   return {
     draftId,
     exerciseId: exercise.id,
@@ -1529,7 +1670,8 @@ function toRoutineExerciseDraft(exercise: Exercise, draftId: string): RoutineExe
 
 function createRoutineDraftId(exerciseId: string): string {
   const token =
-    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.round(Math.random() * 1_000_000_000)}`
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now()}-${Math.round(Math.random() * 1_000_000_000)}`
   return `${exerciseId}:${token}`
 }
 
@@ -1571,7 +1713,10 @@ function getRoutineChipLabel(routineName: string): string {
 }
 
 function formatSplitHeaderLabel(label: string): string {
-  return label.replace(/^(\d)\s+day/i, '$1-Day').replace('split', 'Split').toUpperCase()
+  return label
+    .replace(/^(\d)\s+day/i, '$1-Day')
+    .replace('split', 'Split')
+    .toUpperCase()
 }
 
 function formatSplitOptionLabel(splitId: RoutineSplitId): string {
@@ -1587,7 +1732,8 @@ function buildDayHeading(
     return { dayLabel: `DAY ${fallbackIndex}`, title: `Day ${fallbackIndex}` }
   }
   const dayNumber = getRoutineDayNumber(routineName, selectedRoutineIndex)
-  const titleSource = routineName.replace(/^day\s*\d+\s*[–-]\s*/i, '').trim() || routineName
+  const titleSource =
+    routineName.replace(/^day\s*\d+\s*[–-]\s*/i, '').trim() || routineName
   const title = titleSource.replace(/\s*\/\s*/g, ' · ')
   return { dayLabel: `DAY ${dayNumber}`, title }
 }
@@ -1663,4 +1809,3 @@ function getNextRoutineName(routines: Routine[]): string {
   }
   return `Routine ${index}`
 }
-
