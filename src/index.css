@@ -1023,6 +1023,62 @@ select {
   font-weight: 800;
 }
 
+/* ---------- Exercise search ---------- */
+.exercise-search {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.exercise-search__label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.exercise-search__input {
+  width: 100%;
+  min-height: 2.8rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  font-size: 16px;
+}
+
+.exercise-search__input:focus {
+  outline: none;
+  border-color: var(--jade);
+  box-shadow: 0 0 0 2px rgba(var(--jade-rgb), 0.16);
+}
+
+.exercise-search__results {
+  display: grid;
+  border-top: 1px solid var(--hairline);
+}
+
+.exercise-search__result {
+  min-height: 2.75rem;
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--text);
+  padding: 0.65rem 0;
+  text-align: left;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.exercise-search__result:hover {
+  color: var(--jade);
+}
+
 /* ---------- Exercise card ---------- */
 .exercise-list {
   display: grid;

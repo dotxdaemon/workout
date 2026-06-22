@@ -124,6 +124,8 @@ export function RoutinesScreen() {
   const [todayExerciseIdToReveal, setTodayExerciseIdToReveal] = useState<string | null>(
     null,
   )
+  const [exerciseSearch, setExerciseSearch] = useState('')
+  const [searchedExerciseId, setSearchedExerciseId] = useState<string | null>(null)
   const [addExerciseName, setAddExerciseName] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -183,6 +185,26 @@ export function RoutinesScreen() {
     [selectedRoutine],
   )
 
+  const sessionExerciseIds = useMemo(
+    () =>
+      Object.entries(setsByExercise)
+        .filter(([, entries]) => entries.length > 0)
+        .map(([exerciseId]) => exerciseId),
+    [setsByExercise],
+  )
+
+  const visibleExerciseIds = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...selectedExerciseIds,
+          ...sessionExerciseIds,
+          ...(searchedExerciseId ? [searchedExerciseId] : []),
+        ]),
+      ),
+    [searchedExerciseId, selectedExerciseIds, sessionExerciseIds],
+  )
+
   const selectedRoutineIndex = useMemo(
     () =>
       selectedRoutine
@@ -201,6 +223,7 @@ export function RoutinesScreen() {
     [selectedRoutine?.name],
   )
 
+  const normalizedExerciseSearch = exerciseSearch.trim().toLowerCase()
   const trimmedAddExerciseName = addExerciseName.trim()
   const normalizedAddExerciseName = trimmedAddExerciseName.toLowerCase()
   const draftExerciseIds = useMemo(
@@ -226,6 +249,15 @@ export function RoutinesScreen() {
     normalizedAddExerciseName,
     trimmedAddExerciseName,
   ])
+
+  const exerciseSearchResults = useMemo(() => {
+    if (!normalizedExerciseSearch) {
+      return []
+    }
+    return exercises
+      .filter((exercise) => exercise.name.toLowerCase().includes(normalizedExerciseSearch))
+      .slice(0, 6)
+  }, [exercises, normalizedExerciseSearch])
 
   function resetPageScrollToTop(): void {
     const screenArea = document.querySelector<HTMLElement>('.screen-area')
@@ -324,7 +356,7 @@ export function RoutinesScreen() {
   }, [selectedRoutine?.id, trackerSessionId])
 
   useEffect(() => {
-    if (selectedExerciseIds.length === 0) {
+    if (visibleExerciseIds.length === 0) {
       setHistoryPreviewByExercise({})
       return
     }
@@ -332,7 +364,7 @@ export function RoutinesScreen() {
     let isCurrent = true
 
     void Promise.all(
-      selectedExerciseIds.map(async (exerciseId) => {
+      visibleExerciseIds.map(async (exerciseId) => {
         const rows = await listExerciseHistory(exerciseId, historyPreviewLimit)
         return [exerciseId, rows] as const
       }),
@@ -351,7 +383,7 @@ export function RoutinesScreen() {
     return () => {
       isCurrent = false
     }
-  }, [selectedExerciseIds])
+  }, [visibleExerciseIds])
 
   useEffect(() => {
     if (!trackerSessionId || !selectedRoutine) {
@@ -441,7 +473,7 @@ export function RoutinesScreen() {
     return () => {
       window.cancelAnimationFrame(frameId)
     }
-  }, [mode, selectedExerciseIds, todayExerciseIdToReveal])
+  }, [mode, todayExerciseIdToReveal, visibleExerciseIds])
 
   useEffect(() => {
     if (mode !== 'today') {
@@ -588,6 +620,12 @@ export function RoutinesScreen() {
     } catch {
       setError('Could not repeat the last session.')
     }
+  }
+
+  function handleSelectSearchedExercise(exerciseId: string): void {
+    setSearchedExerciseId(exerciseId)
+    setExerciseSearch('')
+    setTodayExerciseIdToReveal(exerciseId)
   }
 
   function handleNoteChange(exerciseId: string, value: string): void {
@@ -943,13 +981,42 @@ export function RoutinesScreen() {
                 </div>
                 <p className="training-ledger__count">
                   {selectedRoutine
-                    ? `${selectedExerciseIds.length} exercises`
+                    ? `${visibleExerciseIds.length} exercises`
                     : '0 exercises'}
                 </p>
               </header>
               <div className="training-ledger__rule" aria-hidden="true" />
+              <div className="exercise-search">
+                <label className="exercise-search__label" htmlFor="exercise-search">
+                  Find an exercise
+                </label>
+                <input
+                  id="exercise-search"
+                  className="exercise-search__input"
+                  type="search"
+                  value={exerciseSearch}
+                  onChange={(event) => setExerciseSearch(event.target.value)}
+                  placeholder="Search exercises"
+                  aria-label="Search exercises"
+                  autoComplete="off"
+                />
+                {exerciseSearchResults.length > 0 ? (
+                  <div className="exercise-search__results" role="list">
+                    {exerciseSearchResults.map((exercise) => (
+                      <button
+                        key={exercise.id}
+                        type="button"
+                        className="exercise-search__result"
+                        onClick={() => handleSelectSearchedExercise(exercise.id)}
+                      >
+                        {exercise.name}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
               <div className="exercise-list training-ledger__entries">
-                {selectedExerciseIds.map((exerciseId, index) => {
+                {visibleExerciseIds.map((exerciseId, index) => {
                   const exercise = exerciseMap[exerciseId]
                   if (!exercise) {
                     return null
@@ -958,7 +1025,11 @@ export function RoutinesScreen() {
                     <ExerciseCard
                       key={exercise.id}
                       exercise={exercise}
-                      groupLabel={routineFocusLabel}
+                      groupLabel={
+                        selectedExerciseIds.includes(exercise.id)
+                          ? routineFocusLabel
+                          : 'Added today'
+                      }
                       position={index + 1}
                       isExpanded={expandedExerciseId === exercise.id}
                       onToggle={() =>

@@ -75,6 +75,42 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
+  it('finds an exercise outside the selected routine and logs it in the active session', async () => {
+    const harness = await renderScreen()
+    const searchInput = harness.host.querySelector(
+      'input[aria-label="Search exercises"]',
+    ) as HTMLInputElement | null
+
+    expect(searchInput).not.toBeNull()
+    await setInputValue(searchInput!, 'Back Squat')
+
+    const result = getButtonByText(harness.host, 'Back Squat')
+    await click(result)
+
+    const searchedCard = findExerciseCardByTitle(harness.host, 'Back Squat')
+    expect(searchedCard).not.toBeNull()
+    expect(searchedCard?.querySelector('.exercise-card__group')?.textContent?.trim()).toBe(
+      'Added today',
+    )
+
+    await logSet(searchedCard!, '185', '5')
+    await waitFor(
+      () => searchedCard!.querySelectorAll('.set-pill').length === 1,
+      'Searched exercise set did not appear after saving.',
+    )
+
+    const exerciseId = searchedCard!.dataset.exerciseId
+    const entries = await db.setEntries.where('exerciseId').equals(exerciseId!).toArray()
+    expect(entries).toEqual([
+      expect.objectContaining({
+        weight: 185,
+        reps: 5,
+      }),
+    ])
+
+    await harness.cleanup()
+  })
+
   it('logs a quick-entry set as a removable set pill without a success banner', async () => {
     const harness = await renderScreen()
     const firstCard = harness.host.querySelector('.exercise-card') as HTMLElement | null

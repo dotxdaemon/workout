@@ -299,3 +299,10 @@
 - Sean asked: make the Day theme actually day themed.
 - Root cause: theme switching correctly set `data-theme="light"`, but literal night backgrounds in `body`, the app shell, bottom nav, console headers, default controls, day chips, sheets, and edit rows bypassed the light surface tokens.
 - Result: replaced those literal surfaces with the existing theme variables and reduced the Day rain overlay. Chromium at 390x844 changed the Day body from `rgb(3, 7, 8)` to `rgb(231, 227, 218)` and the nav to `rgb(243, 239, 231)`; both Settings and Train render as light interfaces. npm test (89 passed), lint, and typecheck exit 0.
+
+2026-06-22
+- Sean asked: make it easy to look up an exercise and add an updated set.
+- Root cause: the Today ledger rendered only the selected routine's exercise IDs, so an existing exercise outside that routine could not reach the established set-entry flow.
+- TDD: added a rendered behavior regression that searches for Back Squat outside the active Push routine, selects it, verifies the "Added today" context, saves 185 × 5, and confirms the real IndexedDB entry.
+- Result: the Today ledger now searches the existing exercise catalog, brings the selected exercise into view, retains any logged searched exercise for the active session without changing routine membership, and loads its history for prefill. Search input is 16px/44.8px tall for iOS; result rows are 44px tall.
+- Verification: targeted regression and serial `npm test` (90 passed), `npm run lint`, and `npm run typecheck` all exit 0; in-app browser at 390x844 showed search, selection, saved set, and accurate context.
