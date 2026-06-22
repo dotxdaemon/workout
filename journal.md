@@ -279,3 +279,8 @@
 - Sean asked: get rid of the rest timer that pops up.
 - Removed the auto rest-timer popup (and Skip control) from the exercise card, its wiring (useCountdown hook, restTimerExerciseId state, start/stop logic), the Settings "Rest timer" panel, the rest-timer CSS, and deleted src/components/useCountdown.ts. Kept restTimerEnabled/restSeconds in AppPreferences/storage so JSON export/import stays compatible (no data-model churn). Updated the Settings test to cover default-unit persistence instead of the removed toggle.
 - Result: npm test (88 passed, 13 files), lint, typecheck all exit 0; verified in preview that logging a set no longer shows a timer.
+
+2026-06-21
+- Sean asked: remake the interface to more closely match the supplied rainy-night neon reference without erasing any data.
+- Approach: changed only `src/index.css`. The data layer, service worker, routes, stored labels, shell dimensions, safe-area layout contract, database schema, and browser storage keys were not changed. The visual system now uses sharper black-glass surfaces, pale cyan signage, a restrained rust-red reflection, squared controls, and rain-dark atmosphere rather than the earlier soft rounded jade-and-amber treatment.
+- Result: npm test (88 passed), npm run lint, and npm run typecheck exit 0. The 390x844 in-app browser kept the shell at 844px, the nav ended at y=844, and the content scroller ended above the nav. The browser screenshot command timed out twice, so no image artifact was produced in this environment; Chromium capture requires explicit approval to install.
