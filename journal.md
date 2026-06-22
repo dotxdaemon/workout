@@ -284,3 +284,7 @@
 - Sean asked: remake the interface to more closely match the supplied rainy-night neon reference without erasing any data.
 - Approach: changed only `src/index.css`. The data layer, service worker, routes, stored labels, shell dimensions, safe-area layout contract, database schema, and browser storage keys were not changed. The visual system now uses sharper black-glass surfaces, pale cyan signage, a restrained rust-red reflection, squared controls, and rain-dark atmosphere rather than the earlier soft rounded jade-and-amber treatment.
 - Result: npm test (88 passed), npm run lint, and npm run typecheck exit 0. The 390x844 in-app browser kept the shell at 844px, the nav ended at y=844, and the content scroller ended above the nav. The browser screenshot command timed out twice, so no image artifact was produced in this environment; Chromium capture requires explicit approval to install.
+
+2026-06-21 (visual evidence follow-up)
+- Sean approved installing the local Chromium runtime to produce the required screenshots.
+- Result: captured the pre-change `ca4bb59` and current `292efd3` first viewports at 390x844 outside the repo. Runtime values changed from `--bg #07090A`, `--jade #4FE6C4`, 18px exercise-card corners, and 999px day-chip corners to `--bg #030708`, `--jade #91E8E5`, 4px exercise-card corners, and 2px day-chip corners. The shell remained 844px high; the nav ended at y=844 and the screen area ended at y=779.8125. Captured Settings at the same viewport. Temporary historical worktree and development server were removed after capture.
