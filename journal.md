@@ -306,3 +306,10 @@
 - TDD: added a rendered behavior regression that searches for Back Squat outside the active Push routine, selects it, verifies the "Added today" context, saves 185 × 5, and confirms the real IndexedDB entry.
 - Result: the Today ledger now searches the existing exercise catalog, brings the selected exercise into view, retains any logged searched exercise for the active session without changing routine membership, and loads its history for prefill. Search input is 16px/44.8px tall for iOS; result rows are 44px tall.
 - Verification: targeted regression and serial `npm test` (90 passed), `npm run lint`, and `npm run typecheck` all exit 0; in-app browser at 390x844 showed search, selection, saved set, and accurate context.
+
+2026-06-24
+- Found and fixed: the default 3-day split opened on the wrong training day.
+- Root cause: in `src/lib/routineSplit.ts` the 3-day split's `routineOrder` (display order) was `['pull', 'push', 'legs']` while its `fallbackRoutineNames` (default-selection priority) was `['Push', 'Pull', 'Legs']`. The two disagreed, so the default-selected routine (Push) rendered as the second day chip ("DAY 2"), the first chip (Pull / "DAY 1") was not selected, and in Edit mode Pull showed a false "completed ✓" badge on a fresh launch. The 4-day split derives both arrays from one source, so only the 3-day split was inconsistent.
+- TDD: added a rendered regression asserting the default 3-day rail is `[Push, Pull, Legs]` with Push active as Day 1; it failed first (`['Pull','Push','Legs']`) and passed after the fix.
+- Result: changed `routineOrder` to `['push', 'pull', 'legs']` to match `fallbackRoutineNames` and the canonical PPL/seed order. Selection is unchanged (still Push); only its position/day number corrected. Chromium 390x844 before/after captured to `.artifacts/day-rail-before.png` and `.artifacts/day-rail-after.png` (DAY 2 → DAY 1).
+- Verification: `npm test` (91 passed), `npm run lint`, and `npm run typecheck` all exit 0.

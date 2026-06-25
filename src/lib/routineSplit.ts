@@ -20,7 +20,7 @@ export const routineSplitOptions: RoutineSplitOption[] = [
   {
     id: '3-day-split',
     label: '3 day split',
-    routineOrder: ['pull', 'push', 'legs'],
+    routineOrder: ['push', 'pull', 'legs'],
     fallbackRoutineNames: ['Push', 'Pull', 'Legs'],
   },
   {

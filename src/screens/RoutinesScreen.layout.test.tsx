@@ -75,6 +75,31 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
+  it('defaults the 3-day split to Push as the first training day (Day 1)', async () => {
+    const harness = await renderScreen()
+
+    await waitFor(
+      () =>
+        harness.host
+          .querySelector('.day-chips .day-chip--active .day-chip__name')
+          ?.textContent?.trim() === 'Push',
+      'Push did not become the selected training day.',
+    )
+
+    const dayChips = Array.from(
+      harness.host.querySelectorAll('.day-chips .day-chip'),
+    ) as HTMLElement[]
+    expect(
+      dayChips.map((chip) => chip.querySelector('.day-chip__name')?.textContent?.trim()),
+    ).toEqual(['Push', 'Pull', 'Legs'])
+
+    const activeChip = harness.host.querySelector('.day-chips .day-chip--active')
+    expect(activeChip).toBe(dayChips[0])
+    expect(activeChip?.querySelector('.day-chip__index')?.textContent?.trim()).toBe('1')
+
+    await harness.cleanup()
+  })
+
   it('finds an exercise outside the selected routine and logs it in the active session', async () => {
     const harness = await renderScreen()
     const searchInput = harness.host.querySelector(
