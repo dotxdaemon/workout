@@ -29,6 +29,7 @@ import {
   writeSelectedRoutineId,
 } from '../lib/routineSelection'
 import { routineSplitOptions } from '../lib/routineSplit'
+import { computeTodayStats, summarizeHistoryRows } from '../lib/sessionStats'
 import type {
   Exercise,
   Routine,
@@ -258,6 +259,26 @@ export function RoutinesScreen() {
       .filter((exercise) => exercise.name.toLowerCase().includes(normalizedExerciseSearch))
       .slice(0, 6)
   }, [exercises, normalizedExerciseSearch])
+
+  const todayStats = useMemo(
+    () =>
+      computeTodayStats(
+        visibleExerciseIds.flatMap((exerciseId) => {
+          const exercise = exerciseMap[exerciseId]
+          if (!exercise) {
+            return []
+          }
+          return [
+            {
+              workSetsTarget: exercise.progressionSettings.workSetsTarget,
+              unit: exercise.progressionSettings.unit,
+              sets: setsByExercise[exerciseId] ?? [],
+            },
+          ]
+        }),
+      ),
+    [exerciseMap, setsByExercise, visibleExerciseIds],
+  )
 
   function resetPageScrollToTop(): void {
     const screenArea = document.querySelector<HTMLElement>('.screen-area')
@@ -986,6 +1007,26 @@ export function RoutinesScreen() {
                 </p>
               </header>
               <div className="training-ledger__rule" aria-hidden="true" />
+              <dl className="training-ledger__stats">
+                <div className="ledger-stat">
+                  <dt className="ledger-stat__label">Sets</dt>
+                  <dd className="ledger-stat__value numeral">
+                    {todayStats.totalWorkSets}
+                  </dd>
+                </div>
+                <div className="ledger-stat">
+                  <dt className="ledger-stat__label">Volume</dt>
+                  <dd className="ledger-stat__value numeral">
+                    {formatTodayVolume(todayStats.volumeByUnit)}
+                  </dd>
+                </div>
+                <div className="ledger-stat">
+                  <dt className="ledger-stat__label">Done</dt>
+                  <dd className="ledger-stat__value numeral">
+                    {todayStats.completedCount}/{todayStats.exerciseCount}
+                  </dd>
+                </div>
+              </dl>
               <div className="exercise-search">
                 <label className="exercise-search__label" htmlFor="exercise-search">
                   Find an exercise
@@ -1160,6 +1201,9 @@ function ExerciseCard(props: ExerciseCardProps) {
   const { exercise, todaySets, lastSession } = props
   const unit = exercise.progressionSettings.unit
   const workSets = todaySets.filter((set) => !set.isWarmup)
+  const workSetsTarget = exercise.progressionSettings.workSetsTarget
+  const remainingSlots = Math.max(0, workSetsTarget - workSets.length)
+  const isComplete = workSetsTarget > 0 && workSets.length >= workSetsTarget
   const topToday = getTopWorkSet(todaySets)
   const lastSummary = formatLastSummary(lastSession?.sets, unit)
   const suggestion = buildProgressionSuggestion(exercise.progressionSettings, todaySets)
@@ -1168,9 +1212,13 @@ function ExerciseCard(props: ExerciseCardProps) {
   return (
     <article
       data-exercise-id={exercise.id}
-      className={
-        props.isExpanded ? 'exercise-card exercise-card--active' : 'exercise-card'
-      }
+      className={[
+        'exercise-card',
+        props.isExpanded ? 'exercise-card--active' : '',
+        isComplete ? 'exercise-card--complete' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
     >
       <div className="exercise-card__head">
         <span className="exercise-card__position numeral" aria-hidden="true">
@@ -1209,33 +1257,49 @@ function ExerciseCard(props: ExerciseCardProps) {
 
         <div className="set-track" aria-label="Sets logged today">
           <span className="set-track__label">Today</span>
-          {workSets.length === 0 ? (
+          {workSetsTarget > 0 ? (
+            <span
+              className={
+                isComplete
+                  ? 'set-track__count set-track__count--met numeral'
+                  : 'set-track__count numeral'
+              }
+              aria-label={`${workSets.length} of ${workSetsTarget} work sets logged`}
+            >
+              {workSets.length}/{workSetsTarget}
+            </span>
+          ) : null}
+          {workSets.length === 0 && remainingSlots === 0 ? (
             <span className="set-track__empty">No sets yet</span>
-          ) : (
-            workSets.map((set, index) => (
-              <span
-                key={set.id}
-                className={
-                  topToday?.id === set.id ? 'set-pill set-pill--top' : 'set-pill'
-                }
-              >
-                <span className="set-pill__num">{index + 1}</span>
-                <span>
-                  {formatNumber(set.weight)}
-                  <span className="set-pill__x"> × </span>
-                  {set.reps}
-                </span>
-                <button
-                  type="button"
-                  className="set-pill__remove"
-                  aria-label={`Remove set ${index + 1} (${formatNumber(set.weight)} ${unit} by ${set.reps} reps)`}
-                  onClick={() => props.onRemoveSet(set.id)}
-                >
-                  <CloseIcon width={13} height={13} />
-                </button>
+          ) : null}
+          {workSets.map((set, index) => (
+            <span
+              key={set.id}
+              className={
+                topToday?.id === set.id ? 'set-pill set-pill--top' : 'set-pill'
+              }
+            >
+              <span className="set-pill__num">{index + 1}</span>
+              <span>
+                {formatNumber(set.weight)}
+                <span className="set-pill__x"> × </span>
+                {set.reps}
               </span>
-            ))
-          )}
+              <button
+                type="button"
+                className="set-pill__remove"
+                aria-label={`Remove set ${index + 1} (${formatNumber(set.weight)} ${unit} by ${set.reps} reps)`}
+                onClick={() => props.onRemoveSet(set.id)}
+              >
+                <CloseIcon width={13} height={13} />
+              </button>
+            </span>
+          ))}
+          {Array.from({ length: remainingSlots }, (_, slotIndex) => (
+            <span key={`slot-${slotIndex}`} className="set-slot" aria-hidden="true">
+              <span className="set-slot__num">{workSets.length + slotIndex + 1}</span>
+            </span>
+          ))}
         </div>
       </div>
 
@@ -1315,6 +1379,11 @@ function ExerciseCard(props: ExerciseCardProps) {
 /* ---------------- History sheet body ---------------- */
 
 function HistorySheetBody({ historySheet }: { historySheet: HistorySheetState }) {
+  const overview = useMemo(
+    () => summarizeHistoryRows(historySheet.rows.map((row) => ({ sets: row.sets }))),
+    [historySheet.rows],
+  )
+
   if (historySheet.rows.length === 0) {
     if (historySheet.isLoading) {
       return (
@@ -1335,16 +1404,49 @@ function HistorySheetBody({ historySheet }: { historySheet: HistorySheetState })
 
   return (
     <>
-      {historySheet.rows.map((row) => {
+      {overview.best ? (
+        <section className="history-overview" aria-label="History overview">
+          <div className="history-overview__stat">
+            <span className="history-overview__label">All-time best</span>
+            <span className="history-overview__value numeral">
+              {formatNumber(overview.best.weight)} × {overview.best.reps}
+            </span>
+            <span className="history-overview__sub numeral">
+              e1RM {Math.round(overview.best.estimatedOneRepMax)}
+            </span>
+          </div>
+          <TrendSparkline points={overview.trendPoints} />
+        </section>
+      ) : null}
+      {historySheet.rows.map((row, rowIndex) => {
         const timestamp = getHistoryTimestamp(row.session, row.sets)
         const workSets = row.sets.filter((set) => !set.isWarmup)
         const topSet = getTopWorkSet(row.sets)
         const totalReps = workSets.reduce((sum, set) => sum + set.reps, 0)
+        const metric = overview.rows[rowIndex]
+        const roundedDelta =
+          metric?.deltaFromPrevious == null ? 0 : Math.round(metric.deltaFromPrevious)
 
         return (
           <article key={row.session.id} className="history-row">
             <header className="history-row__head">
-              <span className="history-row__date">{formatHistoryDate(timestamp)}</span>
+              <span className="history-row__head-left">
+                <span className="history-row__date">
+                  {formatHistoryDate(timestamp)}
+                </span>
+                {roundedDelta !== 0 ? (
+                  <span
+                    className={
+                      roundedDelta > 0
+                        ? 'history-row__delta history-row__delta--up numeral'
+                        : 'history-row__delta history-row__delta--down numeral'
+                    }
+                    aria-label={`Estimated 1RM ${roundedDelta > 0 ? 'up' : 'down'} ${Math.abs(roundedDelta)} versus the previous session`}
+                  >
+                    {roundedDelta > 0 ? '▲' : '▼'} {Math.abs(roundedDelta)}
+                  </span>
+                ) : null}
+              </span>
               {topSet ? (
                 <span className="history-row__top">
                   <span className="history-row__top-label">Top</span>
@@ -1381,12 +1483,67 @@ function HistorySheetBody({ historySheet }: { historySheet: HistorySheetState })
                 </span>
                 <span aria-hidden="true">·</span>
                 <span>{totalReps} total reps</span>
+                {metric?.estimatedOneRepMax != null ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="numeral">
+                      e1RM {Math.round(metric.estimatedOneRepMax)}
+                    </span>
+                  </>
+                ) : null}
               </footer>
             ) : null}
           </article>
         )
       })}
     </>
+  )
+}
+
+// Decorative trend of per-session estimated 1RM; the values it draws are printed
+// in the rows below, so it stays hidden from assistive tech.
+function TrendSparkline({ points }: { points: number[] }) {
+  const visiblePoints = points.slice(-12)
+  if (visiblePoints.length < 2) {
+    return null
+  }
+
+  const width = 132
+  const height = 34
+  const padX = 4
+  const padY = 5
+  const min = Math.min(...visiblePoints)
+  const max = Math.max(...visiblePoints)
+  const range = max - min
+  const stepX = (width - padX * 2) / (visiblePoints.length - 1)
+  const coords = visiblePoints.map((value, index) => {
+    const x = padX + index * stepX
+    const y =
+      range === 0
+        ? height / 2
+        : height - padY - ((value - min) / range) * (height - padY * 2)
+    return [x, y] as const
+  })
+  const [lastX, lastY] = coords[coords.length - 1]
+
+  return (
+    <svg
+      className="history-overview__spark"
+      viewBox={`0 0 ${width} ${height}`}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <polyline
+        className="history-overview__spark-line"
+        points={coords.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')}
+      />
+      <circle
+        className="history-overview__spark-dot"
+        cx={lastX.toFixed(1)}
+        cy={lastY.toFixed(1)}
+        r={4}
+      />
+    </svg>
   )
 }
 
@@ -1816,6 +1973,15 @@ function getRoutineFocusLabel(routineName: string | undefined): string {
   const source = routineName.replace(/^day\s*\d+\s*[–-]\s*/i, '').trim() || routineName
   const normalized = source.replace(/\s+/g, ' ').trim()
   return normalized ? normalized.toUpperCase() : 'WORKING SET'
+}
+
+function formatTodayVolume(volumeByUnit: Array<{ unit: Unit; volume: number }>): string {
+  if (volumeByUnit.length === 0) {
+    return '0'
+  }
+  return volumeByUnit
+    .map((entry) => `${Math.round(entry.volume).toLocaleString('en-US')} ${entry.unit}`)
+    .join(' · ')
 }
 
 function formatLastSummary(lastSets: SetEntry[] | undefined, unit: Unit): string {

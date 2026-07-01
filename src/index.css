@@ -1188,6 +1188,19 @@ select {
   color: var(--text-faint);
 }
 
+.set-track__count {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+.set-track__count--met {
+  color: var(--jade);
+}
+
 .set-pill {
   display: inline-flex;
   align-items: center;
@@ -1239,6 +1252,25 @@ select {
 
 .set-pill--top .set-pill__num {
   color: var(--ember);
+}
+
+/* Ghost slots for work sets still to be logged toward the target. */
+.set-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.2rem;
+  padding: 0.28rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--hairline-strong);
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  line-height: 1.3;
+}
+
+.set-slot__num {
+  opacity: 0.8;
 }
 
 /* Quick entry row */
@@ -1654,6 +1686,67 @@ select {
   padding-bottom: 0.25rem;
 }
 
+/* History overview strip: best set + e1RM trend across loaded sessions. */
+.history-overview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid rgba(var(--jade-rgb), 0.3);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, rgba(var(--jade-rgb), 0.1), transparent 72%);
+}
+
+.history-overview__stat {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.history-overview__label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.history-overview__value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.history-overview__sub {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.history-overview__spark {
+  flex: 0 0 auto;
+  width: 132px;
+  height: 34px;
+}
+
+.history-overview__spark-line {
+  fill: none;
+  stroke: var(--text-faint);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.history-overview__spark-dot {
+  fill: var(--jade);
+}
+
 /* History rows */
 .history-row {
   display: grid;
@@ -1671,9 +1764,34 @@ select {
   gap: 0.5rem;
 }
 
+.history-row__head-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
 .history-row__date {
   font-weight: 700;
   font-size: 0.95rem;
+}
+
+.history-row__delta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.history-row__delta--up {
+  color: var(--jade);
+}
+
+.history-row__delta--down {
+  color: var(--danger);
 }
 
 .history-row__top {
@@ -1970,6 +2088,47 @@ select {
   );
 }
 
+.training-ledger__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.ledger-stat {
+  display: grid;
+  gap: 0.22rem;
+  min-width: 0;
+  padding: 0.55rem 0.7rem 0.6rem;
+}
+
+.ledger-stat + .ledger-stat {
+  border-left: 1px solid var(--hairline);
+}
+
+.ledger-stat__label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.ledger-stat__value {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .training-ledger__entries {
   display: grid;
   gap: 0;
@@ -2005,6 +2164,16 @@ select {
 .training-ledger .exercise-card--active::before {
   background: var(--jade);
   box-shadow: 0 0 12px rgba(var(--jade-rgb), 0.55);
+}
+
+.training-ledger .exercise-card--complete::before {
+  background: var(--jade);
+}
+
+.exercise-card--complete .exercise-card__position {
+  background: rgba(var(--jade-rgb), 0.18);
+  border-color: rgba(var(--jade-rgb), 0.65);
+  box-shadow: var(--glow-jade-soft);
 }
 
 .training-ledger .exercise-card__head {

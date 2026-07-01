@@ -313,3 +313,13 @@
 - TDD: added a rendered regression asserting the default 3-day rail is `[Push, Pull, Legs]` with Push active as Day 1; it failed first (`['Pull','Push','Legs']`) and passed after the fix.
 - Result: changed `routineOrder` to `['push', 'pull', 'legs']` to match `fallbackRoutineNames` and the canonical PPL/seed order. Selection is unchanged (still Push); only its position/day number corrected. Chromium 390x844 before/after captured to `.artifacts/day-rail-before.png` and `.artifacts/day-rail-after.png` (DAY 2 → DAY 1).
 - Verification: `npm test` (91 passed), `npm run lint`, and `npm run typecheck` all exit 0.
+
+2026-06-25
+- Sean asked: make the app more useful in any way possible without deleting data, nicer looking and easier to use.
+- Approach: additive instrumentation only — no data-layer, storage-key, schema, or shell (.app-shell/.screen-area/.bottom-nav) changes. New pure helpers in `src/lib/sessionStats.ts` (unit-tested) keep the math out of React.
+- Result:
+  - Today masthead now carries a three-slot stats strip: work sets logged, total volume grouped by unit, and exercises done vs total.
+  - Each exercise card tracks its work-set target: an `n/target` counter next to "Today", dashed ghost slots for the sets still owed, and a jade complete state (position badge + rail) once the target is hit. "No sets yet" text replaced by the numbered slots.
+  - The history sheet opens with an overview strip — all-time best set with its estimated 1RM plus a 12-point e1RM sparkline (muted line, jade current-session dot) — and each session row now shows an ▲/▼ e1RM delta versus the previous session and its own e1RM in the footer. Deltas skip warmup-only sessions when chaining.
+- TDD: unit tests for volume/completion/delta math (5), plus rendered regressions for the stats strip + slots + complete state and for the seeded two-session history overview (delta ▲ 6, e1RM 222) — 98 tests total.
+- Verification: `npm test` (98 passed), `npm run lint`, `npm run typecheck`, `npm run build` all exit 0. Chromium 390x844 before/after pairs captured to `.artifacts/before-today.png` / `after-today.png` and `before-history.png` / `after-history.png`, plus Day-theme checks `after-light-today.png` / `after-light-history.png`; both themes render the new surfaces from existing tokens.
