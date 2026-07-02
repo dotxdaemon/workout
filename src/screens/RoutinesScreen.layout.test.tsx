@@ -80,6 +80,7 @@ describe('RoutinesScreen behavior', () => {
 
     expect(harness.host.querySelector('.training-ledger__stats')).toBeNull()
     expect(harness.host.querySelector('.set-track__count')).toBeNull()
+    expect(harness.host.querySelector('.set-slot')).toBeNull()
     expect(harness.host.querySelector('[aria-label^="Adjust "]')).toBeNull()
     expect(harness.host.querySelector('.weight-chip')).toBeNull()
 
@@ -187,20 +188,17 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('tracks work-set progress with target slots and a done state', async () => {
+  it('tracks work-set completion from logged sets', async () => {
     const harness = await renderScreen()
 
     const firstCard = harness.host.querySelector('.exercise-card') as HTMLElement | null
     expect(firstCard).not.toBeNull()
-    // Default target is 3 work sets, none logged: three ghost slots.
-    expect(firstCard!.querySelectorAll('.set-slot').length).toBe(3)
 
     await logSet(firstCard!, '95', '8')
     await waitFor(
       () => firstCard!.querySelectorAll('.set-pill').length === 1,
       'First logged set did not appear.',
     )
-    expect(firstCard!.querySelectorAll('.set-slot').length).toBe(2)
 
     await logSet(firstCard!, '95', '8')
     await logSet(firstCard!, '95', '8')
@@ -209,7 +207,6 @@ describe('RoutinesScreen behavior', () => {
       'Third logged set did not appear.',
     )
 
-    expect(firstCard!.querySelectorAll('.set-slot').length).toBe(0)
     expect(firstCard!.classList.contains('exercise-card--complete')).toBe(true)
 
     await harness.cleanup()

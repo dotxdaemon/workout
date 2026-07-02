@@ -339,3 +339,9 @@
 - Root cause: all three elements were explicit render branches in `RoutinesScreen.tsx`; no data, service-worker, schema, shell, or navigation change was required.
 - TDD: added a rendered regression asserting the stat strip, set counter, adjustment group, and increment buttons are absent; it failed against the existing stats strip, then passed after the focused deletion.
 - Verification: cleaned an existing history-test `act` warning by keeping that test's IndexedDB setup inside its React boundary. The full suite passed 101 tests with pristine output; lint and typecheck exited 0. At 390x844, the removed controls are absent, all five weight/reps/Save/history control sets remain, and the bottom nav stays at y=779.8125–844 with no browser warnings or errors.
+
+2026-07-02 (empty set-slot removal)
+- Sean asked: remove the numbered boxes beside Last that remained after the set counter was removed.
+- Root cause: `ExerciseCard` mapped each unfilled work-set target to a numbered `.set-slot` placeholder even after the counter was deleted.
+- TDD: extended the rendered logging-surface regression to require no `.set-slot`; it failed on the numbered placeholder, then passed after removing the render loop and orphaned styles.
+- Verification: the full suite passed 101 tests with pristine output; lint and typecheck exited 0. At 390x844, empty slots changed from 15 to 0, actual set logging and completion tests remained green, and the bottom nav stayed at y=779.8125–844 with no browser warnings or errors.

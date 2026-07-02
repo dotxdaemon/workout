@@ -1015,27 +1015,6 @@ select {
   color: var(--ember);
 }
 
-/* Ghost slots for work sets still owed toward the target: same shape, fainter fill */
-.set-slot {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 3.2rem;
-  min-height: 1.98rem;
-  padding: 0.28rem 0.6rem;
-  border-radius: var(--radius-sm);
-  background: var(--control);
-  opacity: 0.55;
-  color: var(--text-faint);
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  line-height: 1.3;
-}
-
-.set-slot__num {
-  opacity: 0.8;
-}
-
 .last-line {
   display: flex;
   align-items: baseline;

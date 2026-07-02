@@ -1143,7 +1143,6 @@ function ExerciseCard(props: ExerciseCardProps) {
   const suggestion = buildProgressionSuggestion(exercise.progressionSettings, todaySets)
   const hasHistory = (lastSession?.sets.filter((set) => !set.isWarmup).length ?? 0) > 0
   const workSetsTarget = exercise.progressionSettings.workSetsTarget
-  const remainingSlots = Math.max(0, workSetsTarget - workSets.length)
   const isComplete = workSetsTarget > 0 && workSets.length >= workSetsTarget
 
   return (
@@ -1194,7 +1193,7 @@ function ExerciseCard(props: ExerciseCardProps) {
           <span className="last-line__value">{lastSummary}</span>
         </p>
 
-        {workSets.length > 0 || workSetsTarget > 0 ? (
+        {workSets.length > 0 ? (
           <div className="set-track" aria-label="Sets logged today">
             {workSets.map((set, index) => (
               <span
@@ -1217,11 +1216,6 @@ function ExerciseCard(props: ExerciseCardProps) {
                 >
                   <CloseIcon width={13} height={13} />
                 </button>
-              </span>
-            ))}
-            {Array.from({ length: remainingSlots }, (_, slotIndex) => (
-              <span key={`slot-${slotIndex}`} className="set-slot" aria-hidden="true">
-                <span className="set-slot__num">{workSets.length + slotIndex + 1}</span>
               </span>
             ))}
           </div>
