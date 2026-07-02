@@ -19,9 +19,9 @@ import {
   updateRoutine,
 } from '../lib/db'
 import { formatNumber } from '../lib/format'
-import { applyWeightDelta, parseNumber, parseReps, weightChipDeltas } from '../lib/numberInput'
+import { parseNumber, parseReps } from '../lib/numberInput'
 import { buildProgressionSuggestion } from '../lib/progression'
-import { computeTodayStats, summarizeHistoryRows } from '../lib/sessionStats'
+import { summarizeHistoryRows } from '../lib/sessionStats'
 import { readPreferences } from '../lib/preferences'
 import {
   readActiveRoutineSplitId,
@@ -216,26 +216,6 @@ export function RoutinesScreen() {
   const dayTitle = useMemo(
     () => buildDayTitle(selectedRoutine?.name, selectedRoutineIndex),
     [selectedRoutine?.name, selectedRoutineIndex],
-  )
-
-  const todayStats = useMemo(
-    () =>
-      computeTodayStats(
-        visibleExerciseIds.flatMap((exerciseId) => {
-          const exercise = exerciseMap[exerciseId]
-          if (!exercise) {
-            return []
-          }
-          return [
-            {
-              workSetsTarget: exercise.progressionSettings.workSetsTarget,
-              unit: exercise.progressionSettings.unit,
-              sets: setsByExercise[exerciseId] ?? [],
-            },
-          ]
-        }),
-      ),
-    [exerciseMap, setsByExercise, visibleExerciseIds],
   )
 
   const normalizedExerciseSearch = exerciseSearch.trim().toLowerCase()
@@ -985,35 +965,6 @@ export function RoutinesScreen() {
             <main className="training-ledger">
               <header className="training-ledger__masthead">
                 <h2 className="training-ledger__title">{dayTitle}</h2>
-                <p className="training-ledger__stats">
-                  <span>
-                    Sets <span className="numeral">{todayStats.totalWorkSets}</span>
-                  </span>
-                  <span className="training-ledger__stats-dot" aria-hidden="true">
-                    ·
-                  </span>
-                  <span>
-                    Volume{' '}
-                    <span className="numeral">
-                      {formatTodayVolume(todayStats.volumeByUnit)}
-                    </span>
-                  </span>
-                  <span className="training-ledger__stats-dot" aria-hidden="true">
-                    ·
-                  </span>
-                  <span
-                    className={
-                      todayStats.completedCount > 0
-                        ? 'training-ledger__done training-ledger__done--active'
-                        : 'training-ledger__done'
-                    }
-                  >
-                    Done{' '}
-                    <span className="numeral">
-                      {todayStats.completedCount} of {todayStats.exerciseCount}
-                    </span>
-                  </span>
-                </p>
               </header>
               <div className="training-ledger__rule" aria-hidden="true" />
               <div className="exercise-search">
@@ -1194,7 +1145,6 @@ function ExerciseCard(props: ExerciseCardProps) {
   const workSetsTarget = exercise.progressionSettings.workSetsTarget
   const remainingSlots = Math.max(0, workSetsTarget - workSets.length)
   const isComplete = workSetsTarget > 0 && workSets.length >= workSetsTarget
-  const chipDeltas = weightChipDeltas(props.weightStep)
 
   return (
     <article
@@ -1246,18 +1196,6 @@ function ExerciseCard(props: ExerciseCardProps) {
 
         {workSets.length > 0 || workSetsTarget > 0 ? (
           <div className="set-track" aria-label="Sets logged today">
-            {workSetsTarget > 0 ? (
-              <span
-                className={
-                  isComplete
-                    ? 'set-track__count set-track__count--met numeral'
-                    : 'set-track__count numeral'
-                }
-                aria-label={`${workSets.length} of ${workSetsTarget} work sets logged`}
-              >
-                {workSets.length}/{workSetsTarget}
-              </span>
-            ) : null}
             {workSets.map((set, index) => (
               <span
                 key={set.id}
@@ -1337,27 +1275,6 @@ function ExerciseCard(props: ExerciseCardProps) {
             {props.isSaved ? 'Saved' : 'Save set'}
           </button>
         </div>
-        {chipDeltas.length > 0 ? (
-          <div
-            className="weight-chips"
-            role="group"
-            aria-label={`Adjust ${exercise.name} weight`}
-          >
-            {chipDeltas.map((delta) => (
-              <button
-                key={delta}
-                type="button"
-                className="weight-chip"
-                aria-label={`${delta < 0 ? 'Decrease' : 'Increase'} weight by ${String(Math.abs(delta))} ${unit}`}
-                onClick={() =>
-                  props.onWeightChange(applyWeightDelta(props.draft.weight, delta))
-                }
-              >
-                {formatChipLabel(delta)}
-              </button>
-            ))}
-          </div>
-        ) : null}
       </div>
 
       {suggestion &&
@@ -1984,19 +1901,6 @@ function buildDayTitle(
   const titleSource =
     routineName.replace(/^day\s*\d+\s*[–-]\s*/i, '').trim() || routineName
   return titleSource.replace(/\s*\/\s*/g, ' · ')
-}
-
-function formatChipLabel(delta: number): string {
-  return delta < 0 ? `−${String(Math.abs(delta))}` : `+${String(delta)}`
-}
-
-function formatTodayVolume(volumeByUnit: Array<{ unit: Unit; volume: number }>): string {
-  if (volumeByUnit.length === 0) {
-    return '0'
-  }
-  return volumeByUnit
-    .map((entry) => `${Math.round(entry.volume).toLocaleString('en-US')} ${entry.unit}`)
-    .join(' + ')
 }
 
 function formatLastSummary(lastSets: SetEntry[] | undefined, unit: Unit): string {

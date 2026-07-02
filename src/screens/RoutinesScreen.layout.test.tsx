@@ -75,6 +75,17 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
+  it('keeps the logging surface free of session stats, set counters, and weight adjustments', async () => {
+    const harness = await renderScreen()
+
+    expect(harness.host.querySelector('.training-ledger__stats')).toBeNull()
+    expect(harness.host.querySelector('.set-track__count')).toBeNull()
+    expect(harness.host.querySelector('[aria-label^="Adjust "]')).toBeNull()
+    expect(harness.host.querySelector('.weight-chip')).toBeNull()
+
+    await harness.cleanup()
+  })
+
   it('defaults the 3-day split to Push as the first training day (Day 1)', async () => {
     const harness = await renderScreen()
 
@@ -115,49 +126,6 @@ describe('RoutinesScreen behavior', () => {
     for (const chip of chips) {
       expect((chip.textContent ?? '').toLowerCase()).not.toContain('push')
     }
-
-    await harness.cleanup()
-  })
-
-  it('compresses session stats into a single strip that tracks logged sets', async () => {
-    const harness = await renderScreen()
-
-    const stats = harness.host.querySelector('.training-ledger__stats')
-    expect(stats).not.toBeNull()
-    expect(stats?.textContent).toContain('Sets 0')
-    expect(stats?.textContent).toContain('Volume 0')
-
-    const firstCard = harness.host.querySelector('.exercise-card') as HTMLElement
-    await logSet(firstCard, '95', '8')
-    await waitFor(
-      () => (harness.host.querySelector('.training-ledger__stats')?.textContent ?? '').includes('Sets 1'),
-      'Stat strip did not update after logging a set.',
-    )
-
-    expect(harness.host.querySelector('.training-ledger__stats')?.textContent).toContain(
-      'Volume 760 lb',
-    )
-
-    await harness.cleanup()
-  })
-
-  it('adjusts the weight entry through quick-tap increment chips', async () => {
-    const harness = await renderScreen()
-    const firstCard = harness.host.querySelector('.exercise-card') as HTMLElement
-
-    const weightInput = firstCard.querySelector(
-      'input[inputmode="decimal"]',
-    ) as HTMLInputElement
-    await setInputValue(weightInput, '100')
-
-    await click(getButtonByTextWithin(firstCard, '+5'))
-    expect(weightInput.value).toBe('105')
-
-    await click(getButtonByTextWithin(firstCard, '−5'))
-    expect(weightInput.value).toBe('100')
-
-    await click(getButtonByTextWithin(firstCard, '+2.5'))
-    expect(weightInput.value).toBe('102.5')
 
     await harness.cleanup()
   })
@@ -219,21 +187,13 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('tracks work-set progress with masthead stats, target slots, and a done state', async () => {
+  it('tracks work-set progress with target slots and a done state', async () => {
     const harness = await renderScreen()
-    const stats = harness.host.querySelector('.training-ledger__stats')
-    expect(stats).not.toBeNull()
-    expect(stats?.textContent).toContain('Sets')
-    expect(stats?.textContent).toContain('Volume')
-    expect(stats?.textContent).toContain('Done 0 of 5')
 
     const firstCard = harness.host.querySelector('.exercise-card') as HTMLElement | null
     expect(firstCard).not.toBeNull()
-    // Default target is 3 work sets, none logged: three ghost slots, 0/3 counter.
+    // Default target is 3 work sets, none logged: three ghost slots.
     expect(firstCard!.querySelectorAll('.set-slot').length).toBe(3)
-    expect(firstCard!.querySelector('.set-track__count')?.textContent?.trim()).toBe(
-      '0/3',
-    )
 
     await logSet(firstCard!, '95', '8')
     await waitFor(
@@ -241,13 +201,6 @@ describe('RoutinesScreen behavior', () => {
       'First logged set did not appear.',
     )
     expect(firstCard!.querySelectorAll('.set-slot').length).toBe(2)
-    expect(firstCard!.querySelector('.set-track__count')?.textContent?.trim()).toBe(
-      '1/3',
-    )
-    await waitFor(
-      () => (stats?.textContent ?? '').includes('760 lb'),
-      'Masthead volume did not update after logging a set.',
-    )
 
     await logSet(firstCard!, '95', '8')
     await logSet(firstCard!, '95', '8')
@@ -257,25 +210,13 @@ describe('RoutinesScreen behavior', () => {
     )
 
     expect(firstCard!.querySelectorAll('.set-slot').length).toBe(0)
-    expect(firstCard!.querySelector('.set-track__count')?.textContent?.trim()).toBe(
-      '3/3',
-    )
     expect(firstCard!.classList.contains('exercise-card--complete')).toBe(true)
-    await waitFor(
-      () => (stats?.textContent ?? '').includes('Done 1 of 5'),
-      'Masthead done count did not update after completing the target.',
-    )
-    expect(stats?.textContent).toContain('2,280 lb')
 
     await harness.cleanup()
   })
 
   it('summarizes history with an all-time best, e1RM deltas, and a trend sparkline', async () => {
     const harness = await renderScreen({ withBottomNav: true })
-
-    const exercises = await listExercises()
-    const bench = exercises.find((exercise) => exercise.name === 'Barbell Bench Press')
-    expect(bench).toBeDefined()
 
     const daysAgoIso = (days: number, hour: number) => {
       const date = new Date()
@@ -284,32 +225,39 @@ describe('RoutinesScreen behavior', () => {
       return date.toISOString()
     }
 
-    await db.sessions.bulkAdd([
-      { id: 'hist-old', startedAt: daysAgoIso(14, 9), endedAt: daysAgoIso(14, 10) },
-      { id: 'hist-new', startedAt: daysAgoIso(7, 9), endedAt: daysAgoIso(7, 10) },
-    ])
-    await db.setEntries.bulkAdd([
-      {
-        id: 'hist-old-set',
-        sessionId: 'hist-old',
-        exerciseId: bench!.id,
-        index: 0,
-        weight: 185,
-        reps: 5,
-        isWarmup: false,
-        completedAt: daysAgoIso(14, 10),
-      },
-      {
-        id: 'hist-new-set',
-        sessionId: 'hist-new',
-        exerciseId: bench!.id,
-        index: 0,
-        weight: 190,
-        reps: 5,
-        isWarmup: false,
-        completedAt: daysAgoIso(7, 10),
-      },
-    ])
+    let benchId = ''
+    await act(async () => {
+      const exercises = await listExercises()
+      benchId =
+        exercises.find((exercise) => exercise.name === 'Barbell Bench Press')?.id ?? ''
+      await db.sessions.bulkAdd([
+        { id: 'hist-old', startedAt: daysAgoIso(14, 9), endedAt: daysAgoIso(14, 10) },
+        { id: 'hist-new', startedAt: daysAgoIso(7, 9), endedAt: daysAgoIso(7, 10) },
+      ])
+      await db.setEntries.bulkAdd([
+        {
+          id: 'hist-old-set',
+          sessionId: 'hist-old',
+          exerciseId: benchId,
+          index: 0,
+          weight: 185,
+          reps: 5,
+          isWarmup: false,
+          completedAt: daysAgoIso(14, 10),
+        },
+        {
+          id: 'hist-new-set',
+          sessionId: 'hist-new',
+          exerciseId: benchId,
+          index: 0,
+          weight: 190,
+          reps: 5,
+          isWarmup: false,
+          completedAt: daysAgoIso(7, 10),
+        },
+      ])
+    })
+    expect(benchId).not.toBe('')
 
     const benchCard = findExerciseCardByTitle(harness.host, 'Barbell Bench Press')
     expect(benchCard).not.toBeNull()

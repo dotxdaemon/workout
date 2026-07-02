@@ -963,19 +963,6 @@ select {
   gap: 0.4rem;
 }
 
-.set-track__count {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--text-faint);
-}
-
-.set-track__count--met {
-  color: var(--jade);
-}
-
 .set-pill {
   display: inline-flex;
   align-items: center;
@@ -1070,7 +1057,7 @@ select {
   font-weight: 600;
 }
 
-/* Quick entry: one compound "weight × reps" strip plus increment chips */
+/* Quick entry: one compound "weight × reps" strip */
 .quick-entry {
   display: grid;
   gap: 0.55rem;
@@ -1142,42 +1129,6 @@ select {
   min-height: 2.95rem;
   padding-inline: 0.95rem;
   flex: 0 1 auto;
-}
-
-.weight-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-
-.weight-chip {
-  appearance: none;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: var(--control);
-  color: var(--text-dim);
-  min-height: 2.4rem;
-  min-width: 3.4rem;
-  padding: 0.25rem 0.65rem;
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 0.88rem;
-  font-weight: 600;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition:
-    color 0.14s ease,
-    background-color 0.14s ease;
-}
-
-.weight-chip:hover {
-  color: var(--text);
-  background: var(--control-strong);
-}
-
-.weight-chip:active {
-  color: var(--jade);
-  background: var(--accent-soft);
 }
 
 /* Progression suggestion */
@@ -1864,29 +1815,6 @@ select {
   line-height: 1.05;
   letter-spacing: -0.045em;
   font-weight: 700;
-}
-
-.training-ledger__stats {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.5rem;
-  font-size: 0.82rem;
-  color: var(--text-faint);
-}
-
-.training-ledger__stats .numeral {
-  color: var(--text-dim);
-  font-weight: 650;
-}
-
-.training-ledger__stats-dot {
-  color: var(--text-faint);
-}
-
-.training-ledger__done--active,
-.training-ledger__done--active .numeral {
-  color: var(--jade);
 }
 
 .training-ledger__rule {
