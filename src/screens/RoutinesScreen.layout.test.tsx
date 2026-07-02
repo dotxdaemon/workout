@@ -75,6 +75,32 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
+  it('defaults the 3-day split to Push as the first training day (Day 1)', async () => {
+    const harness = await renderScreen()
+
+    await waitFor(
+      () =>
+        harness.host.querySelector('.training-ledger__title')?.textContent?.trim() ===
+        'Push',
+      'Push did not become the selected training day.',
+    )
+
+    const dayChips = Array.from(
+      harness.host.querySelectorAll('.day-chips .day-chip'),
+    ) as HTMLElement[]
+    expect(dayChips.map((chip) => chip.getAttribute('aria-label'))).toEqual([
+      'Day 1: Push',
+      'Day 2: Pull',
+      'Day 3: Legs',
+    ])
+
+    const activeChip = harness.host.querySelector('.day-chips .day-chip--active')
+    expect(activeChip).toBe(dayChips[0])
+    expect(activeChip?.textContent?.trim()).toBe('1')
+
+    await harness.cleanup()
+  })
+
   it('shows the day name only in the masthead heading', async () => {
     const harness = await renderScreen()
 
@@ -189,6 +215,134 @@ describe('RoutinesScreen behavior', () => {
     expect(track).toContain('8')
     expect(harness.host.querySelector('.banner--success')).toBeNull()
     expect(harness.host.querySelector('.banner--error')).toBeNull()
+
+    await harness.cleanup()
+  })
+
+  it('tracks work-set progress with masthead stats, target slots, and a done state', async () => {
+    const harness = await renderScreen()
+    const stats = harness.host.querySelector('.training-ledger__stats')
+    expect(stats).not.toBeNull()
+    expect(stats?.textContent).toContain('Sets')
+    expect(stats?.textContent).toContain('Volume')
+    expect(stats?.textContent).toContain('Done 0 of 5')
+
+    const firstCard = harness.host.querySelector('.exercise-card') as HTMLElement | null
+    expect(firstCard).not.toBeNull()
+    // Default target is 3 work sets, none logged: three ghost slots, 0/3 counter.
+    expect(firstCard!.querySelectorAll('.set-slot').length).toBe(3)
+    expect(firstCard!.querySelector('.set-track__count')?.textContent?.trim()).toBe(
+      '0/3',
+    )
+
+    await logSet(firstCard!, '95', '8')
+    await waitFor(
+      () => firstCard!.querySelectorAll('.set-pill').length === 1,
+      'First logged set did not appear.',
+    )
+    expect(firstCard!.querySelectorAll('.set-slot').length).toBe(2)
+    expect(firstCard!.querySelector('.set-track__count')?.textContent?.trim()).toBe(
+      '1/3',
+    )
+    await waitFor(
+      () => (stats?.textContent ?? '').includes('760 lb'),
+      'Masthead volume did not update after logging a set.',
+    )
+
+    await logSet(firstCard!, '95', '8')
+    await logSet(firstCard!, '95', '8')
+    await waitFor(
+      () => firstCard!.querySelectorAll('.set-pill').length === 3,
+      'Third logged set did not appear.',
+    )
+
+    expect(firstCard!.querySelectorAll('.set-slot').length).toBe(0)
+    expect(firstCard!.querySelector('.set-track__count')?.textContent?.trim()).toBe(
+      '3/3',
+    )
+    expect(firstCard!.classList.contains('exercise-card--complete')).toBe(true)
+    await waitFor(
+      () => (stats?.textContent ?? '').includes('Done 1 of 5'),
+      'Masthead done count did not update after completing the target.',
+    )
+    expect(stats?.textContent).toContain('2,280 lb')
+
+    await harness.cleanup()
+  })
+
+  it('summarizes history with an all-time best, e1RM deltas, and a trend sparkline', async () => {
+    const harness = await renderScreen({ withBottomNav: true })
+
+    const exercises = await listExercises()
+    const bench = exercises.find((exercise) => exercise.name === 'Barbell Bench Press')
+    expect(bench).toBeDefined()
+
+    const daysAgoIso = (days: number, hour: number) => {
+      const date = new Date()
+      date.setDate(date.getDate() - days)
+      date.setHours(hour, 0, 0, 0)
+      return date.toISOString()
+    }
+
+    await db.sessions.bulkAdd([
+      { id: 'hist-old', startedAt: daysAgoIso(14, 9), endedAt: daysAgoIso(14, 10) },
+      { id: 'hist-new', startedAt: daysAgoIso(7, 9), endedAt: daysAgoIso(7, 10) },
+    ])
+    await db.setEntries.bulkAdd([
+      {
+        id: 'hist-old-set',
+        sessionId: 'hist-old',
+        exerciseId: bench!.id,
+        index: 0,
+        weight: 185,
+        reps: 5,
+        isWarmup: false,
+        completedAt: daysAgoIso(14, 10),
+      },
+      {
+        id: 'hist-new-set',
+        sessionId: 'hist-new',
+        exerciseId: bench!.id,
+        index: 0,
+        weight: 190,
+        reps: 5,
+        isWarmup: false,
+        completedAt: daysAgoIso(7, 10),
+      },
+    ])
+
+    const benchCard = findExerciseCardByTitle(harness.host, 'Barbell Bench Press')
+    expect(benchCard).not.toBeNull()
+    const historyButton = benchCard!.querySelector(
+      'button[aria-label^="Open history for"]',
+    ) as HTMLButtonElement | null
+    expect(historyButton).not.toBeNull()
+    await click(historyButton!)
+
+    await waitFor(
+      () => document.body.querySelectorAll('.history-row').length === 2,
+      'History rows did not load into the sheet.',
+    )
+    await waitFor(
+      () => Boolean(document.body.querySelector('.history-overview')),
+      'History overview strip did not render.',
+    )
+
+    const overview = document.body.querySelector('.history-overview')
+    expect(overview?.textContent).toContain('All-time best')
+    expect(overview?.textContent).toContain('190 × 5')
+    // e1RM(190x5) = 190 * (1 + 5/30) ≈ 222.
+    expect(overview?.textContent).toContain('e1RM 222')
+    expect(overview?.querySelector('svg.history-overview__spark')).not.toBeNull()
+
+    const rows = Array.from(document.body.querySelectorAll('.history-row'))
+    // Newest session first: 190x5 beats 185x5 by ~6 e1RM.
+    const newestDelta = rows[0].querySelector('.history-row__delta--up')
+    expect(newestDelta?.textContent).toContain('▲')
+    expect(newestDelta?.textContent).toContain('6')
+    expect(rows[0].textContent).toContain('e1RM 222')
+    expect(rows[1].querySelector('.history-row__delta--up')).toBeNull()
+    expect(rows[1].querySelector('.history-row__delta--down')).toBeNull()
 
     await harness.cleanup()
   })
