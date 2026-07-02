@@ -1,6 +1,5 @@
-// ABOUTME: Pure helpers for parsing and stepping numeric set-entry inputs.
+// ABOUTME: Pure helpers for parsing and quick-adjusting numeric set-entry inputs.
 // ABOUTME: Keeps weight/reps math out of UI components so it can be unit-tested directly.
-import { formatNumber } from './format'
 
 export function parseNumber(value: string): number {
   const numeric = Number(value)
@@ -14,17 +13,21 @@ export function parseReps(value: string): number {
   return Math.round(parseNumber(value))
 }
 
-interface StepOptions {
-  step: number
-  direction: -1 | 1
-  integer?: boolean
+export function weightChipDeltas(increment: number): number[] {
+  if (!Number.isFinite(increment) || increment <= 0) {
+    return []
+  }
+  const half = Math.round((increment / 2) * 100) / 100
+  const raises = [half, increment, increment * 2].filter(
+    (delta, index, all) => delta > 0 && all.indexOf(delta) === index,
+  )
+  return [-increment, ...raises]
 }
 
-export function stepValue(current: string, { step, direction, integer }: StepOptions): string {
-  const base = integer ? parseReps(current) : parseNumber(current)
-  const next = Math.max(0, base + step * direction)
+export function applyWeightDelta(current: string, delta: number): string {
+  const next = Math.max(0, Math.round((parseNumber(current) + delta) * 100) / 100)
   if (next <= 0) {
     return ''
   }
-  return integer ? String(Math.round(next)) : formatNumber(next)
+  return String(next)
 }

@@ -75,6 +75,67 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
+  it('shows the day name only in the masthead heading', async () => {
+    const harness = await renderScreen()
+
+    const heading = harness.host.querySelector('.training-ledger__title')
+    expect(heading?.textContent?.trim()).toBe('Push')
+
+    const routineCard = harness.host.querySelector('.exercise-card')
+    expect(routineCard?.querySelector('.exercise-card__group')).toBeNull()
+
+    const chips = Array.from(harness.host.querySelectorAll('.day-chip'))
+    expect(chips.length).toBeGreaterThan(1)
+    for (const chip of chips) {
+      expect((chip.textContent ?? '').toLowerCase()).not.toContain('push')
+    }
+
+    await harness.cleanup()
+  })
+
+  it('compresses session stats into a single strip that tracks logged sets', async () => {
+    const harness = await renderScreen()
+
+    const stats = harness.host.querySelector('.training-ledger__stats')
+    expect(stats).not.toBeNull()
+    expect(stats?.textContent).toContain('Sets 0')
+    expect(stats?.textContent).toContain('Volume 0')
+
+    const firstCard = harness.host.querySelector('.exercise-card') as HTMLElement
+    await logSet(firstCard, '95', '8')
+    await waitFor(
+      () => (harness.host.querySelector('.training-ledger__stats')?.textContent ?? '').includes('Sets 1'),
+      'Stat strip did not update after logging a set.',
+    )
+
+    expect(harness.host.querySelector('.training-ledger__stats')?.textContent).toContain(
+      'Volume 760 lb',
+    )
+
+    await harness.cleanup()
+  })
+
+  it('adjusts the weight entry through quick-tap increment chips', async () => {
+    const harness = await renderScreen()
+    const firstCard = harness.host.querySelector('.exercise-card') as HTMLElement
+
+    const weightInput = firstCard.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement
+    await setInputValue(weightInput, '100')
+
+    await click(getButtonByTextWithin(firstCard, '+5'))
+    expect(weightInput.value).toBe('105')
+
+    await click(getButtonByTextWithin(firstCard, '−5'))
+    expect(weightInput.value).toBe('100')
+
+    await click(getButtonByTextWithin(firstCard, '+2.5'))
+    expect(weightInput.value).toBe('102.5')
+
+    await harness.cleanup()
+  })
+
   it('finds an exercise outside the selected routine and logs it in the active session', async () => {
     const harness = await renderScreen()
     const searchInput = harness.host.querySelector(

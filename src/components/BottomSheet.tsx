@@ -162,7 +162,7 @@ export function BottomSheet({ eyebrow, title, openedAt, onClose, children }: Bot
         <span className="sheet__grabber" aria-hidden="true" />
         <header className="sheet__header">
           <div className="sheet__title">
-            {eyebrow ? <span className="eyebrow eyebrow--jade">{eyebrow}</span> : null}
+            {eyebrow ? <span className="eyebrow">{eyebrow}</span> : null}
             <h2>{title}</h2>
           </div>
           <button

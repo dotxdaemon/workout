@@ -128,7 +128,7 @@ export function SettingsScreen() {
   return (
     <section className="page settings-page">
       <header className="settings-console">
-        <p className="eyebrow eyebrow--jade">Configure</p>
+        <p className="eyebrow">Configure</p>
         <h1 className="page-title">Settings</h1>
         <p className="page-subtitle">Training defaults and data backup.</p>
       </header>
@@ -191,7 +191,7 @@ export function SettingsScreen() {
               }
             />
             <span className="field__hint">
-              Step size for the +/- buttons when logging.
+              Step size for the quick-adjust chips when logging.
             </span>
           </label>
         </section>

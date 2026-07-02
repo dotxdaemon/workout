@@ -1,7 +1,7 @@
-// ABOUTME: Unit tests for numeric parsing and stepping used by the set-entry number field.
-// ABOUTME: Confirms clamping at zero, rep rounding, and increment/decrement formatting.
+// ABOUTME: Unit tests for numeric parsing and quick-adjust delta math used by set entry.
+// ABOUTME: Confirms clamping at zero, rep rounding, chip derivation, and delta formatting.
 import { describe, expect, it } from 'vitest'
-import { parseNumber, parseReps, stepValue } from './numberInput'
+import { applyWeightDelta, parseNumber, parseReps, weightChipDeltas } from './numberInput'
 
 describe('parseNumber', () => {
   it('parses finite non-negative numbers and clamps the rest to zero', () => {
@@ -21,21 +21,28 @@ describe('parseReps', () => {
   })
 })
 
-describe('stepValue', () => {
-  it('increments and decrements weight values', () => {
-    expect(stepValue('100', { step: 5, direction: 1 })).toBe('105')
-    expect(stepValue('100', { step: 5, direction: -1 })).toBe('95')
-    expect(stepValue('2.5', { step: 2.5, direction: 1 })).toBe('5')
+describe('weightChipDeltas', () => {
+  it('derives quick-adjust deltas from the exercise increment', () => {
+    expect(weightChipDeltas(5)).toEqual([-5, 2.5, 5, 10])
+    expect(weightChipDeltas(2.5)).toEqual([-2.5, 1.25, 2.5, 5])
   })
 
-  it('steps from empty values and clamps to empty at zero', () => {
-    expect(stepValue('', { step: 5, direction: 1 })).toBe('5')
-    expect(stepValue('5', { step: 5, direction: -1 })).toBe('')
-    expect(stepValue('', { step: 5, direction: -1 })).toBe('')
+  it('returns no deltas for non-positive increments', () => {
+    expect(weightChipDeltas(0)).toEqual([])
+    expect(weightChipDeltas(-5)).toEqual([])
+  })
+})
+
+describe('applyWeightDelta', () => {
+  it('adds and subtracts deltas with weight formatting', () => {
+    expect(applyWeightDelta('100', 5)).toBe('105')
+    expect(applyWeightDelta('100', -5)).toBe('95')
+    expect(applyWeightDelta('135', 2.5)).toBe('137.5')
   })
 
-  it('keeps reps as whole numbers', () => {
-    expect(stepValue('8', { step: 1, direction: 1, integer: true })).toBe('9')
-    expect(stepValue('1', { step: 1, direction: -1, integer: true })).toBe('')
+  it('starts from empty values and clamps to empty at zero', () => {
+    expect(applyWeightDelta('', 5)).toBe('5')
+    expect(applyWeightDelta('2.5', -5)).toBe('')
+    expect(applyWeightDelta('', -5)).toBe('')
   })
 })

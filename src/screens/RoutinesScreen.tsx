@@ -19,8 +19,9 @@ import {
   updateRoutine,
 } from '../lib/db'
 import { formatNumber } from '../lib/format'
-import { parseNumber, parseReps } from '../lib/numberInput'
+import { applyWeightDelta, parseNumber, parseReps, weightChipDeltas } from '../lib/numberInput'
 import { buildProgressionSuggestion } from '../lib/progression'
+import { formatVolume, summarizeSession } from '../lib/sessionSummary'
 import { readPreferences } from '../lib/preferences'
 import {
   readActiveRoutineSplitId,
@@ -40,7 +41,6 @@ import type {
 import { Banner } from '../components/Banner'
 import { BottomSheet } from '../components/BottomSheet'
 import { EmptyState } from '../components/EmptyState'
-import { NumberField } from '../components/NumberField'
 import { SegmentedControl } from '../components/SegmentedControl'
 import {
   ArrowDownIcon,
@@ -213,14 +213,14 @@ export function RoutinesScreen() {
     [orderedRoutines, selectedRoutine],
   )
 
-  const dayHeading = useMemo(
-    () => buildDayHeading(selectedRoutine?.name, selectedRoutineIndex),
+  const dayTitle = useMemo(
+    () => buildDayTitle(selectedRoutine?.name, selectedRoutineIndex),
     [selectedRoutine?.name, selectedRoutineIndex],
   )
 
-  const routineFocusLabel = useMemo(
-    () => getRoutineFocusLabel(selectedRoutine?.name),
-    [selectedRoutine?.name],
+  const sessionSummary = useMemo(
+    () => summarizeSession(visibleExerciseIds, exerciseMap, setsByExercise),
+    [exerciseMap, setsByExercise, visibleExerciseIds],
   )
 
   const normalizedExerciseSearch = exerciseSearch.trim().toLowerCase()
@@ -913,12 +913,7 @@ export function RoutinesScreen() {
     <section className="page training-page">
       <header className="training-console">
         <div className="training-console__top">
-          <div>
-            <p className="eyebrow eyebrow--jade">
-              {formatSplitHeaderLabel(activeSplit.label)}
-            </p>
-            <h1 className="page-title">Train</h1>
-          </div>
+          <p className="eyebrow">{formatSplitHeaderLabel(activeSplit.label)}</p>
           <SegmentedControl
             ariaLabel="Training mode"
             value={mode}
@@ -938,21 +933,20 @@ export function RoutinesScreen() {
           >
             {orderedRoutines.map((routine, index) => {
               const isActive = routine.id === selectedRoutine?.id
+              const dayNumber = getRoutineDayNumber(routine.name, index)
               return (
                 <button
                   key={routine.id}
                   type="button"
                   role="tab"
                   aria-selected={isActive}
+                  aria-label={`Day ${dayNumber}: ${routine.name}`}
                   tabIndex={isActive ? 0 : -1}
                   className={isActive ? 'day-chip day-chip--active' : 'day-chip'}
                   onClick={() => setSelectedRoutineId(routine.id)}
                 >
-                  <span className="day-chip__index numeral">
-                    {getRoutineDayNumber(routine.name, index)}
-                  </span>
-                  <span className="day-chip__name">
-                    {getRoutineChipLabel(routine.name)}
+                  <span className="numeral" aria-hidden="true">
+                    {dayNumber}
                   </span>
                 </button>
               )
@@ -975,21 +969,39 @@ export function RoutinesScreen() {
           {selectedRoutine && selectedExerciseIds.length > 0 ? (
             <main className="training-ledger">
               <header className="training-ledger__masthead">
-                <div>
-                  <p className="eyebrow eyebrow--jade">{dayHeading.dayLabel}</p>
-                  <h2 className="training-ledger__title">{dayHeading.title}</h2>
-                </div>
-                <p className="training-ledger__count">
-                  {selectedRoutine
-                    ? `${visibleExerciseIds.length} exercises`
-                    : '0 exercises'}
+                <h2 className="training-ledger__title">{dayTitle}</h2>
+                <p className="training-ledger__stats">
+                  <span>
+                    Sets <span className="numeral">{sessionSummary.totalSets}</span>
+                  </span>
+                  <span className="training-ledger__stats-dot" aria-hidden="true">
+                    ·
+                  </span>
+                  <span>
+                    Volume{' '}
+                    <span className="numeral">
+                      {formatVolume(sessionSummary.volumeByUnit)}
+                    </span>
+                  </span>
+                  <span className="training-ledger__stats-dot" aria-hidden="true">
+                    ·
+                  </span>
+                  <span
+                    className={
+                      sessionSummary.doneCount > 0
+                        ? 'training-ledger__done training-ledger__done--active'
+                        : 'training-ledger__done'
+                    }
+                  >
+                    Done{' '}
+                    <span className="numeral">
+                      {sessionSummary.doneCount} of {sessionSummary.exerciseCount}
+                    </span>
+                  </span>
                 </p>
               </header>
               <div className="training-ledger__rule" aria-hidden="true" />
               <div className="exercise-search">
-                <label className="exercise-search__label" htmlFor="exercise-search">
-                  Find an exercise
-                </label>
                 <input
                   id="exercise-search"
                   className="exercise-search__input"
@@ -1027,7 +1039,7 @@ export function RoutinesScreen() {
                       exercise={exercise}
                       groupLabel={
                         selectedExerciseIds.includes(exercise.id)
-                          ? routineFocusLabel
+                          ? undefined
                           : 'Added today'
                       }
                       position={index + 1}
@@ -1136,7 +1148,7 @@ export function RoutinesScreen() {
 
 interface ExerciseCardProps {
   exercise: Exercise
-  groupLabel: string
+  groupLabel?: string
   position: number
   isExpanded: boolean
   onToggle: () => void
@@ -1164,6 +1176,9 @@ function ExerciseCard(props: ExerciseCardProps) {
   const lastSummary = formatLastSummary(lastSession?.sets, unit)
   const suggestion = buildProgressionSuggestion(exercise.progressionSettings, todaySets)
   const hasHistory = (lastSession?.sets.filter((set) => !set.isWarmup).length ?? 0) > 0
+  const workSetsTarget = exercise.progressionSettings.workSetsTarget
+  const isDone = workSetsTarget > 0 && workSets.length >= workSetsTarget
+  const chipDeltas = weightChipDeltas(props.weightStep)
 
   return (
     <article
@@ -1173,7 +1188,14 @@ function ExerciseCard(props: ExerciseCardProps) {
       }
     >
       <div className="exercise-card__head">
-        <span className="exercise-card__position numeral" aria-hidden="true">
+        <span
+          className={
+            isDone
+              ? 'exercise-card__position exercise-card__position--done numeral'
+              : 'exercise-card__position numeral'
+          }
+          aria-hidden="true"
+        >
           {String(props.position).padStart(2, '0')}
         </span>
         <button
@@ -1183,7 +1205,9 @@ function ExerciseCard(props: ExerciseCardProps) {
           aria-controls={`exercise-${exercise.id}-details`}
           onClick={props.onToggle}
         >
-          <span className="exercise-card__group">{props.groupLabel}</span>
+          {props.groupLabel ? (
+            <span className="exercise-card__group">{props.groupLabel}</span>
+          ) : null}
           <span className="exercise-card__name">
             {exercise.name}
             <ChevronDownIcon className="exercise-card__chevron" width={18} height={18} />
@@ -1203,16 +1227,13 @@ function ExerciseCard(props: ExerciseCardProps) {
 
       <div className="exercise-card__record">
         <p className="last-line">
-          <span className="eyebrow">Last</span>
+          <span className="last-line__label">Last</span>
           <span className="last-line__value">{lastSummary}</span>
         </p>
 
-        <div className="set-track" aria-label="Sets logged today">
-          <span className="set-track__label">Today</span>
-          {workSets.length === 0 ? (
-            <span className="set-track__empty">No sets yet</span>
-          ) : (
-            workSets.map((set, index) => (
+        {workSets.length > 0 ? (
+          <div className="set-track" aria-label="Sets logged today">
+            {workSets.map((set, index) => (
               <span
                 key={set.id}
                 className={
@@ -1234,38 +1255,79 @@ function ExerciseCard(props: ExerciseCardProps) {
                   <CloseIcon width={13} height={13} />
                 </button>
               </span>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="quick-entry">
-        <div className="quick-entry__fields">
-          <NumberField
-            label="Weight"
-            ariaLabel={`${exercise.name} weight`}
-            value={props.draft.weight}
-            step={props.weightStep}
-            invalid={props.invalidEntry}
-            onValueChange={props.onWeightChange}
-          />
-          <NumberField
-            label="Reps"
-            ariaLabel={`${exercise.name} reps`}
-            value={props.draft.reps}
-            step={1}
-            integer
-            invalid={props.invalidEntry}
-            onValueChange={props.onRepsChange}
-          />
-        </div>
-        <button
-          type="button"
-          className="btn btn--primary btn--block quick-entry__save"
-          onClick={props.onSave}
+        <div
+          className={
+            props.invalidEntry ? 'set-entry set-entry--invalid' : 'set-entry'
+          }
         >
-          {props.isSaved ? 'Saved' : 'Save set'}
-        </button>
+          <label className="set-entry__field">
+            <input
+              className="set-entry__input set-entry__input--weight"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step={props.weightStep}
+              value={props.draft.weight}
+              placeholder="0"
+              aria-label={`${exercise.name} weight`}
+              aria-invalid={props.invalidEntry || undefined}
+              onChange={(event) => props.onWeightChange(event.target.value)}
+            />
+            <span className="set-entry__unit">{unit}</span>
+          </label>
+          <span className="set-entry__x" aria-hidden="true">
+            ×
+          </span>
+          <label className="set-entry__field">
+            <input
+              className="set-entry__input set-entry__input--reps"
+              type="number"
+              inputMode="numeric"
+              min="0"
+              step={1}
+              value={props.draft.reps}
+              placeholder="0"
+              aria-label={`${exercise.name} reps`}
+              aria-invalid={props.invalidEntry || undefined}
+              onChange={(event) => props.onRepsChange(event.target.value)}
+            />
+            <span className="set-entry__unit">reps</span>
+          </label>
+          <button
+            type="button"
+            className="btn btn--primary quick-entry__save"
+            onClick={props.onSave}
+          >
+            {props.isSaved ? 'Saved' : 'Save set'}
+          </button>
+        </div>
+        {chipDeltas.length > 0 ? (
+          <div
+            className="weight-chips"
+            role="group"
+            aria-label={`Adjust ${exercise.name} weight`}
+          >
+            {chipDeltas.map((delta) => (
+              <button
+                key={delta}
+                type="button"
+                className="weight-chip"
+                aria-label={`${delta < 0 ? 'Decrease' : 'Increase'} weight by ${String(Math.abs(delta))} ${unit}`}
+                onClick={() =>
+                  props.onWeightChange(applyWeightDelta(props.draft.weight, delta))
+                }
+              >
+                {formatChipLabel(delta)}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {suggestion &&
@@ -1778,11 +1840,6 @@ function getRoutineDayNumber(routineName: string, index: number): string {
   return matched?.[1] ?? String(index + 1)
 }
 
-function getRoutineChipLabel(routineName: string): string {
-  const stripped = routineName.replace(/^day\s*\d+\s*[–-]\s*/i, '').trim()
-  return (stripped || routineName).replace(/\s*\/\s*/g, ' · ')
-}
-
 function formatSplitHeaderLabel(label: string): string {
   return label
     .replace(/^(\d)\s+day/i, '$1-Day')
@@ -1794,28 +1851,20 @@ function formatSplitOptionLabel(splitId: RoutineSplitId): string {
   return splitId === '4-day-split' ? '4 day' : '3 day'
 }
 
-function buildDayHeading(
+function buildDayTitle(
   routineName: string | undefined,
   selectedRoutineIndex: number,
-): { dayLabel: string; title: string } {
+): string {
   if (!routineName) {
-    const fallbackIndex = Math.max(1, selectedRoutineIndex + 1)
-    return { dayLabel: `DAY ${fallbackIndex}`, title: `Day ${fallbackIndex}` }
+    return `Day ${Math.max(1, selectedRoutineIndex + 1)}`
   }
-  const dayNumber = getRoutineDayNumber(routineName, selectedRoutineIndex)
   const titleSource =
     routineName.replace(/^day\s*\d+\s*[–-]\s*/i, '').trim() || routineName
-  const title = titleSource.replace(/\s*\/\s*/g, ' · ')
-  return { dayLabel: `DAY ${dayNumber}`, title }
+  return titleSource.replace(/\s*\/\s*/g, ' · ')
 }
 
-function getRoutineFocusLabel(routineName: string | undefined): string {
-  if (!routineName) {
-    return 'WORKING SET'
-  }
-  const source = routineName.replace(/^day\s*\d+\s*[–-]\s*/i, '').trim() || routineName
-  const normalized = source.replace(/\s+/g, ' ').trim()
-  return normalized ? normalized.toUpperCase() : 'WORKING SET'
+function formatChipLabel(delta: number): string {
+  return delta < 0 ? `−${String(Math.abs(delta))}` : `+${String(delta)}`
 }
 
 function formatLastSummary(lastSets: SetEntry[] | undefined, unit: Unit): string {
