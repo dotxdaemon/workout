@@ -345,3 +345,12 @@
 - Root cause: `ExerciseCard` mapped each unfilled work-set target to a numbered `.set-slot` placeholder even after the counter was deleted.
 - TDD: extended the rendered logging-surface regression to require no `.set-slot`; it failed on the numbered placeholder, then passed after removing the render loop and orphaned styles.
 - Verification: the full suite passed 101 tests with pristine output; lint and typecheck exited 0. At 390x844, empty slots changed from 15 to 0, actual set logging and completion tests remained green, and the bottom nav stayed at y=779.8125–844 with no browser warnings or errors.
+
+2026-07-02 (compact set-entry controls requested)
+- Previously tried: removed the separate row of weight increment chips, then removed the numbered empty work-set placeholders beside Last.
+- Sean asked: add compact plus and minus controls next to the weight and reps numbers, using 5 lb for weight and 1 for reps, and fix any bugs found.
+- Error after trying: the current entry row has direct number inputs but no adjacent compact adjustment controls; no additional bug has been reproduced yet.
+- Root cause: the earlier chip removal deleted all adjustment actions instead of retaining a compact control inside each numeric field.
+- TDD: added a rendered regression for weight `100 -> 105 -> 100` and reps `8 -> 9 -> 8`; it failed because the buttons did not exist, then passed after the field controls were added.
+- Result: each weight field now has visible `-5` / `+5` controls driven by its configured increment, and each reps field has `-1` / `+1`; zero remains the lower bound. A stale test description that claimed all weight adjustments were absent was corrected. No additional app bug was reproduced in the scoped browser flow.
+- Verification: the full suite passed 102 tests with pristine output; lint and typecheck exited 0. At 390x844, each adjustment button is 44x46.390625px, inputs remain 18.4px, saving `100 x 8` still creates the real set pill, and the shell/nav remain 844px high with no browser warnings or errors.

@@ -75,7 +75,7 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('keeps the logging surface free of session stats, set counters, and weight adjustments', async () => {
+  it('keeps removed stats, counters, empty slots, and weight chips out of set entry', async () => {
     const harness = await renderScreen()
 
     expect(harness.host.querySelector('.training-ledger__stats')).toBeNull()
@@ -83,6 +83,52 @@ describe('RoutinesScreen behavior', () => {
     expect(harness.host.querySelector('.set-slot')).toBeNull()
     expect(harness.host.querySelector('[aria-label^="Adjust "]')).toBeNull()
     expect(harness.host.querySelector('.weight-chip')).toBeNull()
+
+    await harness.cleanup()
+  })
+
+  it('adjusts weight by the exercise increment and reps by one', async () => {
+    const harness = await renderScreen()
+    const firstCard = harness.host.querySelector('.exercise-card') as HTMLElement
+    const weightInput = firstCard.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement
+    const repsInput = firstCard.querySelector(
+      'input[inputmode="numeric"]',
+    ) as HTMLInputElement
+
+    await setInputValue(weightInput, '100')
+    await setInputValue(repsInput, '8')
+
+    const increaseWeight = getButtonByAriaLabelPrefix(
+      firstCard,
+      'Increase Barbell Bench Press weight by',
+    )
+    const decreaseWeight = getButtonByAriaLabelPrefix(
+      firstCard,
+      'Decrease Barbell Bench Press weight by',
+    )
+    const increaseReps = getButtonByAriaLabelPrefix(
+      firstCard,
+      'Increase Barbell Bench Press reps by',
+    )
+    const decreaseReps = getButtonByAriaLabelPrefix(
+      firstCard,
+      'Decrease Barbell Bench Press reps by',
+    )
+
+    expect(increaseWeight.getAttribute('aria-label')).toContain('5 lb')
+    expect(increaseReps.getAttribute('aria-label')).toContain('1')
+
+    await click(increaseWeight)
+    expect(weightInput.value).toBe('105')
+    await click(decreaseWeight)
+    expect(weightInput.value).toBe('100')
+
+    await click(increaseReps)
+    expect(repsInput.value).toBe('9')
+    await click(decreaseReps)
+    expect(repsInput.value).toBe('8')
 
     await harness.cleanup()
   })

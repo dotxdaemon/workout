@@ -1051,12 +1051,10 @@ select {
 
 .set-entry__field {
   display: inline-flex;
-  align-items: baseline;
-  gap: 0.35rem;
-  padding: 0.15rem 0.6rem;
+  align-items: stretch;
   border-radius: var(--radius-sm);
   background: var(--control);
-  cursor: text;
+  overflow: hidden;
 }
 
 .set-entry__field:focus-within {
@@ -1065,6 +1063,48 @@ select {
 
 .set-entry--invalid .set-entry__field {
   box-shadow: inset 0 0 0 1px rgba(var(--danger-rgb), 0.6);
+}
+
+.set-entry__value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding: 0.15rem 0.35rem;
+  cursor: text;
+}
+
+.set-entry__adjust {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  min-width: 2.75rem;
+  min-height: 2.9rem;
+  padding: 0.2rem 0.3rem;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.set-entry__adjust:first-child {
+  border-right: 1px solid var(--hairline);
+}
+
+.set-entry__adjust:last-child {
+  border-left: 1px solid var(--hairline);
+}
+
+.set-entry__adjust:hover {
+  color: var(--text);
+  background: var(--control-strong);
+}
+
+.set-entry__adjust:active {
+  color: var(--jade);
+  background: var(--accent-soft);
 }
 
 .set-entry__input {

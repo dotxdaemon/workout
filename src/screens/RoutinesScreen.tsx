@@ -19,7 +19,7 @@ import {
   updateRoutine,
 } from '../lib/db'
 import { formatNumber } from '../lib/format'
-import { parseNumber, parseReps } from '../lib/numberInput'
+import { applyWeightDelta, parseNumber, parseReps } from '../lib/numberInput'
 import { buildProgressionSuggestion } from '../lib/progression'
 import { summarizeHistoryRows } from '../lib/sessionStats'
 import { readPreferences } from '../lib/preferences'
@@ -1228,39 +1228,95 @@ function ExerciseCard(props: ExerciseCardProps) {
             props.invalidEntry ? 'set-entry set-entry--invalid' : 'set-entry'
           }
         >
-          <label className="set-entry__field">
-            <input
-              className="set-entry__input set-entry__input--weight"
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step={props.weightStep}
-              value={props.draft.weight}
-              placeholder="0"
-              aria-label={`${exercise.name} weight`}
-              aria-invalid={props.invalidEntry || undefined}
-              onChange={(event) => props.onWeightChange(event.target.value)}
-            />
-            <span className="set-entry__unit">{unit}</span>
-          </label>
+          <div
+            className="set-entry__field"
+            role="group"
+            aria-label={`${exercise.name} weight controls`}
+          >
+            <button
+              type="button"
+              className="set-entry__adjust"
+              aria-label={`Decrease ${exercise.name} weight by ${String(props.weightStep)} ${unit}`}
+              onClick={() =>
+                props.onWeightChange(
+                  applyWeightDelta(props.draft.weight, -props.weightStep),
+                )
+              }
+            >
+              −{formatNumber(props.weightStep)}
+            </button>
+            <label className="set-entry__value">
+              <input
+                className="set-entry__input set-entry__input--weight"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step={props.weightStep}
+                value={props.draft.weight}
+                placeholder="0"
+                aria-label={`${exercise.name} weight`}
+                aria-invalid={props.invalidEntry || undefined}
+                onChange={(event) => props.onWeightChange(event.target.value)}
+              />
+              <span className="set-entry__unit">{unit}</span>
+            </label>
+            <button
+              type="button"
+              className="set-entry__adjust"
+              aria-label={`Increase ${exercise.name} weight by ${String(props.weightStep)} ${unit}`}
+              onClick={() =>
+                props.onWeightChange(
+                  applyWeightDelta(props.draft.weight, props.weightStep),
+                )
+              }
+            >
+              +{formatNumber(props.weightStep)}
+            </button>
+          </div>
           <span className="set-entry__x" aria-hidden="true">
             ×
           </span>
-          <label className="set-entry__field">
-            <input
-              className="set-entry__input set-entry__input--reps"
-              type="number"
-              inputMode="numeric"
-              min="0"
-              step={1}
-              value={props.draft.reps}
-              placeholder="0"
-              aria-label={`${exercise.name} reps`}
-              aria-invalid={props.invalidEntry || undefined}
-              onChange={(event) => props.onRepsChange(event.target.value)}
-            />
-            <span className="set-entry__unit">reps</span>
-          </label>
+          <div
+            className="set-entry__field"
+            role="group"
+            aria-label={`${exercise.name} reps controls`}
+          >
+            <button
+              type="button"
+              className="set-entry__adjust"
+              aria-label={`Decrease ${exercise.name} reps by 1`}
+              onClick={() =>
+                props.onRepsChange(applyWeightDelta(props.draft.reps, -1))
+              }
+            >
+              −1
+            </button>
+            <label className="set-entry__value">
+              <input
+                className="set-entry__input set-entry__input--reps"
+                type="number"
+                inputMode="numeric"
+                min="0"
+                step={1}
+                value={props.draft.reps}
+                placeholder="0"
+                aria-label={`${exercise.name} reps`}
+                aria-invalid={props.invalidEntry || undefined}
+                onChange={(event) => props.onRepsChange(event.target.value)}
+              />
+              <span className="set-entry__unit">reps</span>
+            </label>
+            <button
+              type="button"
+              className="set-entry__adjust"
+              aria-label={`Increase ${exercise.name} reps by 1`}
+              onClick={() =>
+                props.onRepsChange(applyWeightDelta(props.draft.reps, 1))
+              }
+            >
+              +1
+            </button>
+          </div>
           <button
             type="button"
             className="btn btn--primary quick-entry__save"
