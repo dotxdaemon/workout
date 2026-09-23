@@ -50,6 +50,8 @@ Use this map to prevent repeat regressions. Every bugfix should add or update an
 
 | 2026-09-22 | Tall header and repeated metadata obscure everyday set logging | Secondary information occupied full rows and primary-sized controls around the actual entry. | `keeps Today navigation compact while preserving day selection and Edit split controls`; `keeps guidance and management behind an accessible Options disclosure` | `a30080a` | Both failed first; 165 tests, lint, typecheck and build pass. Comparable 390px exercise height drops ~438px to321px; full-size +/-1 controls, autosave/reload, both themes and 360/390/430/1280px checks verified in companion screenshots/logs. |
 
+| 2026-09-23 | Offline launch shows an error page after any page load returned 404/500; a failed asset fetch stays broken | `handleNavigation` and `cacheFirst` in `public/sw.js` cached responses without checking `ok`, so error responses replaced the cached shell/assets. | `keeps the cached app shell for offline launch after a navigation returns an error`; `refetches a cache-first asset whose earlier response was an error` | `84c94a7` | Both failed first (404 and 503 served from cache), then passed; 167 tests, lint, typecheck and build pass. Unit test only — no installed-PWA device check. |
+
 ## Rules
 
 1. Add one row per bug class; update existing rows when behavior changes.
