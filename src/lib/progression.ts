@@ -1,11 +1,12 @@
 // ABOUTME: Computes workout progression suggestions from completed working sets.
 // ABOUTME: Applies double progression by adding reps first, then increasing load.
-import type { ProgressionSettings, SetEntry } from '../types'
+import type { ProgressionSettings, SetEntry, Unit } from '../types'
+import { convertWeight, formatWeight } from './units'
 
 export interface ProgressionSuggestion {
-  kind: 'increase_weight' | 'add_reps' | 'collect_more_sets'
+  kind: 'increase_weight' | 'add_reps' | 'collect_more_sets' | 'review_sets'
   message: string
-  suggestedWeight: number
+  suggestedWeight: number | null
   nextReps: number[]
 }
 
@@ -14,6 +15,18 @@ interface SetLike {
   reps: number
   isWarmup: boolean
   completedAt?: string
+  unit?: Unit
+}
+
+export function isCompletedWorkSet(set: SetLike): boolean {
+  return (
+    !set.isWarmup &&
+    Boolean(set.completedAt) &&
+    Number.isFinite(set.weight) &&
+    set.weight >= 0 &&
+    Number.isInteger(set.reps) &&
+    set.reps > 0
+  )
 }
 
 export function calculateEstimatedOneRepMax(weight: number, reps: number): number {
@@ -24,12 +37,10 @@ export function isExerciseComplete(
   settings: ProgressionSettings,
   sets: SetLike[],
 ): boolean {
-  const workSets = sets.filter((set) => !set.isWarmup)
-  if (workSets.length < settings.workSetsTarget) {
-    return false
-  }
-
-  return workSets.slice(0, settings.workSetsTarget).every((set) => Boolean(set.completedAt))
+  return (
+    settings.workSetsTarget > 0 &&
+    sets.filter(isCompletedWorkSet).length >= settings.workSetsTarget
+  )
 }
 
 export function buildProgressionSuggestion(
@@ -37,8 +48,12 @@ export function buildProgressionSuggestion(
   sets: SetLike[],
 ): ProgressionSuggestion | null {
   const completedWorkSets = sets
-    .filter((set) => !set.isWarmup && Boolean(set.completedAt))
+    .filter(isCompletedWorkSet)
     .slice(0, settings.workSetsTarget)
+    .map((set) => ({
+      ...set,
+      weight: convertWeight(set.weight, set.unit ?? settings.unit, settings.unit),
+    }))
 
   if (completedWorkSets.length === 0) {
     return null
@@ -47,43 +62,47 @@ export function buildProgressionSuggestion(
   if (completedWorkSets.length < settings.workSetsTarget) {
     return {
       kind: 'collect_more_sets',
-      message: `Complete ${settings.workSetsTarget} work sets to get a progression suggestion.`,
-      suggestedWeight: completedWorkSets[0].weight,
+      message: `Only ${completedWorkSets.length} of ${settings.workSetsTarget} working sets were completed. There is not enough recorded work to choose a next-session target.`,
+      suggestedWeight: null,
       nextReps: completedWorkSets.map((set) => set.reps),
     }
   }
 
   const workingWeight = completedWorkSets[0].weight
-  const allAtSameWeight = completedWorkSets.every((set) => set.weight === workingWeight)
+  const allAtSameWeight = completedWorkSets.every(
+    (set) => Math.abs(set.weight - workingWeight) < 0.005,
+  )
   const allHitRepCap = completedWorkSets.every((set) => set.reps >= settings.repMax)
 
+  if (!allAtSameWeight) {
+    return {
+      kind: 'review_sets',
+      message:
+        'Working sets used different loads. Review those sets before choosing a next-session target.',
+      suggestedWeight: null,
+      nextReps: completedWorkSets.map((set) => set.reps),
+    }
+  }
+
   // Double progression: add load only after all target work sets hit the rep ceiling.
-  if (allAtSameWeight && allHitRepCap) {
+  if (allHitRepCap) {
+    const suggestedWeight = Number((workingWeight + settings.weightIncrement).toFixed(2))
     return {
       kind: 'increase_weight',
-      message: `Increase to ${formatNumber(workingWeight + settings.weightIncrement)} ${settings.unit} next time and aim for ${settings.repMin} reps.`,
-      suggestedWeight: workingWeight + settings.weightIncrement,
+      message: `All ${settings.workSetsTarget} working sets reached ${settings.repMax} reps. Next time: ${formatWeight(suggestedWeight)} ${settings.unit} for ${settings.repMin} reps per set.`,
+      suggestedWeight,
       nextReps: completedWorkSets.map(() => settings.repMin),
     }
   }
 
   const nextReps = completedWorkSets.map((set) => set.reps)
-  const firstSetBelowMaxIndex = completedWorkSets.findIndex(
-    (set) => set.reps < settings.repMax,
-  )
-  if (firstSetBelowMaxIndex >= 0) {
-    nextReps[firstSetBelowMaxIndex] = Math.min(
-      completedWorkSets[firstSetBelowMaxIndex].reps + 1,
-      settings.repMax,
-    )
-  }
+  const lowestReps = Math.min(...nextReps)
+  const lowestSetIndex = nextReps.indexOf(lowestReps)
+  nextReps[lowestSetIndex] = Math.min(lowestReps + 1, settings.repMax)
 
   return {
     kind: 'add_reps',
-    message:
-      firstSetBelowMaxIndex >= 0
-        ? `Keep ${formatNumber(workingWeight)} ${settings.unit} and add +1 rep to set ${firstSetBelowMaxIndex + 1}.`
-        : `Keep ${formatNumber(workingWeight)} ${settings.unit} and match last reps again.`,
+    message: `Set ${lowestSetIndex + 1} had the fewest reps (${lowestReps}). Keep ${formatWeight(workingWeight)} ${settings.unit} and aim for ${nextReps[lowestSetIndex]} reps on that set.`,
     suggestedWeight: workingWeight,
     nextReps,
   }
@@ -91,8 +110,4 @@ export function buildProgressionSuggestion(
 
 export function extractWorkSets(entries: SetEntry[]): SetEntry[] {
   return entries.filter((entry) => !entry.isWarmup)
-}
-
-function formatNumber(value: number): string {
-  return Number.isInteger(value) ? value.toString() : value.toFixed(1)
 }

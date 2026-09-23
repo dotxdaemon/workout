@@ -12,6 +12,8 @@ interface RenderHarness {
   cleanup: () => Promise<void>
 }
 
+const mountedScreens = new Map<Root, HTMLElement>()
+
 describe('RoutinesScreen behavior', () => {
   const originalWindowScrollTo = window.scrollTo
 
@@ -30,10 +32,72 @@ describe('RoutinesScreen behavior', () => {
 
   afterEach(async () => {
     vi.useRealTimers()
+    for (const [root, shell] of mountedScreens) await cleanupRender(root, shell)
     document.body.innerHTML = ''
     localStorage.clear()
     window.scrollTo = originalWindowScrollTo
     await clearDatabase()
+  })
+
+  it('logs zero load, prevents repeated completion, and autosaves correction without a duplicate', async () => {
+    const harness = await renderScreen()
+    const card = harness.host.querySelector('.exercise-card') as HTMLElement
+    await setInputValue(card.querySelector('input[inputmode="decimal"]')!, '0')
+    await setInputValue(card.querySelector('input[inputmode="numeric"]')!, '8')
+    const complete = card.querySelector<HTMLButtonElement>('.quick-entry__save')!
+    await act(async () => {
+      complete.click()
+      complete.click()
+    })
+    await waitForAsync(
+      async () => (await db.setEntries.count()) === 1,
+      'Zero-load set was not completed.',
+    )
+    const original = (await readStored(() => db.setEntries.toArray()))[0]
+    expect(original.weight).toBe(0)
+    expect(card.textContent).toContain('Saved on this device')
+    await setInputValue(card.querySelector('input[inputmode="numeric"]')!, '9')
+    await waitForAsync(
+      async () => (await db.setEntries.get(original.id))?.reps === 9,
+      'Correction was not autosaved.',
+    )
+    expect(await readStored(() => db.setEntries.count())).toBe(1)
+    await harness.cleanup()
+  })
+
+  it('keeps only the selected exercise expanded with visible Weight and Reps labels', async () => {
+    const harness = await renderScreen()
+    expect(harness.host.querySelectorAll('.quick-entry').length).toBe(1)
+    const card = harness.host.querySelector('.exercise-card') as HTMLElement
+    expect(card.textContent).toContain('Weight (lb)')
+    expect(card.textContent).toContain('Reps')
+    const second = harness.host.querySelectorAll('.exercise-card')[1] as HTMLElement
+    await click(second.querySelector('.exercise-card__title-btn')!)
+    expect(second.querySelector('.quick-entry')).not.toBeNull()
+    expect(card.querySelector('.quick-entry')).toBeNull()
+    await harness.cleanup()
+  })
+
+  it('finishes explicitly and shows the recorded workout as previous performance after reload', async () => {
+    const harness = await renderScreen()
+    const card = harness.host.querySelector('.exercise-card') as HTMLElement
+    await logSet(card, '135', '8')
+    await waitForAsync(async () => (await db.setEntries.count()) === 1, 'Set missing.')
+    const entry = (await readStored(() => db.setEntries.toArray()))[0]
+    await click(getButtonByText(harness.host, 'Finish workout'))
+    await waitForAsync(
+      async () => Boolean((await db.sessions.get(entry.sessionId))?.endedAt),
+      'Workout did not finish.',
+    )
+    await harness.cleanup()
+    const resumed = await renderScreen()
+    await waitFor(
+      () =>
+        (resumed.host.querySelector('.last-line')?.textContent ?? '').includes('135 lb'),
+      'Previous workout missing after reload.',
+    )
+    expect(await readStored(() => db.setEntries.count())).toBe(1)
+    await resumed.cleanup()
   })
 
   it('renders today and edit as mutually exclusive screen states', async () => {
@@ -87,7 +151,7 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('adjusts weight by the exercise increment and reps by one', async () => {
+  it('keeps an incomplete decimal-weight draft when selecting another exercise and reloading', async () => {
     const harness = await renderScreen()
     const firstCard = harness.host.querySelector('.exercise-card') as HTMLElement
     const weightInput = firstCard.querySelector(
@@ -97,40 +161,21 @@ describe('RoutinesScreen behavior', () => {
       'input[inputmode="numeric"]',
     ) as HTMLInputElement
 
-    await setInputValue(weightInput, '100')
+    await setInputValue(weightInput, '100,25')
     await setInputValue(repsInput, '8')
-
-    const increaseWeight = getButtonByAriaLabelPrefix(
-      firstCard,
-      'Increase Barbell Bench Press weight by',
-    )
-    const decreaseWeight = getButtonByAriaLabelPrefix(
-      firstCard,
-      'Decrease Barbell Bench Press weight by',
-    )
-    const increaseReps = getButtonByAriaLabelPrefix(
-      firstCard,
-      'Increase Barbell Bench Press reps by',
-    )
-    const decreaseReps = getButtonByAriaLabelPrefix(
-      firstCard,
-      'Decrease Barbell Bench Press reps by',
-    )
-
-    expect(increaseWeight.getAttribute('aria-label')).toContain('5 lb')
-    expect(increaseReps.getAttribute('aria-label')).toContain('1')
-
-    await click(increaseWeight)
-    expect(weightInput.value).toBe('105')
-    await click(decreaseWeight)
-    expect(weightInput.value).toBe('100')
-
-    await click(increaseReps)
-    expect(repsInput.value).toBe('9')
-    await click(decreaseReps)
-    expect(repsInput.value).toBe('8')
-
+    const second = harness.host.querySelectorAll('.exercise-card')[1]
+    await click(second.querySelector('.exercise-card__title-btn')!)
+    expect(await readStored(() => db.setEntries.count())).toBe(0)
     await harness.cleanup()
+    const resumed = await renderScreen()
+    expect(
+      resumed.host.querySelector<HTMLInputElement>('input[inputmode="decimal"]')?.value,
+    ).toBe('100.25')
+    expect(
+      resumed.host.querySelector<HTMLInputElement>('input[inputmode="numeric"]')?.value,
+    ).toBe('8')
+    expect(await readStored(() => db.setEntries.count())).toBe(0)
+    await resumed.cleanup()
   })
 
   it('defaults the 3-day split to Push as the first training day (Day 1)', async () => {
@@ -179,6 +224,7 @@ describe('RoutinesScreen behavior', () => {
 
   it('finds an exercise outside the selected routine and logs it in the active session', async () => {
     const harness = await renderScreen()
+    await click(getButtonByText(harness.host, 'Add exercise'))
     const searchInput = harness.host.querySelector(
       'input[aria-label="Search exercises"]',
     ) as HTMLInputElement | null
@@ -188,12 +234,16 @@ describe('RoutinesScreen behavior', () => {
 
     const result = getButtonByText(harness.host, 'Back Squat')
     await click(result)
+    await waitFor(
+      () => Boolean(findExerciseCardByTitle(harness.host, 'Back Squat')),
+      'Selected exercise did not appear.',
+    )
 
     const searchedCard = findExerciseCardByTitle(harness.host, 'Back Squat')
     expect(searchedCard).not.toBeNull()
-    expect(searchedCard?.querySelector('.exercise-card__group')?.textContent?.trim()).toBe(
-      'Added today',
-    )
+    expect(
+      searchedCard?.querySelector('.exercise-card__group')?.textContent?.trim(),
+    ).toBe('Added today')
 
     await logSet(searchedCard!, '185', '5')
     await waitFor(
@@ -202,7 +252,9 @@ describe('RoutinesScreen behavior', () => {
     )
 
     const exerciseId = searchedCard!.dataset.exerciseId
-    const entries = await db.setEntries.where('exerciseId').equals(exerciseId!).toArray()
+    const entries = await readStored(() =>
+      db.setEntries.where('exerciseId').equals(exerciseId!).toArray(),
+    )
     expect(entries).toEqual([
       expect.objectContaining({
         weight: 185,
@@ -258,7 +310,7 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('summarizes history with an all-time best, e1RM deltas, and a trend sparkline', async () => {
+  it('shows dated actual history and keeps unit-aware strength estimates in a disclosure', async () => {
     const harness = await renderScreen({ withBottomNav: true })
 
     const daysAgoIso = (days: number, hour: number) => {
@@ -270,7 +322,7 @@ describe('RoutinesScreen behavior', () => {
 
     let benchId = ''
     await act(async () => {
-      const exercises = await listExercises()
+      const exercises = await readExercises()
       benchId =
         exercises.find((exercise) => exercise.name === 'Barbell Bench Press')?.id ?? ''
       await db.sessions.bulkAdd([
@@ -320,20 +372,18 @@ describe('RoutinesScreen behavior', () => {
     )
 
     const overview = document.body.querySelector('.history-overview')
-    expect(overview?.textContent).toContain('All-time best')
-    expect(overview?.textContent).toContain('190 × 5')
-    // e1RM(190x5) = 190 * (1 + 5/30) ≈ 222.
-    expect(overview?.textContent).toContain('e1RM 222')
+    expect(overview?.textContent).toContain('Best in shown history')
+    expect(overview?.textContent).toContain('190 lb × 5')
+    expect(overview?.textContent).toContain('Estimated 1RM 221.67 lb')
     expect(overview?.querySelector('svg.history-overview__spark')).not.toBeNull()
+    expect(
+      document.body.querySelector<HTMLDetailsElement>('.history-estimates')?.open,
+    ).toBe(false)
 
     const rows = Array.from(document.body.querySelectorAll('.history-row'))
-    // Newest session first: 190x5 beats 185x5 by ~6 e1RM.
-    const newestDelta = rows[0].querySelector('.history-row__delta--up')
-    expect(newestDelta?.textContent).toContain('▲')
-    expect(newestDelta?.textContent).toContain('6')
-    expect(rows[0].textContent).toContain('e1RM 222')
-    expect(rows[1].querySelector('.history-row__delta--up')).toBeNull()
-    expect(rows[1].querySelector('.history-row__delta--down')).toBeNull()
+    expect(rows[0].textContent).toContain('190 lb × 5 reps')
+    expect(rows[1].textContent).toContain('185 lb × 5 reps')
+    expect(rows[0].querySelector('time')?.getAttribute('datetime')).toBe(daysAgoIso(7, 9))
 
     await harness.cleanup()
   })
@@ -363,7 +413,7 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('surfaces a progression suggestion after completing the target work sets', async () => {
+  it('uses a finished workout for progression and excludes unfinished performance', async () => {
     const harness = await renderScreen()
     const firstCard = harness.host.querySelector('.exercise-card') as HTMLElement | null
     expect(firstCard).not.toBeNull()
@@ -373,12 +423,15 @@ describe('RoutinesScreen behavior', () => {
     await logSet(firstCard!, '100', '6')
     await logSet(firstCard!, '100', '6')
 
+    expect(firstCard!.querySelector('.suggestion')).toBeNull()
+    await click(getButtonByText(harness.host, 'Finish workout'))
+
     await waitFor(
-      () => Boolean(firstCard!.querySelector('.suggestion')),
-      'Progression suggestion did not surface after three completed work sets.',
+      () => Boolean(harness.host.querySelector('.suggestion')),
+      'Progression suggestion did not surface for the completed workout.',
     )
 
-    expect(firstCard!.querySelector('.suggestion')?.textContent ?? '').toMatch(
+    expect(harness.host.querySelector('.suggestion')?.textContent ?? '').toMatch(
       /rep|increase/i,
     )
 
@@ -393,14 +446,14 @@ describe('RoutinesScreen behavior', () => {
     const saveButton = firstCard!.querySelector(
       '.quick-entry__save',
     ) as HTMLButtonElement | null
-    expect(saveButton?.textContent?.trim()).toBe('Save set')
+    expect(saveButton?.textContent?.trim()).toBe('Complete set')
 
     await logSet(firstCard!, '100', '8')
 
     await waitFor(
       () =>
-        (firstCard!.querySelector('.quick-entry__save')?.textContent ?? '').trim() ===
-        'Saved',
+        (firstCard!.querySelector('.save-state')?.textContent ?? '').trim() ===
+        'Saved on this device',
       'Save action did not surface saved feedback.',
     )
 
@@ -475,13 +528,15 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('reveals the error banner and resets scroll when a set is saved empty', async () => {
+  it('keeps empty completion errors beside the fields without moving away from the exercise', async () => {
     const harness = await renderScreen()
     const cards = Array.from(
       harness.host.querySelectorAll('.exercise-card'),
     ) as HTMLElement[]
     const lastCard = cards.at(-1)
     expect(lastCard).not.toBeUndefined()
+    await click(lastCard!.querySelector('.exercise-card__title-btn')!)
+    await flushFrame()
 
     const saveButton = lastCard!.querySelector('.quick-entry__save') as HTMLButtonElement
 
@@ -497,8 +552,8 @@ describe('RoutinesScreen behavior', () => {
 
     await waitFor(
       () =>
-        (harness.host.querySelector('.banner--error')?.textContent ?? '').includes(
-          'Enter both weight and reps before saving.',
+        (lastCard!.querySelector('[role="alert"]')?.textContent ?? '').includes(
+          'Enter a weight of 0 or more',
         ),
       'Empty save validation error did not render.',
     )
@@ -512,8 +567,8 @@ describe('RoutinesScreen behavior', () => {
     await setInputValue(weightInput, '95')
     expect(weightInput.getAttribute('aria-invalid')).toBe(null)
 
-    expect(scrollSpy).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
-    expect(harness.host.scrollTop).toBe(0)
+    expect(scrollSpy).not.toHaveBeenCalled()
+    expect(harness.host.scrollTop).toBe(640)
     await harness.cleanup()
   })
 
@@ -636,7 +691,7 @@ describe('RoutinesScreen behavior', () => {
         () => Boolean(harness.host.querySelector('.edit-mode')),
         'Edit mode did not open.',
       )
-      const exercisesBefore = await listExercises()
+      const exercisesBefore = await readExercises()
 
       const uniqueName = `Codex Exercise ${Date.now()}`
       const addInput = harness.host.querySelector(
@@ -655,7 +710,7 @@ describe('RoutinesScreen behavior', () => {
       )
 
       expect(revealedRows).toContain(findEditRowByTitle(harness.host, uniqueName))
-      const exercisesAfter = await listExercises()
+      const exercisesAfter = await readExercises()
       expect(exercisesAfter).toHaveLength(exercisesBefore.length + 1)
       expect(exercisesAfter.some((exercise) => exercise.name === uniqueName)).toBe(true)
     } finally {
@@ -698,55 +753,46 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('reveals a newly added exercise card after saving routine edits', async () => {
+  it('saves routine additions for the next workout while preserving the active plan', async () => {
     const harness = await renderScreen()
-    const revealed: HTMLElement[] = []
-    const originalScrollIntoView = window.HTMLElement.prototype.scrollIntoView
-    const scrollIntoView = vi.fn(function (this: HTMLElement) {
-      revealed.push(this)
-    })
-    window.HTMLElement.prototype.scrollIntoView = scrollIntoView
+    await logSet(harness.host.querySelector('.exercise-card')!, '100', '8')
+    const initialIds = Array.from(
+      harness.host.querySelectorAll<HTMLElement>('.exercise-card'),
+    ).map((card) => card.dataset.exerciseId)
     await click(getButtonByText(harness.host, 'Edit'))
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.edit-mode')),
+      'Edit mode did not open.',
+    )
 
-    try {
-      await waitFor(
-        () => Boolean(harness.host.querySelector('.edit-mode')),
-        'Edit mode did not open.',
-      )
+    const uniqueName = `Saved Probe ${Date.now()}`
+    const addInput = harness.host.querySelector(
+      'input[placeholder="Add exercise"]',
+    ) as HTMLInputElement
+    await setInputValue(addInput, uniqueName)
+    await click(getButtonByText(harness.host, 'Add'))
+    await waitFor(
+      () => Boolean(findEditRowByTitle(harness.host, uniqueName)),
+      'Draft did not appear.',
+    )
 
-      const uniqueName = `Saved Probe ${Date.now()}`
-      const addInput = harness.host.querySelector(
-        'input[placeholder="Add exercise"]',
-      ) as HTMLInputElement
-      await setInputValue(addInput, uniqueName)
-      await click(getButtonByText(harness.host, 'Add'))
-      await waitFor(
-        () => Boolean(findEditRowByTitle(harness.host, uniqueName)),
-        'Draft did not appear.',
-      )
-
-      scrollIntoView.mockClear()
-      revealed.length = 0
-
-      await click(getButtonByText(harness.host, 'Save routine'))
-      await waitFor(
-        () => Boolean(harness.host.querySelector('.train-today')),
-        'Save did not return to today.',
-      )
-      await waitFor(
-        () => Boolean(findExerciseCardByTitle(harness.host, uniqueName)),
-        'Saved exercise did not appear in Today mode.',
-      )
-      await waitFor(
-        () => scrollIntoView.mock.calls.length > 0,
-        'Saved card was not revealed.',
-      )
-
-      expect(revealed).toContain(findExerciseCardByTitle(harness.host, uniqueName))
-    } finally {
-      window.HTMLElement.prototype.scrollIntoView = originalScrollIntoView
-      await harness.cleanup()
-    }
+    await click(getButtonByText(harness.host, 'Save routine'))
+    await waitFor(
+      () => Boolean(harness.host.querySelector('.train-today')),
+      'Save did not return to today.',
+    )
+    expect(findExerciseCardByTitle(harness.host, uniqueName)).toBeNull()
+    expect(
+      Array.from(harness.host.querySelectorAll<HTMLElement>('.exercise-card')).map(
+        (card) => card.dataset.exerciseId,
+      ),
+    ).toEqual(initialIds)
+    await click(getButtonByText(harness.host, 'Finish workout'))
+    await waitFor(
+      () => Boolean(findExerciseCardByTitle(harness.host, uniqueName)),
+      'Saved routine addition was not used for the next workout.',
+    )
+    await harness.cleanup()
   })
 
   it('reuses an existing exercise record on an exact-name add', async () => {
@@ -757,7 +803,7 @@ describe('RoutinesScreen behavior', () => {
       'Edit mode did not open.',
     )
 
-    const exercisesBefore = await listExercises()
+    const exercisesBefore = await readExercises()
     const rowsBefore = harness.host.querySelectorAll('.edit-exercise').length
     const addInput = harness.host.querySelector(
       'input[placeholder="Add exercise"]',
@@ -771,7 +817,7 @@ describe('RoutinesScreen behavior', () => {
       'Exact-name add did not reuse the existing exercise.',
     )
 
-    const exercisesAfter = await listExercises()
+    const exercisesAfter = await readExercises()
     expect(exercisesAfter).toHaveLength(exercisesBefore.length)
     expect(findEditRowByTitle(harness.host, 'Bench Press')).not.toBeNull()
 
@@ -786,7 +832,7 @@ describe('RoutinesScreen behavior', () => {
       'Edit mode did not open.',
     )
 
-    const exercisesBefore = await listExercises()
+    const exercisesBefore = await readExercises()
     const rowsBefore = harness.host.querySelectorAll('.edit-exercise').length
     const addInput = harness.host.querySelector(
       'input[placeholder="Add exercise"]',
@@ -804,7 +850,7 @@ describe('RoutinesScreen behavior', () => {
       'Selecting a suggestion did not add the exercise.',
     )
 
-    const exercisesAfter = await listExercises()
+    const exercisesAfter = await readExercises()
     expect(exercisesAfter).toHaveLength(exercisesBefore.length)
     await harness.cleanup()
   })
@@ -869,8 +915,29 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('does not rename exercises in other routines when one edit-row name changes', async () => {
+  it('keeps exercise identity and history attached when its name changes', async () => {
     const harness = await renderScreen()
+    const exercisesBefore = await readExercises()
+    const original = exercisesBefore.find((exercise) => exercise.name === 'Leg Press')!
+    const historySet = {
+      id: 'rename-history-set',
+      sessionId: 'rename-history',
+      exerciseId: original.id,
+      index: 0,
+      weight: 100,
+      reps: 8,
+      unit: 'lb' as const,
+      isWarmup: false,
+      completedAt: '2026-09-10T12:30:00Z',
+    }
+    await act(async () => {
+      await db.sessions.put({
+        id: 'rename-history',
+        startedAt: '2026-09-10T12:00:00Z',
+        endedAt: '2026-09-10T13:00:00Z',
+      })
+      await db.setEntries.put(historySet)
+    })
     await click(getButtonByText(harness.host, 'Edit'))
     await waitFor(
       () => Boolean(harness.host.querySelector('.edit-mode')),
@@ -902,26 +969,27 @@ describe('RoutinesScreen behavior', () => {
       'Save did not return to today.',
     )
 
-    await click(getButtonByText(harness.host, 'Edit'))
-    await waitFor(
-      () => Boolean(harness.host.querySelector('.edit-mode')),
-      'Edit mode did not reopen.',
+    expect((await readStored(() => db.exercises.get(original.id)))?.name).toBe(
+      'Hamstring Curl',
     )
-    await click(getButtonByTextIncludes(harness.host, 'Day 4')!)
-    await waitFor(
-      () => harness.host.querySelectorAll('.edit-exercise__name').length > 0,
-      'Day 4 exercises did not load.',
-    )
-
-    const day4Titles = Array.from(
-      harness.host.querySelectorAll('.edit-exercise__name'),
-    ).map((node) => node.textContent?.trim() ?? '')
-    expect(day4Titles).toContain('Leg Press')
+    expect(await readStored(() => db.exercises.count())).toBe(exercisesBefore.length)
+    expect(await readStored(() => db.setEntries.get(historySet.id))).toEqual(historySet)
+    const day4 = (await readStored(() => db.routines.toArray())).find(
+      (routine) => routine.splitId === '4-day-split' && routine.name.startsWith('Day 4'),
+    )!
+    expect(day4.exerciseIds).toContain(original.id)
     await harness.cleanup()
   })
 
-  it('creates an isolated exercise record when renaming to an existing exercise name', async () => {
+  it('keeps two exercise identities distinct when renamed to the same name', async () => {
     const harness = await renderScreen()
+    const exercisesBefore = await readExercises()
+    const originalId = exercisesBefore.find(
+      (exercise) => exercise.name === 'Leg Press',
+    )!.id
+    const otherId = exercisesBefore.find(
+      (exercise) => exercise.name === 'Lying Hamstring Curl',
+    )!.id
     await click(getButtonByText(harness.host, 'Edit'))
     await waitFor(
       () => Boolean(harness.host.querySelector('.edit-mode')),
@@ -954,12 +1022,20 @@ describe('RoutinesScreen behavior', () => {
     )
 
     await waitForAsync(async () => {
-      const exercises = await listExercises()
+      const exercises = await readExercises()
       return (
         exercises.filter((exercise) => exercise.name === 'Lying Hamstring Curl')
           .length === 2
       )
     }, 'Renaming to an existing exercise name did not create an isolated record.')
+    expect(await readStored(() => db.exercises.count())).toBe(exercisesBefore.length)
+    expect((await readStored(() => db.exercises.get(originalId)))?.name).toBe(
+      'Lying Hamstring Curl',
+    )
+    expect((await readStored(() => db.exercises.get(otherId)))?.name).toBe(
+      'Lying Hamstring Curl',
+    )
+    expect(originalId).not.toBe(otherId)
 
     await harness.cleanup()
   })
@@ -1004,7 +1080,9 @@ describe('RoutinesScreen behavior', () => {
     await waitFor(
       () =>
         (document.body.textContent ?? '').includes('No history yet') &&
-        (document.body.textContent ?? '').includes('Log a set and it will show up here.'),
+        (document.body.textContent ?? '').includes(
+          'Finish a workout to see its recorded sets here.',
+        ),
       'Empty history copy did not render.',
     )
 
@@ -1033,6 +1111,7 @@ async function renderScreen(options?: {
   document.body.append(shell)
 
   const root = createRoot(host)
+  mountedScreens.set(root, shell)
   await act(async () => {
     root.render(<RoutinesScreen />)
   })
@@ -1053,19 +1132,30 @@ async function renderScreen(options?: {
 }
 
 async function cleanupRender(root: Root, shell: HTMLElement): Promise<void> {
+  if (!mountedScreens.has(root)) return
   await act(async () => {
     root.unmount()
   })
+  mountedScreens.delete(root)
   shell.remove()
 }
 
 async function logSet(card: HTMLElement, weight: string, reps: string): Promise<void> {
+  if (!card.querySelector('.quick-entry'))
+    await click(card.querySelector('.exercise-card__title-btn')!)
+  const nextSet = card.querySelector<HTMLButtonElement>('.next-set')
+  if (nextSet) await click(nextSet)
+  const count = card.querySelectorAll('.set-pill').length
   const weightInput = card.querySelector('input[inputmode="decimal"]') as HTMLInputElement
   const repsInput = card.querySelector('input[inputmode="numeric"]') as HTMLInputElement
   const saveButton = card.querySelector('.quick-entry__save') as HTMLButtonElement
   await setInputValue(weightInput, weight)
   await setInputValue(repsInput, reps)
   await click(saveButton)
+  await waitFor(
+    () => card.querySelectorAll('.set-pill').length === count + 1,
+    'Completed set did not render.',
+  )
 }
 
 async function click(
@@ -1165,9 +1255,10 @@ function findExerciseCardByTitle(
 async function waitFor(
   condition: () => boolean,
   failureMessage: string,
-  maxPasses = 1500,
+  timeoutMs = 1500,
 ): Promise<void> {
-  for (let pass = 0; pass < maxPasses; pass += 1) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
     if (condition()) {
       return
     }
@@ -1183,17 +1274,19 @@ async function waitFor(
 async function waitForAsync(
   condition: () => Promise<boolean>,
   failureMessage: string,
-  maxPasses = 1500,
+  timeoutMs = 1500,
 ): Promise<void> {
-  for (let pass = 0; pass < maxPasses; pass += 1) {
-    if (await condition()) {
-      return
-    }
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    let complete = false
     await act(async () => {
-      await new Promise((resolve) => {
-        setTimeout(resolve, 0)
-      })
+      complete = await condition()
+      if (!complete)
+        await new Promise((resolve) => {
+          setTimeout(resolve, 0)
+        })
     })
+    if (complete) return
   }
   throw new Error(failureMessage)
 }
@@ -1207,6 +1300,22 @@ async function flushFrame(): Promise<void> {
       setTimeout(resolve, 0)
     })
   })
+}
+
+async function readExercises() {
+  let exercises: Awaited<ReturnType<typeof listExercises>> = []
+  await act(async () => {
+    exercises = await listExercises()
+  })
+  return exercises
+}
+
+async function readStored<T>(read: () => Promise<T>): Promise<T> {
+  let value!: T
+  await act(async () => {
+    value = await read()
+  })
+  return value
 }
 
 async function clearDatabase(): Promise<void> {

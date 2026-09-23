@@ -8,7 +8,8 @@ import { SettingsScreen } from './SettingsScreen'
 
 describe('Settings screen layout', () => {
   beforeEach(() => {
-    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
+      true
     document.body.innerHTML = ''
     document.documentElement.removeAttribute('data-theme')
     localStorage.clear()
@@ -118,5 +119,36 @@ describe('Settings screen layout', () => {
     await act(async () => {
       root.unmount()
     })
+  })
+
+  it('keeps the applied preference and reports a full device instead of claiming a failed write applied', async () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    await act(async () => {
+      root.render(<SettingsScreen />)
+    })
+    localStorage.setItem('quota', 'x'.repeat(4_999_995))
+    const capture = (event: ErrorEvent) => event.preventDefault()
+    window.addEventListener('error', capture)
+    try {
+      const kg = Array.from(host.querySelectorAll('button')).find(
+        (button) => button.textContent?.trim() === 'kg',
+      )!
+      await act(async () => {
+        kg.click()
+      })
+      expect(kg.getAttribute('aria-selected')).toBe('false')
+      expect(host.querySelector('.banner--error')?.textContent).toContain(
+        'Preference not saved',
+      )
+      expect(readPreferences().defaultUnit).toBe('lb')
+    } finally {
+      window.removeEventListener('error', capture)
+      localStorage.removeItem('quota')
+      await act(async () => {
+        root.unmount()
+      })
+    }
   })
 })

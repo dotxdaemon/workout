@@ -12,15 +12,16 @@ import type {
   WorkoutExport,
 } from '../types'
 import { inferRoutineSplitId } from './routineSplit'
+import { convertWeight } from './units'
 
-class WorkoutDatabase extends Dexie {
+export class WorkoutDatabase extends Dexie {
   exercises!: Table<Exercise, string>
   routines!: Table<Routine, string>
   sessions!: Table<SessionRecord, string>
   setEntries!: Table<SetEntry, string>
 
-  constructor() {
-    super('workout-tracker')
+  constructor(name = 'workout-tracker') {
+    super(name)
     this.version(1).stores({
       exercises: 'id,name',
       routines: 'id,name',
@@ -41,6 +42,27 @@ class WorkoutDatabase extends Dexie {
           .modify((routine: { name: string; splitId?: RoutineSplitId }) => {
             if (!routine.splitId) {
               routine.splitId = inferRoutineSplitId(routine.name)
+            }
+          })
+      })
+    this.version(3)
+      .stores({
+        exercises: 'id,name',
+        routines: 'id,name,splitId',
+        sessions: 'id,startedAt,endedAt,routineId',
+        setEntries: 'id,sessionId,exerciseId,[sessionId+exerciseId],index,completedAt',
+      })
+      .upgrade(async (transaction) => {
+        const exercises = await transaction.table<Exercise>('exercises').toArray()
+        const exerciseById = new Map(exercises.map((exercise) => [exercise.id, exercise]))
+        await transaction
+          .table<SetEntry>('setEntries')
+          .toCollection()
+          .modify((set) => {
+            if (!set.unit) {
+              const exercise = exerciseById.get(set.exerciseId)
+              set.unit =
+                exercise?.progressionSettings.unit ?? exercise?.unitDefault ?? 'lb'
             }
           })
       })
@@ -176,8 +198,6 @@ export function markCoreRoutinesRestored(): void {
 }
 
 async function ensureCoreRoutinesInternal(unitDefault: Unit): Promise<void> {
-  await repairSeedDuplicates()
-
   const existingExercises = await db.exercises.toArray()
   const existingRoutines = await db.routines.toArray()
 
@@ -186,12 +206,17 @@ async function ensureCoreRoutinesInternal(unitDefault: Unit): Promise<void> {
   )
   const routineByName = new Map(
     existingRoutines.map((routine) => [
-      toSplitRoutineKey(normalizeRoutineSplitId(routine.splitId, routine.name), routine.name),
+      toSplitRoutineKey(
+        normalizeRoutineSplitId(routine.splitId, routine.name),
+        routine.name,
+      ),
       routine,
     ]),
   )
   const existingRoutineSplits = new Set<RoutineSplitId>(
-    existingRoutines.map((routine) => normalizeRoutineSplitId(routine.splitId, routine.name)),
+    existingRoutines.map((routine) =>
+      normalizeRoutineSplitId(routine.splitId, routine.name),
+    ),
   )
   const splitsToSeed = new Set<RoutineSplitId>()
   for (const template of coreRoutineTemplates) {
@@ -201,6 +226,9 @@ async function ensureCoreRoutinesInternal(unitDefault: Unit): Promise<void> {
   }
 
   for (const template of coreRoutineTemplates) {
+    if (!splitsToSeed.has(template.splitId)) {
+      continue
+    }
     const exerciseIds: string[] = []
 
     for (const exerciseName of template.exerciseNames) {
@@ -220,7 +248,7 @@ async function ensureCoreRoutinesInternal(unitDefault: Unit): Promise<void> {
 
     const routineKey = toSplitRoutineKey(template.splitId, template.name)
 
-    if (splitsToSeed.has(template.splitId) && !routineByName.has(routineKey)) {
+    if (!routineByName.has(routineKey)) {
       const routine = await createRoutine(template.name, exerciseIds, template.splitId)
       routineByName.set(routineKey, routine)
     }
@@ -253,13 +281,7 @@ export async function updateExercise(
   id: string,
   patch: Partial<Omit<Exercise, 'id'>>,
 ): Promise<void> {
-  const relatedExerciseIds = await getRelatedExerciseIds(id)
-
-  await db.transaction('rw', db.exercises, async () => {
-    for (const exerciseId of relatedExerciseIds) {
-      await db.exercises.update(exerciseId, patch)
-    }
-  })
+  await db.exercises.update(id, patch)
 }
 
 export async function listRoutines(): Promise<Routine[]> {
@@ -307,8 +329,12 @@ export async function startSession(routineId?: string): Promise<SessionRecord> {
 }
 
 export async function endSession(sessionId: string): Promise<void> {
-  await db.sessions.update(sessionId, {
-    endedAt: new Date().toISOString(),
+  await db.transaction('rw', db.sessions, async () => {
+    const session = await db.sessions.get(sessionId)
+    if (!session) throw new Error('Workout not found.')
+    if (!session.endedAt) {
+      await db.sessions.update(sessionId, { endedAt: new Date().toISOString() })
+    }
   })
 }
 
@@ -316,8 +342,32 @@ export async function assignRoutineToSession(
   sessionId: string,
   routineId: string,
 ): Promise<void> {
-  await db.sessions.update(sessionId, {
-    routineId,
+  await db.transaction('rw', db.sessions, db.routines, db.setEntries, async () => {
+    const session = await requireActiveSession(sessionId)
+    const routine = await db.routines.get(routineId)
+    if (!routine) throw new Error('Routine not found.')
+    await db.sessions.update(sessionId, {
+      routineId,
+      exerciseIds: session.exerciseIds ?? [
+        ...new Set([
+          ...routine.exerciseIds,
+          ...(await listSessionExerciseIds(sessionId)),
+        ]),
+      ],
+    })
+  })
+}
+
+export async function updateSessionExercises(
+  sessionId: string,
+  exerciseIds: string[],
+): Promise<void> {
+  await db.transaction('rw', db.sessions, db.exercises, async () => {
+    await requireActiveSession(sessionId)
+    const uniqueIds = [...new Set(exerciseIds)]
+    const exercises = await db.exercises.bulkGet(uniqueIds)
+    if (exercises.some((exercise) => !exercise)) throw new Error('Exercise not found.')
+    await db.sessions.update(sessionId, { exerciseIds: uniqueIds })
   })
 }
 
@@ -326,29 +376,17 @@ export async function getSession(id: string): Promise<SessionRecord | undefined>
 }
 
 export async function getActiveSession(): Promise<SessionRecord | undefined> {
-  const sessions = await db.sessions
-    .filter((session) => !session.endedAt)
-    .sortBy('startedAt')
+  const sessions = await db.sessions.filter((session) => !session.endedAt).toArray()
 
+  sessions.sort((left, right) => Date.parse(left.startedAt) - Date.parse(right.startedAt))
   return sessions.at(-1)
 }
 
 export async function getOrCreateTrackerSession(): Promise<SessionRecord> {
-  const sessions = await db.sessions
-    .filter((session) => !session.endedAt)
-    .sortBy('startedAt')
-
-  const activeSession = sessions.at(-1)
-  if (!activeSession) {
-    return startSession()
-  }
-
-  if (isSameLocalDate(new Date(activeSession.startedAt), new Date())) {
-    return activeSession
-  }
-
-  await endSession(activeSession.id)
-  return startSession()
+  return db.transaction('rw', db.sessions, async () => {
+    const activeSession = await getActiveSession()
+    return activeSession ?? startSession()
+  })
 }
 
 export async function listSessionSetEntries(sessionId: string): Promise<SetEntry[]> {
@@ -374,8 +412,10 @@ export async function listSessionExerciseEntries(
 }
 
 interface AddSetEntryInput {
+  id?: string
   weight: number
   reps: number
+  unit?: Unit
   isWarmup?: boolean
   completed?: boolean
 }
@@ -385,25 +425,73 @@ export async function addSetEntry(
   exerciseId: string,
   input: AddSetEntryInput,
 ): Promise<SetEntry> {
-  const existingEntries = await listSessionExerciseEntries(sessionId, exerciseId)
-  const entry: SetEntry = {
-    id: createId(),
-    sessionId,
-    exerciseId,
-    index: existingEntries.length,
-    weight: input.weight,
-    reps: input.reps,
-    isWarmup: input.isWarmup ?? false,
-    completedAt: input.completed ? new Date().toISOString() : undefined,
-  }
-
-  await db.setEntries.add(entry)
-  return entry
+  validateSetValues(input.weight, input.reps, input.completed ?? false)
+  return db.transaction('rw', db.sessions, db.exercises, db.setEntries, async () => {
+    if (input.id) {
+      const saved = await db.setEntries.get(input.id)
+      if (saved) {
+        if (saved.sessionId !== sessionId || saved.exerciseId !== exerciseId) {
+          throw new Error('Set identity belongs to another exercise.')
+        }
+        if (!saved.completedAt && input.completed) {
+          await requireActiveSession(sessionId)
+          const completed: SetEntry = {
+            ...saved,
+            weight: input.weight,
+            reps: input.reps,
+            unit: input.unit ?? saved.unit,
+            isWarmup: input.isWarmup ?? saved.isWarmup,
+            completedAt: new Date().toISOString(),
+          }
+          await db.setEntries.put(completed)
+          return completed
+        }
+        return saved
+      }
+    }
+    await requireActiveSession(sessionId)
+    const exercise = await db.exercises.get(exerciseId)
+    if (!exercise) throw new Error('Exercise not found.')
+    const existingEntries = await listSessionExerciseEntries(sessionId, exerciseId)
+    const entry: SetEntry = {
+      id: input.id ?? createId(),
+      sessionId,
+      exerciseId,
+      index: (existingEntries.at(-1)?.index ?? -1) + 1,
+      weight: input.weight,
+      reps: input.reps,
+      unit: input.unit ?? exercise.progressionSettings.unit,
+      isWarmup: input.isWarmup ?? false,
+      completedAt: input.completed ? new Date().toISOString() : undefined,
+    }
+    await db.setEntries.add(entry)
+    return entry
+  })
 }
 
 interface SessionSetInput {
   weight: number
   reps: number
+  unit?: Unit
+}
+
+export async function updateCompletedSetEntry(
+  id: string,
+  set: SessionSetInput,
+): Promise<SetEntry> {
+  validateSetValues(set.weight, set.reps, true)
+  return db.transaction('rw', db.setEntries, async () => {
+    const entry = await db.setEntries.get(id)
+    if (!entry?.completedAt) throw new Error('Completed set not found.')
+    const updated = {
+      ...entry,
+      weight: set.weight,
+      reps: set.reps,
+      unit: set.unit ?? entry.unit,
+    }
+    await db.setEntries.put(updated)
+    return updated
+  })
 }
 
 export async function saveSessionExerciseSet(
@@ -412,36 +500,28 @@ export async function saveSessionExerciseSet(
   setIndex: number,
   set: SessionSetInput,
 ): Promise<SetEntry> {
-  const entries = await listSessionExerciseEntries(sessionId, exerciseId)
-  const existing = entries.find((entry) => entry.index === setIndex)
+  validateSetValues(set.weight, set.reps, false)
+  return db.transaction('rw', db.sessions, db.exercises, db.setEntries, async () => {
+    await requireActiveSession(sessionId)
+    const entries = await listSessionExerciseEntries(sessionId, exerciseId)
+    const existing = entries.find((entry) => entry.index === setIndex)
 
-  if (existing) {
-    await db.setEntries.update(existing.id, {
-      weight: set.weight,
-      reps: set.reps,
-      completedAt: undefined,
-    })
-
-    return {
-      ...existing,
-      weight: set.weight,
-      reps: set.reps,
-      completedAt: undefined,
+    if (existing) {
+      const updated = {
+        ...existing,
+        weight: set.weight,
+        reps: set.reps,
+        unit: set.unit ?? existing.unit,
+      }
+      if (existing.completedAt) validateSetValues(set.weight, set.reps, true)
+      await db.setEntries.put(updated)
+      return updated
     }
-  }
 
-  for (let index = entries.length; index < setIndex; index += 1) {
-    await addSetEntry(sessionId, exerciseId, {
-      weight: 0,
-      reps: 0,
-      completed: false,
-    })
-  }
-
-  return addSetEntry(sessionId, exerciseId, {
-    weight: set.weight,
-    reps: set.reps,
-    completed: false,
+    for (let index = entries.length; index < setIndex; index += 1) {
+      await addSetEntry(sessionId, exerciseId, { weight: 0, reps: 0, completed: false })
+    }
+    return addSetEntry(sessionId, exerciseId, { ...set, completed: false })
   })
 }
 
@@ -450,27 +530,17 @@ export async function applySessionExerciseTemplate(
   exerciseId: string,
   sets: SessionSetInput[],
 ): Promise<void> {
-  const existing = await listSessionExerciseEntries(sessionId, exerciseId)
-  if (existing.length > 0) {
-    await db.setEntries.bulkDelete(existing.map((entry) => entry.id))
-  }
-
-  if (sets.length === 0) {
-    return
-  }
-
-  const templateEntries: SetEntry[] = sets.map((set, index) => ({
-    id: createId(),
-    sessionId,
-    exerciseId,
-    index,
-    weight: set.weight,
-    reps: set.reps,
-    isWarmup: false,
-    completedAt: undefined,
-  }))
-
-  await db.setEntries.bulkAdd(templateEntries)
+  sets.forEach((set) => validateSetValues(set.weight, set.reps, false))
+  await db.transaction('rw', db.sessions, db.exercises, db.setEntries, async () => {
+    await requireActiveSession(sessionId)
+    const existing = await listSessionExerciseEntries(sessionId, exerciseId)
+    await db.setEntries.bulkDelete(
+      existing.filter((entry) => !entry.completedAt).map((entry) => entry.id),
+    )
+    for (const set of sets) {
+      await addSetEntry(sessionId, exerciseId, { ...set, completed: false })
+    }
+  })
 }
 
 export async function deleteSessionSet(
@@ -478,7 +548,12 @@ export async function deleteSessionSet(
   exerciseId: string,
   setId: string,
 ): Promise<void> {
-  await db.transaction('rw', db.setEntries, async () => {
+  await db.transaction('rw', db.sessions, db.setEntries, async () => {
+    await requireActiveSession(sessionId)
+    const entry = await db.setEntries.get(setId)
+    if (!entry || entry.sessionId !== sessionId || entry.exerciseId !== exerciseId) {
+      throw new Error('Set not found in this exercise.')
+    }
     await db.setEntries.delete(setId)
 
     const remaining = await db.setEntries
@@ -500,16 +575,13 @@ export async function removeExerciseFromSession(
   sessionId: string,
   exerciseId: string,
 ): Promise<void> {
-  const entries = await db.setEntries
-    .where('[sessionId+exerciseId]')
-    .equals([sessionId, exerciseId])
-    .toArray()
-
-  if (entries.length === 0) {
-    return
-  }
-
-  await db.setEntries.bulkDelete(entries.map((entry) => entry.id))
+  await db.transaction('rw', db.sessions, db.setEntries, async () => {
+    const session = await requireActiveSession(sessionId)
+    const exerciseIds = session.exerciseIds ?? (await listSessionExerciseIds(sessionId))
+    await db.sessions.update(sessionId, {
+      exerciseIds: exerciseIds.filter((id) => id !== exerciseId),
+    })
+  })
 }
 
 export async function listSessionExerciseIds(sessionId: string): Promise<string[]> {
@@ -528,43 +600,28 @@ export async function addSetWithPrefill(
   sessionId: string,
   exerciseId: string,
 ): Promise<SetEntry> {
-  const existingEntries = await listSessionExerciseEntries(sessionId, exerciseId)
-  const nextIndex = existingEntries.length
+  const nextIndex = (await listSessionExerciseEntries(sessionId, exerciseId)).length
   const prefill = await getSetInputPrefillFromLastSession(exerciseId, nextIndex)
-
-  const entry: SetEntry = {
-    id: createId(),
-    sessionId,
-    exerciseId,
-    index: nextIndex,
+  return addSetEntry(sessionId, exerciseId, {
     weight: prefill?.weight ?? 0,
     reps: prefill?.reps ?? 0,
-    isWarmup: false,
-  }
-
-  await db.setEntries.add(entry)
-  return entry
+  })
 }
 
 export async function copyPreviousSet(
   sessionId: string,
   exerciseId: string,
 ): Promise<SetEntry | null> {
-  const existingEntries = await listSessionExerciseEntries(sessionId, exerciseId)
-  const previous = existingEntries.at(-1)
-  if (!previous) {
-    return null
-  }
-
-  const entry: SetEntry = {
-    ...previous,
-    id: createId(),
-    index: previous.index + 1,
-    completedAt: undefined,
-  }
-
-  await db.setEntries.add(entry)
-  return entry
+  return db.transaction('rw', db.sessions, db.exercises, db.setEntries, async () => {
+    const previous = (await listSessionExerciseEntries(sessionId, exerciseId)).at(-1)
+    if (!previous) return null
+    return addSetEntry(sessionId, exerciseId, {
+      weight: previous.weight,
+      reps: previous.reps,
+      unit: previous.unit,
+      isWarmup: previous.isWarmup,
+    })
+  })
 }
 
 interface SetEntryPatch {
@@ -575,14 +632,18 @@ interface SetEntryPatch {
 }
 
 export async function updateSetEntry(id: string, patch: SetEntryPatch): Promise<void> {
-  await db.setEntries.update(id, patch)
+  await db.transaction('rw', db.sessions, db.setEntries, async () => {
+    const entry = await db.setEntries.get(id)
+    if (!entry) throw new Error('Set not found.')
+    await requireActiveSession(entry.sessionId)
+    const updated = { ...entry, ...patch }
+    validateSetValues(updated.weight, updated.reps, Boolean(updated.completedAt))
+    await db.setEntries.put(updated)
+  })
 }
 
-export async function markSetComplete(
-  id: string,
-  isComplete: boolean,
-): Promise<void> {
-  await db.setEntries.update(id, {
+export async function markSetComplete(id: string, isComplete: boolean): Promise<void> {
+  await updateSetEntry(id, {
     completedAt: isComplete ? new Date().toISOString() : undefined,
   })
 }
@@ -590,46 +651,26 @@ export async function markSetComplete(
 export async function getLastCompletedSessionForExercise(
   exerciseId: string,
 ): Promise<{ session: SessionRecord; sets: SetEntry[] } | null> {
-  const relatedExerciseIds = await getRelatedExerciseIds(exerciseId)
-  const entries =
-    relatedExerciseIds.length > 1
-      ? await db.setEntries.where('exerciseId').anyOf(relatedExerciseIds).toArray()
-      : await db.setEntries.where('exerciseId').equals(exerciseId).toArray()
-
-  if (entries.length === 0) {
-    return null
-  }
-
-  const sessionIds = Array.from(new Set(entries.map((entry) => entry.sessionId)))
-  const sessions = await db.sessions.bulkGet(sessionIds)
-  const completed = sessions
-    .filter((session): session is SessionRecord => Boolean(session?.endedAt))
-    .sort((a, b) => (b.endedAt ?? '').localeCompare(a.endedAt ?? ''))
-
-  const session = completed[0]
-  if (!session) {
-    return null
-  }
-
-  const sets = entries
-    .filter((entry) => entry.sessionId === session.id)
-    .sort((a, b) => a.index - b.index)
-
-  return {
-    session,
-    sets,
-  }
+  const history = await listExerciseHistory(exerciseId)
+  return history.find((row) => row.sets.some((set) => !set.isWarmup)) ?? null
 }
 
 export async function listExerciseHistory(
   exerciseId: string,
   limit?: number,
 ): Promise<Array<{ session: SessionRecord; sets: SetEntry[] }>> {
-  const relatedExerciseIds = await getRelatedExerciseIds(exerciseId)
-  const entries =
-    relatedExerciseIds.length > 1
-      ? await db.setEntries.where('exerciseId').anyOf(relatedExerciseIds).toArray()
-      : await db.setEntries.where('exerciseId').equals(exerciseId).toArray()
+  const entries = await db.setEntries
+    .where('exerciseId')
+    .equals(exerciseId)
+    .filter(
+      (entry) =>
+        Boolean(entry.completedAt) &&
+        Number.isFinite(entry.weight) &&
+        entry.weight >= 0 &&
+        Number.isInteger(entry.reps) &&
+        entry.reps > 0,
+    )
+    .toArray()
 
   if (entries.length === 0) {
     return []
@@ -645,20 +686,20 @@ export async function listExerciseHistory(
   const sessions = await db.sessions.bulkGet(Array.from(entryMap.keys()))
 
   const sortedSessions = sessions
-    .filter((session): session is SessionRecord => Boolean(session))
+    .filter((session): session is SessionRecord => Boolean(session?.endedAt))
     .sort((left, right) => {
       const leftTimestamp = getSessionSortTimestamp(left, entryMap.get(left.id) ?? [])
       const rightTimestamp = getSessionSortTimestamp(right, entryMap.get(right.id) ?? [])
-      return rightTimestamp.localeCompare(leftTimestamp)
+      return Date.parse(rightTimestamp) - Date.parse(leftTimestamp)
     })
 
-  const visibleSessions = typeof limit === 'number' ? sortedSessions.slice(0, limit) : sortedSessions
+  const visibleSessions =
+    typeof limit === 'number' ? sortedSessions.slice(0, limit) : sortedSessions
 
-  return visibleSessions
-    .map((session) => ({
-      session,
-      sets: (entryMap.get(session.id) ?? []).sort((a, b) => a.index - b.index),
-    }))
+  return visibleSessions.map((session) => ({
+    session,
+    sets: (entryMap.get(session.id) ?? []).sort((a, b) => a.index - b.index),
+  }))
 }
 
 function getSessionSortTimestamp(session: SessionRecord, sets: SetEntry[]): string {
@@ -667,7 +708,7 @@ function getSessionSortTimestamp(session: SessionRecord, sets: SetEntry[]): stri
     .filter((value): value is string => Boolean(value))
 
   if (completedTimes.length > 0) {
-    completedTimes.sort((a, b) => b.localeCompare(a))
+    completedTimes.sort((a, b) => Date.parse(b) - Date.parse(a))
     return completedTimes[0]
   }
 
@@ -675,48 +716,73 @@ function getSessionSortTimestamp(session: SessionRecord, sets: SetEntry[]): stri
 }
 
 export async function readFullExportData(): Promise<WorkoutExport['data']> {
-  const [exercises, routines, sessions, setEntries] = await Promise.all([
-    db.exercises.toArray(),
-    db.routines.toArray(),
-    db.sessions.toArray(),
-    db.setEntries.toArray(),
-  ])
-
-  return {
-    exercises,
-    routines,
-    sessions,
-    setEntries,
-  }
+  return db.transaction(
+    'r',
+    db.exercises,
+    db.routines,
+    db.sessions,
+    db.setEntries,
+    async () => {
+      const [exercises, routines, sessions, setEntries] = await Promise.all([
+        db.exercises.toArray(),
+        db.routines.toArray(),
+        db.sessions.toArray(),
+        db.setEntries.toArray(),
+      ])
+      return { exercises, routines, sessions, setEntries }
+    },
+  )
 }
 
-export async function importFullExportData(data: WorkoutExport['data']): Promise<void> {
+export async function importFullExportData(
+  data: WorkoutExport['data'],
+  beforeCommit?: () => void,
+): Promise<void> {
   // Import must be transactional to avoid partial writes when validation passes but writes fail.
-  await db.transaction('rw', db.exercises, db.routines, db.sessions, db.setEntries, async () => {
-    await Promise.all([
-      db.setEntries.clear(),
-      db.sessions.clear(),
-      db.routines.clear(),
-      db.exercises.clear(),
-    ])
+  await db.transaction(
+    'rw',
+    db.exercises,
+    db.routines,
+    db.sessions,
+    db.setEntries,
+    async () => {
+      await Promise.all([
+        db.setEntries.clear(),
+        db.sessions.clear(),
+        db.routines.clear(),
+        db.exercises.clear(),
+      ])
 
-    if (data.exercises.length > 0) {
-      await db.exercises.bulkAdd(data.exercises)
-    }
-    if (data.routines.length > 0) {
-      const routines = data.routines.map((routine) => ({
-        ...routine,
-        splitId: normalizeRoutineSplitId(routine.splitId, routine.name),
-      }))
-      await db.routines.bulkAdd(routines)
-    }
-    if (data.sessions.length > 0) {
-      await db.sessions.bulkAdd(data.sessions)
-    }
-    if (data.setEntries.length > 0) {
-      await db.setEntries.bulkAdd(data.setEntries)
-    }
-  })
+      if (data.exercises.length > 0) {
+        await db.exercises.bulkAdd(data.exercises)
+      }
+      if (data.routines.length > 0) {
+        const routines = data.routines.map((routine) => ({
+          ...routine,
+          splitId: normalizeRoutineSplitId(routine.splitId, routine.name),
+        }))
+        await db.routines.bulkAdd(routines)
+      }
+      if (data.sessions.length > 0) {
+        await db.sessions.bulkAdd(data.sessions)
+      }
+      if (data.setEntries.length > 0) {
+        const exerciseById = new Map(
+          data.exercises.map((exercise) => [exercise.id, exercise]),
+        )
+        await db.setEntries.bulkAdd(
+          data.setEntries.map((set) => ({
+            ...set,
+            unit:
+              set.unit ??
+              exerciseById.get(set.exerciseId)?.progressionSettings.unit ??
+              'lb',
+          })),
+        )
+      }
+      beforeCommit?.()
+    },
+  )
 }
 
 export async function getSetInputPrefillFromLastSession(
@@ -734,8 +800,10 @@ export async function getSetInputPrefillFromLastSession(
   }
 
   const sourceSet = workSets[nextIndex] ?? workSets.at(-1) ?? workSets[0]
+  const exercise = await db.exercises.get(exerciseId)
+  const unit = exercise?.progressionSettings.unit ?? sourceSet.unit ?? 'lb'
   return {
-    weight: sourceSet.weight,
+    weight: convertWeight(sourceSet.weight, sourceSet.unit ?? unit, unit),
     reps: sourceSet.reps,
   }
 }
@@ -748,12 +816,23 @@ function createId(): string {
   return `id-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`
 }
 
-function isSameLocalDate(left: Date, right: Date): boolean {
-  return (
-    left.getFullYear() === right.getFullYear() &&
-    left.getMonth() === right.getMonth() &&
-    left.getDate() === right.getDate()
-  )
+async function requireActiveSession(sessionId: string): Promise<SessionRecord> {
+  const session = await db.sessions.get(sessionId)
+  if (!session) throw new Error('Workout not found.')
+  if (session.endedAt) throw new Error('This workout is finished.')
+  return session
+}
+
+function validateSetValues(weight: number, reps: number, completed: boolean): void {
+  if (!Number.isFinite(weight) || weight < 0)
+    throw new Error('Weight must be zero or greater.')
+  if (!Number.isInteger(reps) || reps < (completed ? 1 : 0)) {
+    throw new Error(
+      completed
+        ? 'Reps must be a positive whole number.'
+        : 'Reps must be a non-negative whole number.',
+    )
+  }
 }
 
 function toSplitRoutineKey(splitId: RoutineSplitId, name: string): string {
@@ -770,96 +849,4 @@ function normalizeRoutineSplitId(splitId: unknown, name: string): RoutineSplitId
   }
 
   return inferRoutineSplitId(name)
-}
-
-async function repairSeedDuplicates(): Promise<void> {
-  await db.transaction('rw', db.exercises, db.routines, db.sessions, db.setEntries, async () => {
-    const [exercises, routines, sessions] = await Promise.all([
-      db.exercises.toArray(),
-      db.routines.toArray(),
-      db.sessions.toArray(),
-    ])
-
-    if (exercises.length === 0 && routines.length === 0) {
-      return
-    }
-
-    const routineById = new Map(routines.map((routine) => [routine.id, routine]))
-
-    const routineGroups = new Map<string, Routine[]>()
-    const routineUsage = new Map<string, { count: number; latestStartedAt: string }>()
-    for (const session of sessions) {
-      if (!session.routineId) {
-        continue
-      }
-
-      const existing = routineUsage.get(session.routineId)
-      if (existing) {
-        existing.count += 1
-        if (session.startedAt > existing.latestStartedAt) {
-          existing.latestStartedAt = session.startedAt
-        }
-      } else {
-        routineUsage.set(session.routineId, {
-          count: 1,
-          latestStartedAt: session.startedAt,
-        })
-      }
-    }
-
-    for (const routine of routineById.values()) {
-      const splitId = normalizeRoutineSplitId(routine.splitId, routine.name)
-      if (splitId !== routine.splitId) {
-        routine.splitId = splitId
-        await db.routines.update(routine.id, {
-          splitId,
-        })
-      }
-
-      const key = toSplitRoutineKey(splitId, routine.name)
-      const list = routineGroups.get(key) ?? []
-      list.push(routine)
-      routineGroups.set(key, list)
-    }
-
-    for (const groupedRoutines of routineGroups.values()) {
-      if (groupedRoutines.length <= 1) {
-        continue
-      }
-
-      const [canonical, ...duplicates] = [...groupedRoutines].sort((left, right) => {
-        const leftUsage = routineUsage.get(left.id) ?? { count: 0, latestStartedAt: '' }
-        const rightUsage = routineUsage.get(right.id) ?? { count: 0, latestStartedAt: '' }
-
-        if (leftUsage.count !== rightUsage.count) {
-          return rightUsage.count - leftUsage.count
-        }
-        if (leftUsage.latestStartedAt !== rightUsage.latestStartedAt) {
-          return rightUsage.latestStartedAt.localeCompare(leftUsage.latestStartedAt)
-        }
-        return left.id.localeCompare(right.id)
-      })
-
-      for (const duplicate of duplicates) {
-        await db.sessions.where('routineId').equals(duplicate.id).modify({
-          routineId: canonical.id,
-        })
-        await db.routines.delete(duplicate.id)
-      }
-    }
-  })
-}
-
-async function getRelatedExerciseIds(exerciseId: string): Promise<string[]> {
-  const exercise = await db.exercises.get(exerciseId)
-  if (!exercise) {
-    return [exerciseId]
-  }
-
-  const relatedExercises = await db.exercises.where('name').equals(exercise.name).toArray()
-  if (relatedExercises.length === 0) {
-    return [exerciseId]
-  }
-
-  return relatedExercises.map((relatedExercise) => relatedExercise.id)
 }

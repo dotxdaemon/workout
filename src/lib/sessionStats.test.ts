@@ -10,16 +10,43 @@ describe('computeTodayStats', () => {
         workSetsTarget: 3,
         unit: 'lb',
         sets: [
-          { weight: 45, reps: 10, isWarmup: true },
-          { weight: 135, reps: 8, isWarmup: false },
-          { weight: 135, reps: 8, isWarmup: false },
-          { weight: 135, reps: 7, isWarmup: false },
+          {
+            weight: 45,
+            reps: 10,
+            isWarmup: true,
+            completedAt: '2026-02-16T00:00:00.000Z',
+          },
+          {
+            weight: 135,
+            reps: 8,
+            isWarmup: false,
+            completedAt: '2026-02-16T00:01:00.000Z',
+          },
+          {
+            weight: 135,
+            reps: 8,
+            isWarmup: false,
+            completedAt: '2026-02-16T00:02:00.000Z',
+          },
+          {
+            weight: 135,
+            reps: 7,
+            isWarmup: false,
+            completedAt: '2026-02-16T00:03:00.000Z',
+          },
         ],
       },
       {
         workSetsTarget: 3,
         unit: 'kg',
-        sets: [{ weight: 60, reps: 5, isWarmup: false }],
+        sets: [
+          {
+            weight: 60,
+            reps: 5,
+            isWarmup: false,
+            completedAt: '2026-02-16T00:00:00.000Z',
+          },
+        ],
       },
       {
         workSetsTarget: 3,
@@ -47,6 +74,45 @@ describe('computeTodayStats', () => {
       volumeByUnit: [],
     })
   })
+
+  it('excludes unfinished and invalid sets and groups volume by recorded units', () => {
+    const stats = computeTodayStats([
+      {
+        workSetsTarget: 3,
+        unit: 'lb',
+        sets: [
+          { weight: 100, reps: 10, isWarmup: false },
+          {
+            weight: 100,
+            reps: 0,
+            isWarmup: false,
+            completedAt: '2026-02-16T00:00:00.000Z',
+          },
+          {
+            weight: 50,
+            reps: 10,
+            unit: 'kg',
+            isWarmup: false,
+            completedAt: '2026-02-16T00:01:00.000Z',
+          },
+          {
+            weight: 100,
+            reps: 10,
+            unit: 'lb',
+            isWarmup: false,
+            completedAt: '2026-02-16T00:02:00.000Z',
+          },
+        ],
+      },
+    ])
+
+    expect(stats.totalWorkSets).toBe(2)
+    expect(stats.completedCount).toBe(0)
+    expect(stats.volumeByUnit).toEqual([
+      { unit: 'kg', volume: 500 },
+      { unit: 'lb', volume: 1000 },
+    ])
+  })
 })
 
 describe('summarizeHistoryRows', () => {
@@ -54,15 +120,20 @@ describe('summarizeHistoryRows', () => {
     weight,
     reps,
     isWarmup,
+    completedAt: '2026-02-16T00:00:00.000Z',
   })
+  const endedAt = '2026-02-16T01:00:00.000Z'
 
   it('finds the best set, per-row e1RM, and deltas versus the previous session', () => {
     // Newest first: 200x5, 195x5, 185x5.
-    const overview = summarizeHistoryRows([
-      { sets: [set(45, 10, true), set(200, 5)] },
-      { sets: [set(195, 5)] },
-      { sets: [set(185, 5)] },
-    ])
+    const overview = summarizeHistoryRows(
+      [
+        { endedAt, sets: [set(45, 10, true), set(200, 5)] },
+        { endedAt, sets: [set(195, 5)] },
+        { endedAt, sets: [set(185, 5)] },
+      ],
+      'lb',
+    )
 
     const expectedE1rm = (weight: number, reps: number) => weight * (1 + reps / 30)
 
@@ -86,11 +157,14 @@ describe('summarizeHistoryRows', () => {
   })
 
   it('skips warmup-only sessions when chaining deltas and trend points', () => {
-    const overview = summarizeHistoryRows([
-      { sets: [set(205, 5)] },
-      { sets: [set(45, 12, true)] },
-      { sets: [set(185, 5)] },
-    ])
+    const overview = summarizeHistoryRows(
+      [
+        { endedAt, sets: [set(205, 5)] },
+        { endedAt, sets: [set(45, 12, true)] },
+        { endedAt, sets: [set(185, 5)] },
+      ],
+      'lb',
+    )
 
     expect(overview.rows[1].estimatedOneRepMax).toBeNull()
     expect(overview.rows[1].deltaFromPrevious).toBeNull()
@@ -101,10 +175,47 @@ describe('summarizeHistoryRows', () => {
   })
 
   it('returns an empty overview when there is no history', () => {
-    const overview = summarizeHistoryRows([])
+    const overview = summarizeHistoryRows([], 'lb')
 
     expect(overview.best).toBeNull()
     expect(overview.trendPoints).toEqual([])
     expect(overview.rows).toEqual([])
+  })
+
+  it('does not compare unfinished sessions or prefilled sets as performance', () => {
+    const overview = summarizeHistoryRows(
+      [
+        { sets: [set(300, 10)] },
+        { endedAt, sets: [{ ...set(250, 10), completedAt: undefined }] },
+        { endedAt, sets: [set(185, 5)] },
+      ],
+      'lb',
+    )
+
+    expect(overview.sessionCount).toBe(1)
+    expect(overview.best?.weight).toBe(185)
+    expect(overview.rows[0]).toEqual({
+      estimatedOneRepMax: null,
+      deltaFromPrevious: null,
+    })
+    expect(overview.rows[1]).toEqual({
+      estimatedOneRepMax: null,
+      deltaFromPrevious: null,
+    })
+    expect(overview.trendPoints).toHaveLength(1)
+  })
+
+  it('compares equivalent loads in a common unit', () => {
+    const overview = summarizeHistoryRows(
+      [
+        { endedAt, sets: [{ ...set(45.359237, 10), unit: 'kg' }] },
+        { endedAt, sets: [{ ...set(100, 10), unit: 'lb' }] },
+      ],
+      'lb',
+    )
+
+    expect(overview.rows[0].deltaFromPrevious).toBeCloseTo(0, 8)
+    expect(overview.best?.weight).toBeCloseTo(100, 8)
+    expect(overview.rows[0].estimatedOneRepMax).toBeCloseTo(100 * (1 + 10 / 30), 8)
   })
 })

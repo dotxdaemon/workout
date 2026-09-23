@@ -25,7 +25,7 @@
   /* Ink */
   --text: #edf6f4;
   --text-dim: #9eb5b7;
-  --text-faint: #617b80;
+  --text-faint: #98adb0;
   --on-accent: #02090b;
 
   /* Neon — pale cyan sign light with one rust-red reflection */
@@ -74,7 +74,7 @@
 
   --text: #16201e;
   --text-dim: #586660;
-  --text-faint: #8a938c;
+  --text-faint: #596861;
   --on-accent: #fbfaf5;
 
   --jade: #0c8e78;
@@ -1918,5 +1918,266 @@ select {
   .quick-entry__save {
     flex: 1 0 100%;
     margin-left: 0;
+  }
+}
+
+/* Focused workout entry and compact exercise summaries. */
+body::before,
+body::after {
+  background: none;
+  animation: none;
+}
+.training-ledger__masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-block: 0.75rem;
+}
+.training-ledger__title {
+  font-size: 1.5rem;
+}
+.session-date,
+.entry-caption,
+.save-state {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.finish-workout {
+  flex: 0 0 auto;
+  font-size: 0.82rem;
+}
+.exercise-card {
+  gap: 0.55rem;
+  padding-block: 0.8rem;
+}
+.exercise-card--active {
+  border-left: 2px solid var(--jade);
+  padding-left: 0.75rem;
+}
+.exercise-card__name {
+  font-family: inherit;
+  font-size: 1.05rem;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.exercise-card__title-btn {
+  min-height: 44px;
+}
+.exercise-card__head {
+  gap: 0.5rem;
+}
+.last-line {
+  line-height: 1.5;
+  align-items: baseline;
+  margin: 0;
+}
+.last-line__value {
+  font-family: inherit;
+  font-weight: 500;
+}
+.quick-entry {
+  gap: 0.65rem;
+  scroll-margin-block: 5rem;
+}
+.quick-entry .set-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem;
+}
+.quick-entry .set-entry__value {
+  display: grid;
+  min-width: 0;
+  gap: 0.3rem;
+  padding: 0;
+}
+.quick-entry .set-entry__input {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  background: var(--control);
+  padding: 0.65rem;
+  font-size: 1.25rem;
+  text-align: left;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+}
+.quick-entry .set-entry__input:focus-visible {
+  outline: 2px solid var(--jade);
+  outline-offset: 2px;
+}
+.set-entry__reps-control {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  min-width: 0;
+  background: var(--control);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+}
+.quick-entry .set-entry__reps-control .set-entry__input {
+  padding-inline: 0.2rem;
+  text-align: center;
+  background: transparent;
+  border: 0;
+}
+.set-entry--invalid .set-entry__reps-control {
+  border-color: var(--danger);
+}
+.set-entry--invalid .set-entry__input {
+  border-color: var(--danger);
+}
+.entry-caption {
+  margin: 0.25rem 0 0;
+}
+.entry-actions {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+  justify-content: space-between;
+}
+.entry-actions .btn {
+  flex: 0 0 auto;
+  margin: 0;
+  box-shadow: none;
+}
+.save-state {
+  line-height: 1.4;
+}
+.entry-error {
+  color: var(--danger);
+  font-size: 0.85rem;
+  margin: 0;
+}
+.set-pill {
+  border: 0;
+  color: var(--text);
+  cursor: pointer;
+  min-height: 44px;
+  padding: 0.4rem 0.6rem;
+}
+.set-pill--selected {
+  outline: 1px solid var(--jade);
+  background: var(--accent-soft);
+}
+.exercise-options {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+.exercise-options summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.exercise-options[open] {
+  display: grid;
+  gap: 0.5rem;
+}
+.exercise-options .set-pill__remove {
+  width: auto;
+  height: auto;
+  border-radius: var(--radius-md);
+}
+.add-exercise {
+  min-height: 48px;
+  margin-top: 0.75rem;
+}
+.exercise-search {
+  scroll-margin-block: 4rem;
+}
+.day-chip {
+  min-width: 44px;
+  min-height: 44px;
+}
+.history-set {
+  display: grid;
+  gap: 0.5rem;
+  padding-block: 0.6rem;
+  border-bottom: 1px solid var(--hairline);
+}
+.history-set__fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+}
+.history-set input {
+  min-width: 0;
+  width: 100%;
+  font-size: 1rem;
+  min-height: 44px;
+}
+.history-estimates summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding-block: 0.65rem;
+  color: var(--text-dim);
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media (max-width: 370px) {
+  .training-ledger__masthead {
+    align-items: flex-start;
+  }
+  .finish-workout {
+    max-width: 8rem;
+    white-space: normal;
+  }
+}
+.training-page {
+  gap: 0.5rem;
+}
+.training-console {
+  padding-top: 0.35rem;
+  gap: 0.45rem;
+}
+.training-ledger {
+  gap: 0.4rem;
+}
+.training-ledger__masthead {
+  padding-block: 0.4rem;
+}
+.session-date {
+  margin: 0 0 0.3rem;
+}
+.exercise-card .suggestion {
+  margin-block: 0.2rem;
+}
+.history-set__summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+.history-set__position {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.history-set__editor {
+  display: grid;
+  gap: 0.65rem;
+}
+.history-set__editor .field {
+  min-width: 0;
+}
+.history-set__editor .field input {
+  width: 100%;
+}
+.history-set__editor .inline {
+  flex-wrap: wrap;
+}
+@media (max-width: 370px) {
+  .entry-actions {
+    flex-wrap: wrap;
+  }
+  .entry-actions .btn {
+    margin-left: auto;
   }
 }

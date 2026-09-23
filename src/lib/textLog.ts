@@ -2,7 +2,13 @@
 // ABOUTME: Backs the Settings "Export log" action and on-disk backups of the workout history.
 import { readFullExportData } from './db'
 import { formatNumber } from './format'
-import type { AppPreferences, Exercise, SessionRecord, SetEntry, WorkoutExport } from '../types'
+import type {
+  AppPreferences,
+  Exercise,
+  SessionRecord,
+  SetEntry,
+  WorkoutExport,
+} from '../types'
 
 function formatTimestamp(value: string): string {
   const date = new Date(value)
@@ -23,7 +29,7 @@ function sessionSortKey(session: SessionRecord, sets: SetEntry[]): string {
   const completed = sets
     .map((set) => set.completedAt)
     .filter((value): value is string => Boolean(value))
-    .sort((a, b) => b.localeCompare(a))
+    .sort((a, b) => Date.parse(b) - Date.parse(a))
   return completed[0] ?? session.endedAt ?? session.startedAt
 }
 
@@ -45,7 +51,11 @@ export function buildTextLog(
   const sessions = [...data.sessions]
     .map((session) => ({ session, sets: setsBySession.get(session.id) ?? [] }))
     .filter((item) => item.sets.length > 0)
-    .sort((a, b) => sessionSortKey(b.session, b.sets).localeCompare(sessionSortKey(a.session, a.sets)))
+    .sort(
+      (a, b) =>
+        Date.parse(sessionSortKey(b.session, b.sets)) -
+        Date.parse(sessionSortKey(a.session, a.sets)),
+    )
 
   const lines: string[] = []
   lines.push('WORKOUT LOG BACKUP')
@@ -78,11 +88,14 @@ export function buildTextLog(
     for (const [exerciseId, exerciseSets] of byExercise) {
       const exercise = exerciseById.get(exerciseId)
       const name = exercise?.name ?? 'Unknown exercise'
-      const unit = exercise?.progressionSettings.unit ?? preferences.defaultUnit
       const ordered = [...exerciseSets].sort((a, b) => a.index - b.index)
       const formattedSets = ordered.map((set) => {
+        const unit =
+          set.unit ?? exercise?.progressionSettings.unit ?? preferences.defaultUnit
         const label = `${formatNumber(set.weight)} ${unit} x ${set.reps}`
-        return set.isWarmup ? `${label} (warmup)` : label
+        const warmup = set.isWarmup ? ' (warmup)' : ''
+        const status = set.completedAt ? '' : ' (not completed)'
+        return `${label}${warmup}${status}`
       })
       lines.push(`  ${name}`)
       for (let index = 0; index < formattedSets.length; index += 1) {

@@ -1,10 +1,6 @@
 // ABOUTME: Builds and validates backup payloads for workout data export and import.
 // ABOUTME: Ensures imported data is structurally valid before replacing local storage.
-import {
-  importFullExportData,
-  markCoreRoutinesRestored,
-  readFullExportData,
-} from './db'
+import { importFullExportData, markCoreRoutinesRestored, readFullExportData } from './db'
 import { defaultPreferences, writePreferences } from './preferences'
 import type {
   AppPreferences,
@@ -29,8 +25,9 @@ export async function buildJsonExport(preferences: AppPreferences): Promise<stri
 }
 
 export async function buildCsvExport(): Promise<string> {
-  const { sessions, setEntries } = await readFullExportData()
+  const { sessions, setEntries, exercises } = await readFullExportData()
   const sessionMap = new Map(sessions.map((session) => [session.id, session]))
+  const exerciseMap = new Map(exercises.map((exercise) => [exercise.id, exercise]))
 
   const header = [
     'session_id',
@@ -40,6 +37,7 @@ export async function buildCsvExport(): Promise<string> {
     'exercise_id',
     'set_index',
     'weight',
+    'unit',
     'reps',
     'is_warmup',
     'completed_at',
@@ -66,6 +64,7 @@ export async function buildCsvExport(): Promise<string> {
         entry.exerciseId,
         entry.index,
         entry.weight,
+        entry.unit ?? exerciseMap.get(entry.exerciseId)?.progressionSettings.unit ?? '',
         entry.reps,
         entry.isWarmup ? 'true' : 'false',
         entry.completedAt ?? '',
@@ -84,10 +83,42 @@ export async function applyJsonImport(jsonText: string): Promise<void> {
   }
 
   const payload = validatePayload(parsed)
-
-  await importFullExportData(payload.data)
-  markCoreRoutinesRestored()
-  writePreferences(payload.preferences)
+  const entryDraftKeys = Array.from({ length: localStorage.length }, (_, index) =>
+    localStorage.key(index),
+  ).filter((key): key is string => Boolean(key?.startsWith('workout-tracker.entry.')))
+  const storageKeys = [
+    'workout-tracker.preferences.v1',
+    'workout-tracker.core-routines-bootstrap.v1',
+    ...entryDraftKeys,
+  ]
+  const storedValues = storageKeys.map((key) => [key, localStorage.getItem(key)] as const)
+  const theme = document.documentElement.getAttribute('data-theme')
+  let storageTouched = false
+  try {
+    await importFullExportData(payload.data, () => {
+      storageTouched = true
+      for (const key of entryDraftKeys) localStorage.removeItem(key)
+      markCoreRoutinesRestored()
+      writePreferences(payload.preferences)
+    })
+  } catch (error) {
+    if (storageTouched) {
+      try {
+        for (const [key, value] of storedValues) {
+          if (value === null) localStorage.removeItem(key)
+          else localStorage.setItem(key, value)
+        }
+        if (theme === null) document.documentElement.removeAttribute('data-theme')
+        else document.documentElement.setAttribute('data-theme', theme)
+      } catch (restoreError) {
+        throw new AggregateError(
+          [error, restoreError],
+          'Import failed. Workout records were preserved, but preferences or pending entries could not be restored.',
+        )
+      }
+    }
+    throw error
+  }
 }
 
 export async function triggerDownload(
@@ -183,7 +214,8 @@ function validatePreferences(value: unknown): AppPreferences {
       ? preferences.restTimerEnabled
       : defaultPreferences.restTimerEnabled
   const restSeconds =
-    typeof preferences.restSeconds === 'number' && Number.isFinite(preferences.restSeconds)
+    typeof preferences.restSeconds === 'number' &&
+    Number.isFinite(preferences.restSeconds)
       ? Math.max(0, Math.round(preferences.restSeconds))
       : defaultPreferences.restSeconds
   const theme =
@@ -214,7 +246,10 @@ function validateExercise(value: unknown, index: number): void {
   if (exercise.unitDefault !== 'lb' && exercise.unitDefault !== 'kg') {
     throw new Error(`Import failed: ${label}.unitDefault must be lb or kg.`)
   }
-  validateProgressionSettings(exercise.progressionSettings, `${label}.progressionSettings`)
+  validateProgressionSettings(
+    exercise.progressionSettings,
+    `${label}.progressionSettings`,
+  )
 }
 
 function validateProgressionSettings(value: unknown, label: string): void {
@@ -224,14 +259,24 @@ function validateProgressionSettings(value: unknown, label: string): void {
   if (settings.unit !== 'lb' && settings.unit !== 'kg') {
     throw new Error(`Import failed: ${label}.unit must be lb or kg.`)
   }
-  if (typeof settings.repMin !== 'number' || !Number.isInteger(settings.repMin) || settings.repMin < 1) {
+  if (
+    typeof settings.repMin !== 'number' ||
+    !Number.isInteger(settings.repMin) ||
+    settings.repMin < 1
+  ) {
     throw new Error(`Import failed: ${label}.repMin must be a positive integer.`)
   }
-  if (typeof settings.repMax !== 'number' || !Number.isInteger(settings.repMax) || settings.repMax < 1) {
+  if (
+    typeof settings.repMax !== 'number' ||
+    !Number.isInteger(settings.repMax) ||
+    settings.repMax < 1
+  ) {
     throw new Error(`Import failed: ${label}.repMax must be a positive integer.`)
   }
   if (settings.repMax < settings.repMin) {
-    throw new Error(`Import failed: ${label}.repMax must be greater than or equal to repMin.`)
+    throw new Error(
+      `Import failed: ${label}.repMax must be greater than or equal to repMin.`,
+    )
   }
   if (
     typeof settings.workSetsTarget !== 'number' ||
@@ -285,8 +330,26 @@ function validateSession(value: unknown, index: number): void {
   if (typeof session.id !== 'string' || session.id.length === 0) {
     throw new Error(`Import failed: ${label}.id must be a non-empty string.`)
   }
-  if (typeof session.startedAt !== 'string' || session.startedAt.length === 0) {
+  if (
+    typeof session.startedAt !== 'string' ||
+    !Number.isFinite(Date.parse(session.startedAt))
+  ) {
     throw new Error(`Import failed: ${label}.startedAt must be an ISO string.`)
+  }
+  if (
+    session.endedAt !== undefined &&
+    (typeof session.endedAt !== 'string' || !Number.isFinite(Date.parse(session.endedAt)))
+  ) {
+    throw new Error(`Import failed: ${label}.endedAt must be an ISO string.`)
+  }
+  if (session.routineId !== undefined && typeof session.routineId !== 'string') {
+    throw new Error(`Import failed: ${label}.routineId must be a string.`)
+  }
+  if (session.exerciseIds !== undefined) {
+    assertArray(session.exerciseIds, `${label}.exerciseIds`)
+    if (session.exerciseIds.some((id) => typeof id !== 'string')) {
+      throw new Error(`Import failed: ${label}.exerciseIds must contain exercise IDs.`)
+    }
   }
 }
 
@@ -304,23 +367,51 @@ function validateSetEntry(value: unknown, index: number): void {
   if (typeof entry.exerciseId !== 'string' || entry.exerciseId.length === 0) {
     throw new Error(`Import failed: ${label}.exerciseId must be a non-empty string.`)
   }
-  if (typeof entry.index !== 'number' || !Number.isInteger(entry.index)) {
-    throw new Error(`Import failed: ${label}.index must be an integer.`)
+  if (
+    typeof entry.index !== 'number' ||
+    !Number.isInteger(entry.index) ||
+    entry.index < 0
+  ) {
+    throw new Error(`Import failed: ${label}.index must be a non-negative integer.`)
   }
-  if (typeof entry.weight !== 'number' || !Number.isFinite(entry.weight)) {
-    throw new Error(`Import failed: ${label}.weight must be a number.`)
+  if (
+    typeof entry.weight !== 'number' ||
+    !Number.isFinite(entry.weight) ||
+    entry.weight < 0
+  ) {
+    throw new Error(`Import failed: ${label}.weight must be a non-negative number.`)
   }
-  if (typeof entry.reps !== 'number' || !Number.isFinite(entry.reps)) {
-    throw new Error(`Import failed: ${label}.reps must be a number.`)
+  if (
+    typeof entry.reps !== 'number' ||
+    !Number.isInteger(entry.reps) ||
+    entry.reps < (entry.completedAt ? 1 : 0)
+  ) {
+    throw new Error(
+      `Import failed: ${label}.reps must be a whole number${entry.completedAt ? ' greater than zero' : ' of zero or more'}.`,
+    )
   }
   if (typeof entry.isWarmup !== 'boolean') {
     throw new Error(`Import failed: ${label}.isWarmup must be a boolean.`)
   }
+  if (entry.unit !== undefined && entry.unit !== 'lb' && entry.unit !== 'kg') {
+    throw new Error(`Import failed: ${label}.unit must be lb or kg.`)
+  }
+  if (
+    entry.completedAt !== undefined &&
+    (typeof entry.completedAt !== 'string' ||
+      !Number.isFinite(Date.parse(entry.completedAt)))
+  ) {
+    throw new Error(`Import failed: ${label}.completedAt must be an ISO string.`)
+  }
 }
 
 function validateReferences(data: WorkoutExport['data']): void {
+  for (const [name, records] of Object.entries(data)) {
+    const ids = records.map((record) => record.id)
+    if (new Set(ids).size !== ids.length)
+      throw new Error(`Import failed: data.${name} contains duplicate IDs.`)
+  }
   const exerciseIds = new Set(data.exercises.map((exercise) => exercise.id))
-  const routineIds = new Set(data.routines.map((routine) => routine.id))
   const sessionIds = new Set(data.sessions.map((session) => session.id))
 
   data.routines.forEach((routine, routineIndex) => {
@@ -334,11 +425,13 @@ function validateReferences(data: WorkoutExport['data']): void {
   })
 
   data.sessions.forEach((session, sessionIndex) => {
-    if (session.routineId && !routineIds.has(session.routineId)) {
-      throw new Error(
-        `Import failed: data.sessions[${sessionIndex}].routineId references an unknown routine.`,
-      )
-    }
+    session.exerciseIds?.forEach((exerciseId) => {
+      if (!exerciseIds.has(exerciseId)) {
+        throw new Error(
+          `Import failed: data.sessions[${sessionIndex}].exerciseIds references an unknown exercise.`,
+        )
+      }
+    })
   })
 
   data.setEntries.forEach((entry, entryIndex) => {
