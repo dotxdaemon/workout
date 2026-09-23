@@ -838,9 +838,17 @@ export function RoutinesScreen() {
 
   return (
     <section className="page training-page">
-      <header className="training-console">
+      <header
+        className={
+          mode === 'today'
+            ? 'training-console training-console--today'
+            : 'training-console'
+        }
+      >
         <div className="training-console__top">
-          <p className="eyebrow">{formatSplitHeaderLabel(activeSplit.label)}</p>
+          {mode === 'edit' ? (
+            <p className="eyebrow">{formatSplitHeaderLabel(activeSplit.label)}</p>
+          ) : null}
           <SegmentedControl
             ariaLabel="Training mode"
             value={mode}
@@ -934,7 +942,7 @@ export function RoutinesScreen() {
               </button>
             </header>
             <div className="exercise-list training-ledger__entries">
-              {visibleExerciseIds.map((exerciseId, index) => {
+              {visibleExerciseIds.map((exerciseId) => {
                 const exercise = exerciseMap[exerciseId]
                 if (!exercise) return null
                 return (
@@ -943,7 +951,6 @@ export function RoutinesScreen() {
                     key={`${trackerSessionId}.${exerciseId}`}
                     exercise={exercise}
                     sessionId={trackerSessionId}
-                    position={index + 1}
                     isExpanded={activeExerciseId === exerciseId}
                     onToggle={() => setExpandedExerciseId(exerciseId)}
                     sets={setsByExercise[exerciseId] ?? []}

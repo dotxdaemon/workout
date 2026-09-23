@@ -21,7 +21,6 @@ interface EntryDraft {
 interface Props {
   exercise: Exercise
   sessionId: string
-  position: number
   isExpanded: boolean
   onToggle: () => void
   sets: SetEntry[]
@@ -441,9 +440,6 @@ export function WorkoutExercise(props: Props) {
       className={`exercise-card${props.isExpanded ? ' exercise-card--active' : ''}${work.length >= exercise.progressionSettings.workSetsTarget ? ' exercise-card--complete' : ''}`}
     >
       <div className="exercise-card__head">
-        <span className="exercise-card__position numeral" aria-hidden="true">
-          {String(props.position).padStart(2, '0')}
-        </span>
         <button
           type="button"
           className="exercise-card__title-btn"
@@ -461,17 +457,38 @@ export function WorkoutExercise(props: Props) {
         </button>
         <button
           type="button"
-          className="icon-btn"
+          className="icon-btn exercise-history-button"
           aria-label={`Open history for ${exercise.name}`}
           onClick={(event) => props.onOpenHistory(event.timeStamp)}
         >
           <ClockIcon />
         </button>
       </div>
-      <p className="last-line">
-        <span className="last-line__label">Last:</span>
-        <span className="last-line__value">{summary(lastSession?.sets ?? [], unit)}</span>
-      </p>
+      {props.isExpanded ||
+      lastSession?.sets.some((set) => set.completedAt && !set.isWarmup) ? (
+        <div className="exercise-history-line">
+          <p className="last-line">
+            <span className="last-line__label">Last:</span>
+            <span className="last-line__value">
+              {summary(lastSession?.sets ?? [], unit)}
+            </span>
+          </p>
+          {props.isExpanded &&
+          !selected &&
+          !draft.weight &&
+          lastSession?.sets.some((set) => set.completedAt && !set.isWarmup) ? (
+            <button
+              type="button"
+              className="text-action"
+              onClick={() =>
+                nextSet(lastSession.sets.find((set) => set.completedAt && !set.isWarmup))
+              }
+            >
+              Use last
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {completed.length ? (
         <div className="set-track" aria-label="Completed sets">
           {completed.map((set, index) => (
@@ -496,11 +513,16 @@ export function WorkoutExercise(props: Props) {
       ) : null}
       {props.isExpanded ? (
         <div id={`entry-${exercise.id}`} className="quick-entry">
-          <p className="entry-caption">
-            {selected
-              ? `Editing completed set ${completed.findIndex((set) => set.id === selected.id) + 1}`
-              : `Set ${completed.length + 1} · not completed`}
-          </p>
+          <div className="entry-meta">
+            <p className="entry-caption">
+              {selected
+                ? `Set ${completed.findIndex((set) => set.id === selected.id) + 1} · completed`
+                : `Set ${completed.length + 1} · not completed`}
+            </p>
+            <span className="save-state" role="status">
+              {status === 'Not completed' ? '' : status}
+            </span>
+          </div>
           <div className={`set-entry${error ? ' set-entry--invalid' : ''}`}>
             <label className="set-entry__value">
               <span className="field__label">Weight ({draft.unit})</span>
@@ -508,6 +530,7 @@ export function WorkoutExercise(props: Props) {
                 className="set-entry__input"
                 type="text"
                 inputMode="decimal"
+                placeholder="—"
                 aria-label={`${exercise.name} weight`}
                 aria-invalid={Boolean(error) || undefined}
                 value={draft.weight}
@@ -539,6 +562,7 @@ export function WorkoutExercise(props: Props) {
                   className="set-entry__input"
                   type="text"
                   inputMode="numeric"
+                  placeholder="—"
                   aria-label={`${exercise.name} reps`}
                   aria-invalid={Boolean(error) || undefined}
                   value={draft.reps}
@@ -568,13 +592,19 @@ export function WorkoutExercise(props: Props) {
             </p>
           ) : null}
           <div className="entry-actions">
-            <span className="save-state" role="status">
-              {status}
-            </span>
+            <button
+              type="button"
+              className="text-action"
+              aria-expanded={manage}
+              aria-controls={`options-${sessionId}-${exercise.id}`}
+              onClick={() => setManage(!manage)}
+            >
+              Options
+            </button>
             {selected ? (
               <button
                 type="button"
-                className="btn btn--ghost next-set"
+                className="btn btn--primary next-set"
                 disabled={busy || pendingCorrection}
                 onClick={() => nextSet()}
               >
@@ -614,54 +644,42 @@ export function WorkoutExercise(props: Props) {
               </button>
             </div>
           ) : null}
-          {suggestion ? <p className="suggestion">{suggestion.message}</p> : null}
-          {!selected &&
-          !draft.weight &&
-          lastSession?.sets.some((set) => set.completedAt && !set.isWarmup) ? (
-            <button
-              type="button"
-              className="btn btn--ghost"
-              onClick={() =>
-                nextSet(lastSession.sets.find((set) => set.completedAt && !set.isWarmup))
-              }
+          {manage ? (
+            <section
+              className="exercise-options"
+              id={`options-${sessionId}-${exercise.id}`}
+              aria-label={`Options for ${exercise.name}`}
             >
-              Use previous values
-            </button>
-          ) : null}
-          <details
-            className="exercise-options"
-            open={manage}
-            onToggle={(event) => setManage(event.currentTarget.open)}
-          >
-            <summary>Exercise options</summary>
-            {selected ? (
+              {suggestion ? <p className="suggestion">{suggestion.message}</p> : null}
+              {selected ? (
+                <button
+                  type="button"
+                  className="btn btn--danger set-pill__remove"
+                  disabled={busy}
+                  onClick={() => void remove()}
+                >
+                  Remove selected set
+                </button>
+              ) : null}
               <button
                 type="button"
-                className="btn btn--danger set-pill__remove"
-                disabled={busy}
-                onClick={() => void remove()}
+                className="btn btn--ghost"
+                disabled={busy || pendingCorrection}
+                onClick={props.onRemoveExercise}
               >
-                Remove selected set
+                Remove from this workout
               </button>
-            ) : null}
-            <button
-              type="button"
-              className="btn btn--ghost"
-              disabled={busy || pendingCorrection}
-              onClick={props.onRemoveExercise}
-            >
-              Remove from this workout
-            </button>
-            <label className="field">
-              <span className="field__label">Notes</span>
-              <textarea
-                className="notes-input"
-                rows={2}
-                value={note}
-                onChange={(event) => changeNote(event.target.value)}
-              />
-            </label>
-          </details>
+              <label className="field">
+                <span className="field__label">Notes</span>
+                <textarea
+                  className="notes-input"
+                  rows={2}
+                  value={note}
+                  onChange={(event) => changeNote(event.target.value)}
+                />
+              </label>
+            </section>
+          ) : null}
         </div>
       ) : null}
     </article>

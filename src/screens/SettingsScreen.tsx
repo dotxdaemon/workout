@@ -132,9 +132,7 @@ export function SettingsScreen() {
   return (
     <section className="page settings-page">
       <header className="settings-console">
-        <p className="eyebrow">Configure</p>
         <h1 className="page-title">Settings</h1>
-        <p className="page-subtitle">Training defaults and data backup.</p>
       </header>
 
       {message ? <Banner tone="success">{message}</Banner> : null}
@@ -146,9 +144,6 @@ export function SettingsScreen() {
           <div className="settings-row">
             <div className="settings-row__text">
               <span className="settings-row__label">Theme</span>
-              <span className="settings-row__hint">
-                Switch between the night and overcast looks.
-              </span>
             </div>
             <SegmentedControl
               ariaLabel="Theme"

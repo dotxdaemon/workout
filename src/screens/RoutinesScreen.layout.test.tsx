@@ -139,6 +139,42 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
+  it('keeps Today navigation compact while preserving day selection and Edit split controls', async () => {
+    const harness = await renderScreen()
+    const header = harness.host.querySelector('.training-console')!
+    expect(header.querySelector('.eyebrow')).toBeNull()
+    expect(header.classList.contains('training-console--today')).toBe(true)
+    expect(header.querySelector('[aria-label="Training mode"]')).not.toBeNull()
+    expect(header.querySelector('[aria-label="Select training day"]')).not.toBeNull()
+
+    await click(getButtonByAriaLabelPrefix(header, 'Day 2: Pull'))
+    await waitFor(
+      () => harness.host.querySelector('.training-ledger__title')?.textContent === 'Pull',
+      'Day selection did not change the current workout.',
+    )
+    expect(findExerciseCardByTitle(harness.host, 'Barbell Row')).not.toBeNull()
+    expect(
+      getButtonByAriaLabelPrefix(header, 'Day 2: Pull').getAttribute('aria-selected'),
+    ).toBe('true')
+
+    await click(getButtonByText(header, 'Edit'))
+    expect(header.classList.contains('training-console--today')).toBe(false)
+    expect(header.querySelector('.eyebrow')?.textContent).toContain('3-DAY')
+    expect(getButtonByText(harness.host, '3 day')).not.toBeNull()
+    await click(getButtonByText(harness.host, '4 day'))
+    await waitFor(
+      () => header.querySelector('.eyebrow')?.textContent?.includes('4-DAY') ?? false,
+      'Edit split selection did not update its heading.',
+    )
+    await click(getButtonByText(header, 'Today'))
+    await waitFor(
+      () => harness.host.querySelector('.training-ledger__title')?.textContent === 'Pull',
+      'Returning to Today did not restore the active workout.',
+    )
+    expect(header.querySelector('.eyebrow')).toBeNull()
+    await harness.cleanup()
+  })
+
   it('keeps removed stats, counters, empty slots, and weight chips out of set entry', async () => {
     const harness = await renderScreen()
 
@@ -399,6 +435,14 @@ describe('RoutinesScreen behavior', () => {
       'Set pill did not appear before removal.',
     )
 
+    const options = getButtonByText(firstCard!, 'Options')
+    expect(options.getAttribute('aria-expanded')).toBe('false')
+    expect(firstCard!.querySelector('.set-pill__remove')).toBeNull()
+    expect(firstCard!.querySelector('.notes-input')).toBeNull()
+    await click(options)
+    expect(options.getAttribute('aria-expanded')).toBe('true')
+    expect(firstCard!.querySelector('.notes-input')).not.toBeNull()
+
     const removeButton = firstCard!.querySelector(
       '.set-pill__remove',
     ) as HTMLButtonElement | null
@@ -423,17 +467,34 @@ describe('RoutinesScreen behavior', () => {
     await logSet(firstCard!, '100', '6')
     await logSet(firstCard!, '100', '6')
 
+    await click(getButtonByText(firstCard!, 'Options'))
+    expect(getButtonByText(firstCard!, 'Options').getAttribute('aria-expanded')).toBe(
+      'true',
+    )
     expect(firstCard!.querySelector('.suggestion')).toBeNull()
     await click(getButtonByText(harness.host, 'Finish workout'))
 
     await waitFor(
-      () => Boolean(harness.host.querySelector('.suggestion')),
+      () =>
+        harness.host.querySelector('.exercise-card') !== firstCard &&
+        (harness.host.querySelector('.last-line')?.textContent ?? '').includes('100 lb'),
+      'The next workout did not load completed previous performance.',
+    )
+    const nextCard = harness.host.querySelector<HTMLElement>('.exercise-card')!
+    expect(nextCard.querySelector('.suggestion')).toBeNull()
+    expect(getButtonByText(nextCard, 'Options').getAttribute('aria-expanded')).toBe(
+      'false',
+    )
+    await click(getButtonByText(nextCard, 'Options'))
+    await waitFor(
+      () => Boolean(nextCard.querySelector('.suggestion')),
       'Progression suggestion did not surface for the completed workout.',
     )
 
-    expect(harness.host.querySelector('.suggestion')?.textContent ?? '').toMatch(
-      /rep|increase/i,
-    )
+    expect(nextCard.querySelector('.suggestion')?.textContent).toContain('Keep 100 lb')
+    expect(nextCard.querySelector('.suggestion')?.textContent).toContain('7 reps')
+    await click(getButtonByText(nextCard, 'Options'))
+    expect(nextCard.querySelector('.suggestion')).toBeNull()
 
     await harness.cleanup()
   })

@@ -73,7 +73,6 @@ describe('WorkoutExercise saving', () => {
         <WorkoutExercise
           exercise={exercise}
           sessionId="session"
-          position={1}
           isExpanded
           onToggle={() => undefined}
           sets={entries}
@@ -106,6 +105,24 @@ describe('WorkoutExercise saving', () => {
     Array.from(host.querySelectorAll('button')).find((item) => item.textContent === name)!
   const selectCompleted = async () =>
     click(host.querySelector('[aria-label="Edit set 1 for Press"]')!)
+
+  it('keeps guidance and management behind an accessible Options disclosure', async () => {
+    await render([], true)
+    expect(host.querySelector('.exercise-card__position')).toBeNull()
+    expect(host.querySelector('.suggestion')).toBeNull()
+    expect(host.querySelector('textarea')).toBeNull()
+    expect(host.querySelector('[aria-label="Open history for Press"]')).not.toBeNull()
+    const options = button('Options')
+    expect(options.getAttribute('aria-expanded')).toBe('false')
+    await click(options)
+    expect(options.getAttribute('aria-expanded')).toBe('true')
+    expect(host.querySelector('.suggestion')?.textContent).toBeTruthy()
+    expect(host.querySelector('textarea')).not.toBeNull()
+    expect(button('Remove from this workout')).toBeDefined()
+    await click(options)
+    expect(host.querySelector('textarea')).toBeNull()
+    expect(host.querySelector('.suggestion')).toBeNull()
+  })
 
   it('adjusts draft reps by one without completing a set and stops at zero', async () => {
     await db.setEntries.clear()
@@ -311,7 +328,7 @@ describe('WorkoutExercise saving', () => {
   it('copies previous values as a draft and guards repeated completion taps', async () => {
     await db.setEntries.clear()
     await render([], true)
-    await click(button('Use previous values'))
+    await click(button('Use last'))
     expect(weight().value).toBe('100')
     expect(reps().value).toBe('8')
     expect(await db.setEntries.count()).toBe(0)
@@ -326,6 +343,7 @@ describe('WorkoutExercise saving', () => {
   it('preserves exercise notes using the existing local storage key', async () => {
     localStorage.setItem('workout-tracker.notes.session.exercise', 'Keep the same grip')
     await render()
+    await click(button('Options'))
     const notes = host.querySelector<HTMLTextAreaElement>('textarea')!
     expect(notes?.value).toBe('Keep the same grip')
     await act(async () => {
