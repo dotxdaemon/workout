@@ -46,6 +46,8 @@ Use this map to prevent repeat regressions. Every bugfix should add or update an
 | 2026-09-22 | Progression chooses the wrong set or silently treats missing/mixed work as success | Rule selected the first below-cap set and did not consistently filter completed unit-normalized work. | `targets the lowest last set and uses the first tied set without increasing load`; `ignores warmups, unfinished sets, and invalid completed values` | `c4af7fe` | Progression regressions and visible next-session explanation. |
 | 2026-09-22 | Settings appear saved when device storage rejects them | Optimistic state changed before the preference write succeeded. | `keeps the applied preference and reports a full device instead of claiming a failed write applied` | `c4af7fe` | Actual quota failure regression; settings/theme browser replay. |
 
+| 2026-09-22 | Rep +1/-1 controls disappeared during the focused-entry redesign | The direct input replaced the stepper markup and its adjustment handlers. | `adjusts draft reps by one without completing a set and stops at zero`; `autosaves rep stepper corrections on the same completed set` | `d559fe7` | Both tests failed first, then full suite 163 passed; 390px rapid-click/autosave/reload replay and 360px layout check. |
+
 ## Rules
 
 1. Add one row per bug class; update existing rows when behavior changes.
