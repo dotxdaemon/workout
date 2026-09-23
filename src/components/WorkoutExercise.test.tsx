@@ -107,6 +107,57 @@ describe('WorkoutExercise saving', () => {
   const selectCompleted = async () =>
     click(host.querySelector('[aria-label="Edit set 1 for Press"]')!)
 
+  it('adjusts draft reps by one without completing a set and stops at zero', async () => {
+    await db.setEntries.clear()
+    await render([])
+    const increase = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Increase reps for Press"]',
+    )
+    const decrease = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Decrease reps for Press"]',
+    )
+    expect(increase).not.toBeNull()
+    expect(decrease).not.toBeNull()
+    expect(decrease!.disabled).toBe(true)
+    await click(increase!)
+    expect(reps().value).toBe('1')
+    await act(async () => {
+      increase!.click()
+      increase!.click()
+    })
+    expect(reps().value).toBe('3')
+    await click(decrease!)
+    expect(reps().value).toBe('2')
+    await change(reps(), '0')
+    expect(decrease!.disabled).toBe(true)
+    await change(reps(), '1.5')
+    expect(increase!.disabled).toBe(true)
+    expect(decrease!.disabled).toBe(true)
+    expect(reps().value).toBe('1.5')
+    expect(await db.setEntries.count()).toBe(0)
+  })
+
+  it('autosaves rep stepper corrections on the same completed set', async () => {
+    await render()
+    await selectCompleted()
+    const increase = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Increase reps for Press"]',
+    )
+    const decrease = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Decrease reps for Press"]',
+    )
+    expect(increase).not.toBeNull()
+    expect(decrease).not.toBeNull()
+    await click(increase!)
+    expect(reps().value).toBe('9')
+    expect(busy.at(-1)).toBe(true)
+    await waitUntil(async () => (await db.setEntries.get(completedSet.id))?.reps === 9)
+    await click(decrease!)
+    expect(reps().value).toBe('8')
+    await waitUntil(async () => busy.at(-1) === false)
+    expect(await db.setEntries.toArray()).toEqual([completedSet])
+  })
+
   it('marks a correction pending before the autosave debounce can allow finishing', async () => {
     await render()
     await selectCompleted()

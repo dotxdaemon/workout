@@ -2007,6 +2007,23 @@ body::after {
   outline: 2px solid var(--jade);
   outline-offset: 2px;
 }
+.set-entry__reps-control {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  min-width: 0;
+  background: var(--control);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+}
+.quick-entry .set-entry__reps-control .set-entry__input {
+  padding-inline: 0.2rem;
+  text-align: center;
+  background: transparent;
+  border: 0;
+}
+.set-entry--invalid .set-entry__reps-control {
+  border-color: var(--danger);
+}
 .set-entry--invalid .set-entry__input {
   border-color: var(--danger);
 }

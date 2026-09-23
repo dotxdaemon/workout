@@ -146,6 +146,8 @@ export function WorkoutExercise(props: Props) {
   const persistRef = useRef<() => Promise<void>>(async () => undefined)
   const callbacksRef = useRef({ onChanged, onBusy, onError: props.onError })
   const completed = sets.filter((set) => set.completedAt)
+  const canAdjustReps =
+    /^\d*$/.test(draft.reps.trim()) && Number.isSafeInteger(Number(draft.reps))
   const work = completed.filter((set) => !set.isWarmup)
   const suggestion = lastSession?.session.endedAt
     ? buildProgressionSuggestion(exercise.progressionSettings, lastSession.sets)
@@ -270,6 +272,16 @@ export function WorkoutExercise(props: Props) {
     } else {
       setStatus(stored ? 'Draft saved on this device' : 'Draft not saved')
     }
+  }
+
+  function adjustReps(delta: number): void {
+    const raw = draftRef.current.reps.trim()
+    if (!/^\d*$/.test(raw)) return
+    const current = Number(raw)
+    const next = Math.max(0, current + delta)
+    if (!Number.isSafeInteger(current) || !Number.isSafeInteger(next) || next === current)
+      return
+    change('reps', String(next))
   }
 
   function blur(event: FocusEvent<HTMLInputElement>): void {
@@ -505,22 +517,50 @@ export function WorkoutExercise(props: Props) {
                 onBlur={blur}
               />
             </label>
-            <label className="set-entry__value">
-              <span className="field__label">Reps</span>
-              <input
-                className="set-entry__input"
-                type="text"
-                inputMode="numeric"
-                aria-label={`${exercise.name} reps`}
-                aria-invalid={Boolean(error) || undefined}
-                value={draft.reps}
-                onChange={(event) => change('reps', event.target.value)}
-                onBlur={blur}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !selected) void complete()
-                }}
-              />
-            </label>
+            <div className="set-entry__value">
+              <label
+                className="field__label"
+                htmlFor={`reps-${sessionId}-${exercise.id}`}
+              >
+                Reps
+              </label>
+              <div className="set-entry__reps-control">
+                <button
+                  type="button"
+                  className="set-entry__adjust"
+                  aria-label={`Decrease reps for ${exercise.name}`}
+                  disabled={!canAdjustReps || Number(draft.reps) <= 0}
+                  onClick={() => adjustReps(-1)}
+                >
+                  −1
+                </button>
+                <input
+                  id={`reps-${sessionId}-${exercise.id}`}
+                  className="set-entry__input"
+                  type="text"
+                  inputMode="numeric"
+                  aria-label={`${exercise.name} reps`}
+                  aria-invalid={Boolean(error) || undefined}
+                  value={draft.reps}
+                  onChange={(event) => change('reps', event.target.value)}
+                  onBlur={blur}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !selected) void complete()
+                  }}
+                />
+                <button
+                  type="button"
+                  className="set-entry__adjust"
+                  aria-label={`Increase reps for ${exercise.name}`}
+                  disabled={
+                    !canAdjustReps || Number(draft.reps) >= Number.MAX_SAFE_INTEGER
+                  }
+                  onClick={() => adjustReps(1)}
+                >
+                  +1
+                </button>
+              </div>
+            </div>
           </div>
           {error ? (
             <p className="entry-error" role="alert">
