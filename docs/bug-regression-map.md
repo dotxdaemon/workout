@@ -48,6 +48,8 @@ Use this map to prevent repeat regressions. Every bugfix should add or update an
 
 | 2026-09-22 | Rep +1/-1 controls disappeared during the focused-entry redesign | The direct input replaced the stepper markup and its adjustment handlers. | `adjusts draft reps by one without completing a set and stops at zero`; `autosaves rep stepper corrections on the same completed set` | `d559fe7` | Both tests failed first, then full suite 163 passed; 390px rapid-click/autosave/reload replay and 360px layout check. |
 
+| 2026-09-22 | Tall header and repeated metadata obscure everyday set logging | Secondary information occupied full rows and primary-sized controls around the actual entry. | `keeps Today navigation compact while preserving day selection and Edit split controls`; `keeps guidance and management behind an accessible Options disclosure` | `a30080a` | Both failed first; 165 tests, lint, typecheck and build pass. Comparable 390px exercise height drops ~438px to321px; full-size +/-1 controls, autosave/reload, both themes and 360/390/430/1280px checks verified in companion screenshots/logs. |
+
 ## Rules
 
 1. Add one row per bug class; update existing rows when behavior changes.
