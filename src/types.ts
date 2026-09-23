@@ -32,6 +32,7 @@ export interface SessionRecord {
   startedAt: string
   endedAt?: string
   routineId?: string
+  exerciseIds?: string[]
   notes?: string
 }
 
@@ -41,6 +42,7 @@ export interface SetEntry {
   exerciseId: string
   index: number
   weight: number
+  unit?: Unit
   reps: number
   isWarmup: boolean
   completedAt?: string

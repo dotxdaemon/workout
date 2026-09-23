@@ -30,8 +30,14 @@ export function SettingsScreen() {
   }, [])
 
   function persist(next: AppPreferences): void {
-    setPreferences(next)
-    writePreferences(next)
+    try {
+      writePreferences(next)
+      setPreferences(next)
+      setMessage('')
+      setError('')
+    } catch {
+      setError('Preference not saved. Free some device storage and try again.')
+    }
   }
 
   function updatePreference<K extends keyof AppPreferences>(
@@ -39,8 +45,6 @@ export function SettingsScreen() {
     value: AppPreferences[K],
   ): void {
     persist({ ...readPreferences(), [key]: value })
-    setMessage('')
-    setError('')
   }
 
   async function handleExportJson(): Promise<void> {
@@ -191,7 +195,7 @@ export function SettingsScreen() {
               }
             />
             <span className="field__hint">
-              Step size for the quick-adjust chips when logging.
+              Suggested load increase for new exercises.
             </span>
           </label>
         </section>

@@ -1,12 +1,15 @@
 // ABOUTME: Pure aggregation helpers for today's session stats and exercise history trends.
 // ABOUTME: Keeps masthead readouts and history-sheet math out of React components for direct testing.
-import { calculateEstimatedOneRepMax } from './progression'
+import { calculateEstimatedOneRepMax, isCompletedWorkSet } from './progression'
+import { convertWeight } from './units'
 import type { Unit } from '../types'
 
 interface StatSet {
   weight: number
   reps: number
   isWarmup: boolean
+  completedAt?: string
+  unit?: Unit
 }
 
 export interface TodayExerciseStatsInput {
@@ -28,7 +31,7 @@ export function computeTodayStats(entries: TodayExerciseStatsInput[]): TodayStat
   const volumeByUnit = new Map<Unit, number>()
 
   for (const entry of entries) {
-    const workSets = entry.sets.filter((set) => !set.isWarmup)
+    const workSets = entry.sets.filter(isCompletedWorkSet)
     totalWorkSets += workSets.length
 
     if (entry.workSetsTarget > 0 && workSets.length >= entry.workSetsTarget) {
@@ -36,10 +39,8 @@ export function computeTodayStats(entries: TodayExerciseStatsInput[]): TodayStat
     }
 
     for (const set of workSets) {
-      volumeByUnit.set(
-        entry.unit,
-        (volumeByUnit.get(entry.unit) ?? 0) + set.weight * set.reps,
-      )
+      const unit = set.unit ?? entry.unit
+      volumeByUnit.set(unit, (volumeByUnit.get(unit) ?? 0) + set.weight * set.reps)
     }
   }
 
@@ -55,6 +56,7 @@ export function computeTodayStats(entries: TodayExerciseStatsInput[]): TodayStat
 
 export interface HistoryRowInput {
   sets: StatSet[]
+  endedAt?: string
 }
 
 export interface HistoryRowMetric {
@@ -71,18 +73,25 @@ export interface HistoryOverview {
 
 // Rows arrive newest-first (the history sheet order); trendPoints come back oldest-first
 // so a sparkline reads left-to-right through time.
-export function summarizeHistoryRows(rowsNewestFirst: HistoryRowInput[]): HistoryOverview {
+export function summarizeHistoryRows(
+  rowsNewestFirst: HistoryRowInput[],
+  unit: Unit,
+): HistoryOverview {
   const tops = rowsNewestFirst.map((row) => {
+    if (!row.endedAt) {
+      return null
+    }
     let best: StatSet | null = null
     let bestScore = 0
 
     for (const set of row.sets) {
-      if (set.isWarmup) {
+      if (!isCompletedWorkSet(set)) {
         continue
       }
-      const score = calculateEstimatedOneRepMax(set.weight, set.reps)
+      const weight = convertWeight(set.weight, set.unit ?? unit, unit)
+      const score = calculateEstimatedOneRepMax(weight, set.reps)
       if (!best || score > bestScore) {
-        best = set
+        best = { ...set, weight, unit }
         bestScore = score
       }
     }
@@ -127,7 +136,7 @@ export function summarizeHistoryRows(rowsNewestFirst: HistoryRowInput[]): Histor
     .reverse()
 
   return {
-    sessionCount: rowsNewestFirst.length,
+    sessionCount: tops.filter(Boolean).length,
     best,
     trendPoints,
     rows,

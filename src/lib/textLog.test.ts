@@ -27,7 +27,11 @@ function buildData(): WorkoutExport['data'] {
     ],
     routines: [],
     sessions: [
-      { id: 'session-1', startedAt: '2026-06-10T17:00:00.000Z', endedAt: '2026-06-10T18:00:00.000Z' },
+      {
+        id: 'session-1',
+        startedAt: '2026-06-10T17:00:00.000Z',
+        endedAt: '2026-06-10T18:00:00.000Z',
+      },
     ],
     setEntries: [
       {
@@ -75,5 +79,36 @@ describe('buildTextLog', () => {
 
     expect(text).toContain('No sets have been logged yet.')
     expect(text).toContain('Total sets logged: 0')
+  })
+
+  it('keeps each recorded unit and labels suggested sets as not completed', () => {
+    const data = buildData()
+    data.exercises[0].progressionSettings.unit = 'kg'
+    data.setEntries[0].unit = 'lb'
+    data.setEntries[1].unit = 'kg'
+    data.setEntries[1].completedAt = undefined
+    const text = buildTextLog(data, preferences, generatedAt)
+    expect(text).toContain('225 lb x 5')
+    expect(text).toContain('135 kg x 8 (warmup) (not completed)')
+  })
+
+  it('orders session dates by their actual time when recorded offsets differ', () => {
+    const data = buildData()
+    data.setEntries[0].completedAt = '2026-09-22T12:00:00+02:00'
+    data.setEntries[1].completedAt = '2026-09-22T09:00:00-02:00'
+    data.sessions.push({
+      id: 'session-2',
+      startedAt: '2026-09-22T12:00:00+02:00',
+      endedAt: '2026-09-22T13:00:00+02:00',
+    })
+    data.setEntries.push({
+      ...data.setEntries[0],
+      id: 'set-3',
+      sessionId: 'session-2',
+      weight: 315,
+      completedAt: '2026-09-22T12:30:00+02:00',
+    })
+    const text = buildTextLog(data, preferences, generatedAt)
+    expect(text.indexOf('225 lb x 5')).toBeLessThan(text.indexOf('315 lb x 5'))
   })
 })
