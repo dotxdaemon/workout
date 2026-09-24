@@ -1941,15 +1941,30 @@ body::after {
   gap: 0.25rem;
   padding-block: 0.6rem;
 }
+/* The exercise being logged lifts onto one filled surface; the rest stay a quiet list */
 .exercise-card--active {
-  padding-bottom: 1rem;
+  margin-block: 0.4rem;
+  padding: 0.55rem 0.85rem 0.95rem;
+  border-bottom: 0;
+  border-radius: var(--radius-lg);
+  background: var(--control);
+  box-shadow: inset 3px 0 0 var(--jade);
 }
 .exercise-card__name {
   font-family: inherit;
   font-size: 1.05rem;
+  font-weight: 620;
+  letter-spacing: -0.01em;
   line-height: 1.35;
   white-space: normal;
   overflow-wrap: anywhere;
+}
+.exercise-card--active .exercise-card__name {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.exercise-card--complete:not(.exercise-card--active) .exercise-card__name {
+  color: var(--text-dim);
 }
 .exercise-card__title-btn {
   min-height: 44px;
@@ -1983,64 +1998,85 @@ body::after {
   margin-top: 0.6rem;
   scroll-margin-block: 5rem;
 }
+/* Weight and reps read as two recessed instrument wells with large centered numerals */
 .quick-entry .set-entry {
   display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-  gap: 0;
-  padding: 0.5rem;
-  background: var(--control);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-md);
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 0.5rem;
+  padding: 0;
+  background: transparent;
+  border: 0;
 }
 .quick-entry .set-entry__value {
   display: grid;
+  align-content: start;
   min-width: 0;
-  gap: 0.1rem;
-  padding: 0;
+  gap: 0.15rem;
+  padding: 0.5rem 0.35rem 0.35rem;
+  background: rgba(var(--bg-rgb), 0.6);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  cursor: text;
 }
-.quick-entry .set-entry__value + .set-entry__value {
-  border-left: 1px solid var(--hairline);
-  padding-left: 0.5rem;
+.quick-entry .set-entry__value:focus-within {
+  border-color: rgba(var(--jade-rgb), 0.7);
 }
 .quick-entry .field__label {
-  padding-inline: 0.4rem;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
+  text-align: center;
+  color: var(--text-dim);
 }
 .quick-entry .set-entry__input {
   width: 100%;
   min-width: 0;
-  min-height: 48px;
+  min-height: 52px;
   background: transparent;
-  padding: 0.4rem;
-  font-size: 1.25rem;
-  text-align: left;
+  padding: 0 0.2rem;
+  font-size: 1.85rem;
+  font-weight: 650;
+  text-align: center;
   border: 0;
   border-radius: var(--radius-md);
 }
+.quick-entry .set-entry__input::placeholder {
+  color: var(--text-faint);
+  opacity: 0.45;
+}
 .quick-entry .set-entry__input:focus-visible {
-  outline: 2px solid var(--jade);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: none;
 }
 .set-entry__reps-control {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
   min-width: 0;
   background: transparent;
 }
 .quick-entry .set-entry__adjust {
-  min-height: 48px;
-  font-family: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
+  min-width: 44px;
+  min-height: 44px;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--control-strong);
   border: 0;
+  border-radius: var(--radius-md);
+}
+.quick-entry .set-entry__adjust:disabled {
+  color: var(--text-faint);
+  background: var(--control);
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 .quick-entry .set-entry__reps-control .set-entry__input {
-  padding-inline: 0.2rem;
+  padding-inline: 0.1rem;
   text-align: center;
   background: transparent;
   border: 0;
 }
-.quick-entry .set-entry--invalid {
+.quick-entry .set-entry--invalid .set-entry__value {
   border-color: var(--danger);
 }
 .entry-caption {
@@ -2070,6 +2106,14 @@ body::after {
   box-shadow: none;
   min-height: 44px;
   font-weight: 600;
+}
+.entry-actions .btn--primary {
+  flex: 1 1 auto;
+  max-width: 16rem;
+  min-height: 50px;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: var(--radius-md);
 }
 .text-action {
   appearance: none;
