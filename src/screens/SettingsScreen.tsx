@@ -196,6 +196,11 @@ export function SettingsScreen() {
         </section>
       </div>
 
+      <p className="settings-note">
+        Workouts, drafts, and settings are stored only on this device and work offline.
+        Export a full backup to keep a copy elsewhere.
+      </p>
+
       <details
         className="details"
         open={isDataOpen}

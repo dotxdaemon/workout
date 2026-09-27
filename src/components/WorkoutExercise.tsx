@@ -10,7 +10,10 @@ import {
 } from '../lib/db'
 import { buildProgressionSuggestion } from '../lib/progression'
 import { convertWeight, formatWeight } from '../lib/units'
-import { ClockIcon, ChevronDownIcon } from './icons'
+import { CheckIcon, ClockIcon, ChevronDownIcon } from './icons'
+
+// A tap this soon after a set is logged is treated as an accidental repeat.
+const REPEAT_LOG_GUARD_MS = 700
 
 interface EntryDraft {
   id: string
@@ -24,7 +27,7 @@ interface Props {
   isExpanded: boolean
   onToggle: () => void
   sets: SetEntry[]
-  lastSession?: { session: SessionRecord; sets: SetEntry[] }
+  lastSession?: { session: SessionRecord; sets: SetEntry[] } | null
   groupLabel?: string
   onChanged: (sets: SetEntry[]) => void
   onBusy: (busy: boolean) => void
@@ -82,7 +85,7 @@ function matches(draft: EntryDraft, set: SetEntry): boolean {
 
 function summary(sets: SetEntry[], unit: Unit): string {
   const work = sets.filter((set) => set.completedAt && !set.isWarmup)
-  if (!work.length) return 'No previous session'
+  if (!work.length) return 'No previous working sets'
   const first = work[0]
   if (
     work.every(
@@ -127,14 +130,17 @@ export function WorkoutExercise(props: Props) {
   const [draft, setDraft] = useState(initial.draft)
   const [note, setNote] = useState(initial.note)
   const selected = sets.find((set) => set.id === draft.id && set.completedAt)
-  const [status, setStatus] = useState('Not completed')
+  const [status, setStatus] = useState('')
   const [error, setError] = useState(initial.error)
   const [busy, setBusy] = useState(false)
   const [pendingCorrection, setPendingCorrection] = useState(
     Boolean(selected && !matches(initial.draft, selected)),
   )
   const [manage, setManage] = useState(false)
+  const [justLogged, setJustLogged] = useState(false)
   const lock = useRef(false)
+  const justLoggedRef = useRef(false)
+  const guardTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const draftRef = useRef(initial.draft)
   const savedRef = useRef(selected)
   const entriesRef = useRef(sets)
@@ -148,6 +154,8 @@ export function WorkoutExercise(props: Props) {
   const canAdjustReps =
     /^\d*$/.test(draft.reps.trim()) && Number.isSafeInteger(Number(draft.reps))
   const work = completed.filter((set) => !set.isWarmup)
+  const workTarget = exercise.progressionSettings.workSetsTarget
+  const previousWork = lastSession?.sets.filter((set) => set.completedAt && !set.isWarmup)
   const suggestion = lastSession?.session.endedAt
     ? buildProgressionSuggestion(exercise.progressionSettings, lastSession.sets)
     : null
@@ -178,7 +186,7 @@ export function WorkoutExercise(props: Props) {
     callbacksRef.current.onChanged(entriesRef.current)
   }
 
-  function markSaved(): void {
+  function markSaved(confirmation: string): void {
     dirtyRef.current = false
     store(storageKey, null)
     try {
@@ -188,7 +196,7 @@ export function WorkoutExercise(props: Props) {
     }
     if (mountedRef.current) {
       setPendingCorrection(false)
-      setStatus('Saved on this device')
+      setStatus(confirmation)
     }
   }
 
@@ -205,7 +213,7 @@ export function WorkoutExercise(props: Props) {
         const next = draftRef.current
         if (!validDraft(next)) break
         if (matches(next, savedRef.current)) {
-          markSaved()
+          markSaved('Correction saved')
           break
         }
         if (mountedRef.current) {
@@ -244,10 +252,11 @@ export function WorkoutExercise(props: Props) {
       callbacksRef.current.onBusy(true)
       setStatus('Correction not saved')
       void persistRef.current()
-    } else if (savedRef.current) setStatus('Saved on this device')
+    }
     return () => {
       mountedRef.current = false
       clearTimeout(timerRef.current)
+      clearTimeout(guardTimerRef.current)
       void persistRef.current()
     }
   }, [])
@@ -269,7 +278,7 @@ export function WorkoutExercise(props: Props) {
           void persistRef.current()
         }, 400)
     } else {
-      setStatus(stored ? 'Draft saved on this device' : 'Draft not saved')
+      setStatus(stored ? 'Draft saved' : 'Draft not saved')
     }
   }
 
@@ -300,7 +309,8 @@ export function WorkoutExercise(props: Props) {
   }
 
   async function complete(): Promise<void> {
-    if (lock.current || savingRef.current || savedRef.current) return
+    if (lock.current || savingRef.current || savedRef.current || justLoggedRef.current)
+      return
     const next = draftRef.current
     if (!validDraft(next)) {
       setError('Enter a weight of 0 or more and whole reps above 0.')
@@ -310,6 +320,7 @@ export function WorkoutExercise(props: Props) {
     setBusy(true)
     callbacksRef.current.onBusy(true)
     setStatus('Saving…')
+    let logged: SetEntry | undefined
     try {
       const entry = await addSetEntry(sessionId, exercise.id, {
         id: next.id,
@@ -319,13 +330,14 @@ export function WorkoutExercise(props: Props) {
         completed: true,
       })
       savedRef.current = entry
+      logged = entry
       publish(entry)
       dirtyRef.current = !matches(draftRef.current, entry)
       if (mountedRef.current) {
         setPendingCorrection(dirtyRef.current)
         setError('')
       }
-      if (!dirtyRef.current) markSaved()
+      if (!dirtyRef.current) markSaved('Set logged')
     } catch {
       report('Set not saved. Your values are still here. Try Complete set again.')
       if (mountedRef.current) setStatus('Not saved')
@@ -335,6 +347,25 @@ export function WorkoutExercise(props: Props) {
       callbacksRef.current.onBusy(dirtyRef.current)
       if (dirtyRef.current) await persist()
     }
+    if (
+      logged &&
+      mountedRef.current &&
+      !dirtyRef.current &&
+      savedRef.current?.id === logged.id
+    )
+      advanceAfterLog(savedRef.current)
+  }
+
+  function advanceAfterLog(entry: SetEntry): void {
+    nextSet(entry)
+    setStatus('Set logged')
+    justLoggedRef.current = true
+    setJustLogged(true)
+    clearTimeout(guardTimerRef.current)
+    guardTimerRef.current = setTimeout(() => {
+      justLoggedRef.current = false
+      if (mountedRef.current) setJustLogged(false)
+    }, REPEAT_LOG_GUARD_MS)
   }
 
   function nextSet(source?: SetEntry): void {
@@ -365,7 +396,7 @@ export function WorkoutExercise(props: Props) {
     setDraft(next)
     const stored = store(storageKey, JSON.stringify(next))
     if (stored) store(unfinishedKey, null)
-    setStatus(stored ? 'Draft saved on this device' : 'Draft not saved')
+    setStatus(stored ? 'Draft saved' : 'Draft not saved')
   }
 
   function editSet(set: SetEntry): void {
@@ -379,7 +410,7 @@ export function WorkoutExercise(props: Props) {
     draftRef.current = next
     setDraft(next)
     store(storageKey, null)
-    setStatus('Saved on this device')
+    setStatus('')
   }
 
   function cancelCorrection(): void {
@@ -399,7 +430,7 @@ export function WorkoutExercise(props: Props) {
     setError('')
     dirtyRef.current = false
     setPendingCorrection(false)
-    setStatus('Saved on this device')
+    setStatus('')
     callbacksRef.current.onBusy(false)
   }
 
@@ -434,10 +465,20 @@ export function WorkoutExercise(props: Props) {
     }
   }
 
+  const selectedIndex = selected
+    ? completed.findIndex((set) => set.id === selected.id)
+    : -1
+  const collapsedStatus =
+    completed.length === 0
+      ? 'Not started'
+      : workTarget > 0
+        ? `${work.length} of ${workTarget} sets`
+        : `${work.length} ${work.length === 1 ? 'set' : 'sets'} logged`
+
   return (
     <article
       data-exercise-id={exercise.id}
-      className={`exercise-card${props.isExpanded ? ' exercise-card--active' : ''}${work.length >= exercise.progressionSettings.workSetsTarget ? ' exercise-card--complete' : ''}`}
+      className={`exercise-card${props.isExpanded ? ' exercise-card--active' : ''}${work.length >= workTarget ? ' exercise-card--complete' : ''}`}
     >
       <div className="exercise-card__head">
         <button
@@ -450,87 +491,114 @@ export function WorkoutExercise(props: Props) {
           {props.groupLabel ? (
             <span className="exercise-card__group">{props.groupLabel}</span>
           ) : null}
-          <span className="exercise-card__name">
-            {exercise.name}
-            <ChevronDownIcon width={16} height={16} className="exercise-card__chevron" />
-          </span>
+          <span className="exercise-card__name">{exercise.name}</span>
+          {props.isExpanded ? null : (
+            <span className="exercise-card__status">
+              {work.length >= workTarget && workTarget > 0 ? (
+                <CheckIcon width={14} height={14} className="exercise-card__done" />
+              ) : null}
+              {collapsedStatus}
+            </span>
+          )}
         </button>
+        {props.isExpanded ? null : (
+          <ChevronDownIcon width={18} height={18} className="exercise-card__chevron" />
+        )}
         <button
           type="button"
-          className="icon-btn exercise-history-button"
+          className={
+            props.isExpanded
+              ? 'btn btn--quiet btn--small exercise-history-button'
+              : 'icon-btn exercise-history-button'
+          }
           aria-label={`Open history for ${exercise.name}`}
           onClick={(event) => props.onOpenHistory(event.timeStamp)}
         >
-          <ClockIcon />
+          <ClockIcon width={18} height={18} />
+          {props.isExpanded ? <span>History</span> : null}
         </button>
       </div>
-      {props.isExpanded ||
-      lastSession?.sets.some((set) => set.completedAt && !set.isWarmup) ? (
-        <div className="exercise-history-line">
-          <p className="last-line">
-            <span className="last-line__label">Last:</span>
-            <span className="last-line__value">
-              {summary(lastSession?.sets ?? [], unit)}
-            </span>
-          </p>
-          {props.isExpanded &&
-          !selected &&
-          !draft.weight &&
-          lastSession?.sets.some((set) => set.completedAt && !set.isWarmup) ? (
+      {props.isExpanded && lastSession !== undefined ? (
+        <div className="previous-line">
+          {previousWork?.length ? (
+            <p className="previous-performance">
+              <span className="previous-performance__label">
+                Last ·{' '}
+                {new Intl.DateTimeFormat(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                }).format(new Date(lastSession!.session.startedAt))}
+              </span>{' '}
+              <span className="previous-performance__value">
+                {summary(lastSession!.sets, unit)}
+              </span>
+            </p>
+          ) : (
+            <p className="previous-performance previous-performance--none">
+              {lastSession ? summary(lastSession.sets, unit) : 'First session'}
+            </p>
+          )}
+          {!selected && !draft.weight && previousWork?.length ? (
             <button
               type="button"
               className="text-action"
-              onClick={() =>
-                nextSet(lastSession.sets.find((set) => set.completedAt && !set.isWarmup))
-              }
+              onClick={() => nextSet(previousWork[0])}
             >
               Use last
             </button>
           ) : null}
         </div>
       ) : null}
-      {completed.length ? (
-        <div className="set-track" aria-label="Completed sets">
+      {props.isExpanded && completed.length ? (
+        <ol className="logged-sets" aria-label={`Sets logged for ${exercise.name}`}>
           {completed.map((set, index) => (
-            <button
+            <li
               key={set.id}
-              type="button"
-              className={`set-pill${set.id === selected?.id ? ' set-pill--selected' : ''}`}
-              aria-label={`Edit set ${index + 1} for ${exercise.name}`}
-              disabled={busy || pendingCorrection}
-              onClick={() => {
-                editSet(set)
-                if (!props.isExpanded) props.onToggle()
-              }}
+              className={`logged-set${set.id === selected?.id ? ' logged-set--selected' : ''}`}
             >
-              <span className="set-pill__num">
-                ✓ {set.isWarmup ? 'Warm-up' : index + 1}
+              <span className="logged-set__index">{set.isWarmup ? 'W' : index + 1}</span>
+              <span className="logged-set__value">
+                {formatWeight(set.weight)} {set.unit ?? unit} × {set.reps}
               </span>
-              {formatWeight(set.weight)} {set.unit ?? unit} × {set.reps}
-            </button>
+              <span className="logged-set__state">
+                <CheckIcon width={14} height={14} />
+                <span className="logged-set__state-text">
+                  {set.id === selected?.id ? 'Editing' : 'Logged'}
+                </span>
+              </span>
+              {set.id === selected?.id ? null : (
+                <button
+                  type="button"
+                  className="logged-set__edit"
+                  aria-label={`Edit set ${index + 1} for ${exercise.name}`}
+                  disabled={busy || pendingCorrection}
+                  onClick={() => editSet(set)}
+                >
+                  Edit
+                </button>
+              )}
+            </li>
           ))}
-        </div>
+        </ol>
       ) : null}
       {props.isExpanded ? (
         <div id={`entry-${exercise.id}`} className="quick-entry">
           <div className="entry-meta">
-            <p className="entry-caption">
-              {selected
-                ? `Set ${completed.findIndex((set) => set.id === selected.id) + 1} · completed`
-                : `Set ${completed.length + 1} · not completed`}
-            </p>
+            <h3 className="entry-caption">
+              {selected ? `Editing set ${selectedIndex + 1}` : `Set ${completed.length + 1}`}
+            </h3>
             <span className="save-state" role="status">
-              {status === 'Not completed' ? '' : status}
+              {status}
             </span>
           </div>
           <div className={`set-entry${error ? ' set-entry--invalid' : ''}`}>
-            <label className="set-entry__value">
+            <label className="set-entry__field">
               <span className="field__label">Weight ({draft.unit})</span>
               <input
                 className="set-entry__input"
                 type="text"
                 inputMode="decimal"
-                placeholder="—"
+                autoComplete="off"
                 aria-label={`${exercise.name} weight`}
                 aria-invalid={Boolean(error) || undefined}
                 value={draft.weight}
@@ -540,7 +608,7 @@ export function WorkoutExercise(props: Props) {
                 onBlur={blur}
               />
             </label>
-            <div className="set-entry__value">
+            <div className="set-entry__field">
               <label
                 className="field__label"
                 htmlFor={`reps-${sessionId}-${exercise.id}`}
@@ -562,8 +630,8 @@ export function WorkoutExercise(props: Props) {
                   className="set-entry__input"
                   type="text"
                   inputMode="numeric"
-                  placeholder="—"
-                  aria-label={`${exercise.name} reps`}
+                  autoComplete="off"
+                    aria-label={`${exercise.name} reps`}
                   aria-invalid={Boolean(error) || undefined}
                   value={draft.reps}
                   onChange={(event) => change('reps', event.target.value)}
@@ -591,42 +659,41 @@ export function WorkoutExercise(props: Props) {
               {error}
             </p>
           ) : null}
-          <div className="entry-actions">
-            <button
-              type="button"
-              className="text-action"
-              aria-expanded={manage}
-              aria-controls={`options-${sessionId}-${exercise.id}`}
-              onClick={() => setManage(!manage)}
-            >
-              Options
-            </button>
-            {selected ? (
+          {selected ? (
+            <div className="entry-actions">
               <button
                 type="button"
-                className="btn btn--primary next-set"
+                className="btn btn--danger"
+                disabled={busy}
+                onClick={() => void remove()}
+              >
+                Delete set
+              </button>
+              <button
+                type="button"
+                className="btn btn--secondary next-set"
                 disabled={busy || pendingCorrection}
                 onClick={() => nextSet()}
               >
-                Add next set
+                Done editing
               </button>
-            ) : (
-              <button
-                type="button"
-                className="btn btn--primary quick-entry__save"
-                disabled={busy}
-                onClick={() => void complete()}
-              >
-                Complete set
-              </button>
-            )}
-          </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="btn btn--primary btn--block quick-entry__save"
+              aria-disabled={busy || justLogged || undefined}
+              onClick={() => void complete()}
+            >
+              Log set
+            </button>
+          )}
           {pendingCorrection ? (
             <div className="entry-actions">
               {error && validDraft(draft) ? (
                 <button
                   type="button"
-                  className="btn btn--ghost"
+                  className="btn btn--secondary"
                   disabled={busy}
                   onClick={() => void persist()}
                 >
@@ -635,7 +702,7 @@ export function WorkoutExercise(props: Props) {
               ) : null}
               <button
                 type="button"
-                className="btn btn--ghost"
+                className="btn btn--secondary"
                 disabled={busy}
                 data-cancel-workout-correction={draft.id}
                 onClick={cancelCorrection}
@@ -644,6 +711,16 @@ export function WorkoutExercise(props: Props) {
               </button>
             </div>
           ) : null}
+          <button
+            type="button"
+            className="text-action exercise-options-toggle"
+            aria-expanded={manage}
+            aria-controls={`options-${sessionId}-${exercise.id}`}
+            onClick={() => setManage(!manage)}
+          >
+            Exercise options
+            <ChevronDownIcon width={16} height={16} className="exercise-options-toggle__icon" />
+          </button>
           {manage ? (
             <section
               className="exercise-options"
@@ -651,24 +728,6 @@ export function WorkoutExercise(props: Props) {
               aria-label={`Options for ${exercise.name}`}
             >
               {suggestion ? <p className="suggestion">{suggestion.message}</p> : null}
-              {selected ? (
-                <button
-                  type="button"
-                  className="btn btn--danger set-pill__remove"
-                  disabled={busy}
-                  onClick={() => void remove()}
-                >
-                  Remove selected set
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="btn btn--ghost"
-                disabled={busy || pendingCorrection}
-                onClick={props.onRemoveExercise}
-              >
-                Remove from this workout
-              </button>
               <label className="field">
                 <span className="field__label">Notes</span>
                 <textarea
@@ -678,6 +737,14 @@ export function WorkoutExercise(props: Props) {
                   onChange={(event) => changeNote(event.target.value)}
                 />
               </label>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                disabled={busy || pendingCorrection}
+                onClick={props.onRemoveExercise}
+              >
+                Remove from this workout
+              </button>
             </section>
           ) : null}
         </div>

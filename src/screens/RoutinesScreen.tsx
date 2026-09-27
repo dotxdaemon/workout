@@ -45,8 +45,10 @@ import { SegmentedControl } from '../components/SegmentedControl'
 import {
   ArrowDownIcon,
   ArrowUpIcon,
+  CheckIcon,
   ChevronRightIcon,
   GripIcon,
+  ListIcon,
   PlusIcon,
   TrashIcon,
 } from '../components/icons'
@@ -81,7 +83,6 @@ type ScreenMode = 'today' | 'edit'
 export function RoutinesScreen() {
   const historyRequestRef = useRef(0)
   const hydratedRoutineIdRef = useRef<string | null>(null)
-  const dayChipsRef = useRef<HTMLDivElement | null>(null)
 
   const [isLoading, setIsLoading] = useState(true)
   const [trackerSessionId, setTrackerSessionId] = useState('')
@@ -107,6 +108,7 @@ export function RoutinesScreen() {
   const [mode, setMode] = useState<ScreenMode>('today')
   const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(null)
   const [historySheet, setHistorySheet] = useState<HistorySheetState | null>(null)
+  const [routineMenuOpenedAt, setRoutineMenuOpenedAt] = useState<number | null>(null)
   const [defaultUnit, setDefaultUnit] = useState<Unit>('lb')
   const [defaultWeightIncrement, setDefaultWeightIncrement] = useState(5)
   const [routineNameDraft, setRoutineNameDraft] = useState('')
@@ -447,19 +449,6 @@ export function RoutinesScreen() {
     }
   }, [mode, todayExerciseIdToReveal, visibleExerciseIds])
 
-  useEffect(() => {
-    if (mode !== 'today') {
-      return
-    }
-    const container = dayChipsRef.current
-    const active = container?.querySelector<HTMLElement>('.day-chip--active')
-    if (!container || !active || typeof container.scrollTo !== 'function') {
-      return
-    }
-    const target = active.offsetLeft - (container.clientWidth - active.clientWidth) / 2
-    container.scrollTo({ left: Math.max(0, target) })
-  }, [mode, selectedRoutine?.id, orderedRoutines.length])
-
   async function refreshHistoryForExercise(exerciseId: string): Promise<void> {
     const previous = await getLastCompletedSessionForExercise(exerciseId)
     const rows = previous ? [previous] : []
@@ -561,6 +550,7 @@ export function RoutinesScreen() {
       setWorkoutRoutineId(routineId)
       setSessionPlan([...routine.exerciseIds])
       setExpandedExerciseId(routine.exerciseIds[0] ?? null)
+      setRoutineMenuOpenedAt(null)
       setError('')
     } catch {
       setError('Could not change this workout. Try again.')
@@ -633,6 +623,20 @@ export function RoutinesScreen() {
     historyRequestRef.current += 1
     setHistorySheet(null)
   }, [])
+
+  const closeRoutineMenu = useCallback(() => setRoutineMenuOpenedAt(null), [])
+
+  function returnToToday(): void {
+    if (isWriting || finishing || isChangingPlan) return
+    if (workoutRoutineId) {
+      const routine = routines.find((item) => item.id === workoutRoutineId)
+      if (routine) {
+        setActiveSplitId(routine.splitId)
+        setSelectedRoutineId(routine.id)
+      }
+    }
+    setMode('today')
+  }
 
   async function handleCreateRoutine(): Promise<void> {
     const routineName = getNextRoutineName(splitRoutines)
@@ -836,68 +840,63 @@ export function RoutinesScreen() {
     setError('')
   }
 
+  const hasCompletedSets = Object.values(setsByExercise)
+    .flat()
+    .some((set) => set.completedAt)
+  const dayPosition =
+    selectedRoutine && selectedRoutineIndex >= 0
+      ? `Day ${getRoutineDayNumber(selectedRoutine.name, selectedRoutineIndex)} of ${orderedRoutines.length}`
+      : ''
+
   return (
     <section className="page training-page">
-      <header
-        className={
-          mode === 'today'
-            ? 'training-console training-console--today'
-            : 'training-console'
-        }
-      >
-        <div className="training-console__top">
-          {mode === 'edit' ? (
-            <p className="eyebrow">{formatSplitHeaderLabel(activeSplit.label)}</p>
-          ) : null}
-          <SegmentedControl
-            ariaLabel="Training mode"
-            value={mode}
-            onChange={(next) => {
-              if (isWriting || finishing || isChangingPlan) return
-              if (next === 'today' && workoutRoutineId) {
-                const routine = routines.find((item) => item.id === workoutRoutineId)
-                if (routine) {
-                  setActiveSplitId(routine.splitId)
-                  setSelectedRoutineId(routine.id)
-                }
-              }
-              setMode(next)
-            }}
-            options={[
-              { value: 'today', label: 'Today' },
-              { value: 'edit', label: 'Edit' },
-            ]}
-          />
-        </div>
-        {mode === 'today' && orderedRoutines.length > 1 ? (
-          <div
-            className="day-chips training-console__days"
-            role="tablist"
-            aria-label="Select training day"
-            ref={dayChipsRef}
-          >
-            {orderedRoutines.map((routine, index) => {
-              const isActive = routine.id === selectedRoutine?.id
-              const dayNumber = getRoutineDayNumber(routine.name, index)
-              return (
-                <button
-                  key={routine.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  aria-label={`Day ${dayNumber}: ${routine.name}`}
-                  tabIndex={0}
-                  className={isActive ? 'day-chip day-chip--active' : 'day-chip'}
-                  onClick={() => void handleChooseRoutine(routine.id)}
-                >
-                  <span className="numeral" aria-hidden="true">
-                    {dayNumber}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        ) : null}
+      <header className="training-header">
+        {mode === 'today' ? (
+          <>
+            <p className="session-date">
+              {[
+                startedAt
+                  ? new Intl.DateTimeFormat(undefined, {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                    }).format(new Date(startedAt))
+                  : '',
+                dayPosition,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+            <div className="training-header__row">
+              <h1 className="training-ledger__title">{dayTitle}</h1>
+              <button
+                type="button"
+                className="btn btn--secondary btn--small routine-menu-button"
+                aria-haspopup="dialog"
+                aria-expanded={routineMenuOpenedAt !== null}
+                disabled={isLoading}
+                onClick={(event) => setRoutineMenuOpenedAt(event.timeStamp)}
+              >
+                <ListIcon width={18} height={18} />
+                Routines
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="session-date">{formatSplitHeaderLabel(activeSplit.label)}</p>
+            <div className="training-header__row">
+              <h1 className="training-ledger__title">Edit routines</h1>
+              <button
+                type="button"
+                className="btn btn--secondary btn--small"
+                onClick={returnToToday}
+              >
+                Done
+              </button>
+            </div>
+          </>
+        )}
       </header>
 
       {message ? <Banner tone="success">{message}</Banner> : null}
@@ -912,39 +911,11 @@ export function RoutinesScreen() {
       ) : mode === 'today' ? (
         <div className="train-today">
           <main className="training-ledger">
-            <header className="training-ledger__masthead">
-              <div>
-                <p className="session-date">
-                  {startedAt
-                    ? new Intl.DateTimeFormat(undefined, {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      }).format(new Date(startedAt))
-                    : ''}
-                </p>
-                <h2 className="training-ledger__title">{dayTitle}</h2>
-              </div>
-              <button
-                type="button"
-                className="btn btn--ghost finish-workout"
-                disabled={
-                  isWriting ||
-                  finishing ||
-                  isChangingPlan ||
-                  !Object.values(setsByExercise)
-                    .flat()
-                    .some((set) => set.completedAt)
-                }
-                onClick={() => void handleFinishWorkout()}
-              >
-                {finishing ? 'Finishing...' : 'Finish workout'}
-              </button>
-            </header>
             <div className="exercise-list training-ledger__entries">
               {visibleExerciseIds.map((exerciseId) => {
                 const exercise = exerciseMap[exerciseId]
                 if (!exercise) return null
+                const preview = historyPreviewByExercise[exerciseId]
                 return (
                   <WorkoutExercise
                     onError={setError}
@@ -954,7 +925,7 @@ export function RoutinesScreen() {
                     isExpanded={activeExerciseId === exerciseId}
                     onToggle={() => setExpandedExerciseId(exerciseId)}
                     sets={setsByExercise[exerciseId] ?? []}
-                    lastSession={historyPreviewByExercise[exerciseId]?.[0]}
+                    lastSession={preview ? (preview[0] ?? null) : undefined}
                     groupLabel={
                       selectedExerciseIds.includes(exerciseId) ? undefined : 'Added today'
                     }
@@ -981,11 +952,11 @@ export function RoutinesScreen() {
             ) : null}
             <button
               type="button"
-              className="btn btn--ghost btn--block add-exercise"
+              className="add-exercise"
               onClick={() => setIsAddOpen((open) => !open)}
               aria-expanded={isAddOpen}
             >
-              <PlusIcon />
+              <PlusIcon width={18} height={18} />
               Add exercise
             </button>
             {isAddOpen ? (
@@ -1029,6 +1000,19 @@ export function RoutinesScreen() {
                 </div>
               </div>
             ) : null}
+            <div className="finish-section">
+              <button
+                type="button"
+                className="btn btn--secondary btn--block finish-workout"
+                disabled={isWriting || finishing || isChangingPlan || !hasCompletedSets}
+                onClick={() => void handleFinishWorkout()}
+              >
+                {finishing ? 'Finishing...' : 'Finish workout'}
+              </button>
+              {hasCompletedSets ? null : (
+                <p className="finish-section__hint">Log a set to finish this workout.</p>
+              )}
+            </div>
           </main>
         </div>
       ) : (
@@ -1072,6 +1056,63 @@ export function RoutinesScreen() {
           }
         />
       )}
+
+      {routineMenuOpenedAt !== null && mode === 'today' ? (
+        <BottomSheet
+          title="Routines"
+          openedAt={routineMenuOpenedAt}
+          onClose={closeRoutineMenu}
+        >
+          <ul className="routine-list" aria-label="Select training day">
+            {orderedRoutines.map((routine, index) => {
+              const isCurrent = routine.id === selectedRoutine?.id
+              const dayNumber = getRoutineDayNumber(routine.name, index)
+              return (
+                <li key={routine.id}>
+                  <button
+                    type="button"
+                    className={
+                      isCurrent ? 'routine-option routine-option--current' : 'routine-option'
+                    }
+                    aria-label={`Day ${dayNumber}: ${routine.name}`}
+                    aria-current={isCurrent || undefined}
+                    disabled={isWriting || finishing || isChangingPlan}
+                    onClick={() =>
+                      isCurrent ? closeRoutineMenu() : void handleChooseRoutine(routine.id)
+                    }
+                  >
+                    <span className="routine-option__text">
+                      <span className="routine-option__day">Day {dayNumber}</span>
+                      <span className="routine-option__name">
+                        {buildDayTitle(routine.name, index)}
+                      </span>
+                      <span className="routine-option__meta">
+                        {routine.exerciseIds.length} exercises
+                      </span>
+                    </span>
+                    {isCurrent ? (
+                      <span className="routine-option__current">
+                        <CheckIcon width={16} height={16} />
+                        Current
+                      </span>
+                    ) : null}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+          <button
+            type="button"
+            className="btn btn--secondary btn--block"
+            onClick={() => {
+              setRoutineMenuOpenedAt(null)
+              setMode('edit')
+            }}
+          >
+            Edit routines
+          </button>
+        </BottomSheet>
+      ) : null}
 
       {historySheet ? (
         <BottomSheet
@@ -1485,10 +1526,7 @@ function getRoutineDayNumber(routineName: string, index: number): string {
 }
 
 function formatSplitHeaderLabel(label: string): string {
-  return label
-    .replace(/^(\d)\s+day/i, '$1-Day')
-    .replace('split', 'Split')
-    .toUpperCase()
+  return label.replace(/^(\d)\s+day/i, '$1-day')
 }
 
 function formatSplitOptionLabel(splitId: RoutineSplitId): string {
