@@ -58,3 +58,8 @@ Use this map to prevent repeat regressions. Every bugfix should add or update an
 2. Include the exact failing test name that captured the bug first.
 3. Include the commit hash that fixed the bug.
 4. Link acceptance evidence (logs/screenshots/PR artifacts).
+
+| 2026-09-27 | Train/Settings look unfinished: content bleeds through the sticky header, mixed control styles and radii, broken-looking disabled Finish, misaligned Settings rows | Sticky header background faded to transparent; day chips and segmented control used different containers; per-component radii and mono caps diverged; light-theme glow outranked its reset. | `docs/testing/repro-train-visual-polish.js` | `dc9cbd7` | Failed 7/10 before, 10/10 after at 390x844; 167 tests, lint, typecheck, build pass; before/after screenshots in session scratchpad. Chromium only, no device check. |
+
+| 2026-09-27 | Log set lost keyboard/screen-reader focus on every save | `disabled={busy}` disabled the focused button during the write, and browsers move focus off disabled elements. | `keeps focus on Log set while the set is being saved` | `eec4a15` | Failed with `disabled={busy}`, passes with `aria-disabled`; browser flow at 390x844 shows focus on Log set after logging. |
+| 2026-09-27 | A second tap right after logging could record a duplicate once the next draft is prefilled | Auto-preparing the next draft makes Log set immediately valid again. | `ignores a repeated tap that lands just after a set is logged` | `eec4a15` | Browser touch flow: tap + forced tap 80ms later stores 1 set; a tap after 700ms stores the second. |
