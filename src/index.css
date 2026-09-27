@@ -651,7 +651,6 @@ select {
 .exercise-card {
   display: grid;
   gap: var(--space-1);
-  padding: var(--space-2) 0;
   border-bottom: 1px solid var(--divider);
 }
 
@@ -659,7 +658,7 @@ select {
 .exercise-card--active {
   gap: var(--space-2);
   margin: var(--space-2) 0;
-  padding: var(--space-4);
+  padding: var(--space-2) var(--space-4) var(--space-4);
   border-bottom: 0;
   border-radius: var(--radius-lg);
   background: var(--surface);
@@ -672,15 +671,18 @@ select {
   gap: var(--space-1);
 }
 
+/* Collapsed rows are one full-width button with a fixed minimum height */
 .exercise-card__title-btn {
   appearance: none;
+  width: 100%;
   border: 0;
   background: none;
-  padding: var(--space-1) 0;
-  min-height: 52px;
+  padding: 10px 0;
+  min-height: 64px;
   display: grid;
-  align-content: center;
-  gap: 2px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
   min-width: 0;
   text-align: left;
   color: inherit;
@@ -689,8 +691,16 @@ select {
 }
 
 .exercise-card--active .exercise-card__title-btn {
-  min-height: 44px;
+  min-height: 48px;
+  padding: var(--space-1) 0;
+  grid-template-columns: minmax(0, 1fr);
   cursor: default;
+}
+
+.exercise-card__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 .exercise-card__group {
@@ -702,6 +712,7 @@ select {
   font-size: 17px;
   font-weight: 600;
   line-height: 1.3;
+  color: var(--text-primary);
   overflow-wrap: anywhere;
 }
 
@@ -711,17 +722,33 @@ select {
   line-height: 1.25;
 }
 
-.exercise-card__status {
-  display: inline-flex;
+.exercise-card__summary {
+  display: flex;
   align-items: center;
   gap: var(--space-1);
-  font-size: 14px;
-  color: var(--text-secondary);
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.3;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Today's progress reads as current state; last session reads as reference */
+.exercise-card__today {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.exercise-card__last {
+  display: block;
+  color: var(--text-secondary);
 }
 
 .exercise-card__done {
-  color: var(--text-primary);
+  flex: 0 0 auto;
+  color: var(--success);
 }
 
 .exercise-card__chevron {
@@ -730,6 +757,11 @@ select {
 
 .exercise-history-button {
   flex: 0 0 auto;
+}
+
+.exercise-menu-button[aria-expanded='true'] {
+  background: var(--surface-raised);
+  color: var(--text-primary);
 }
 
 /* ---------- Previous performance ---------- */
@@ -772,6 +804,11 @@ select {
   min-height: 48px;
   border-bottom: 1px solid var(--divider);
   font-variant-numeric: tabular-nums;
+}
+
+.logged-set--fresh .logged-set__state {
+  color: var(--success);
+  font-weight: 600;
 }
 
 .logged-set--selected {
@@ -924,28 +961,12 @@ select {
   gap: var(--space-3);
 }
 
-.exercise-options-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  justify-self: start;
-  color: var(--text-secondary);
-  text-decoration: none;
-}
-
-.exercise-options-toggle__icon {
-  transition: transform 0.15s ease;
-}
-
-.exercise-options-toggle[aria-expanded='true'] .exercise-options-toggle__icon {
-  transform: rotate(180deg);
-}
-
 .exercise-options {
   display: grid;
   gap: var(--space-3);
-  padding-top: var(--space-3);
+  padding: var(--space-3) 0;
   border-top: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
 }
 
 .suggestion {

@@ -104,27 +104,62 @@ describe('WorkoutExercise saving', () => {
   const weight = () => host.querySelector<HTMLInputElement>('[inputmode="decimal"]')!
   const button = (name: string) =>
     Array.from(host.querySelectorAll('button')).find((item) => item.textContent === name)!
+  const optionsButton = () =>
+    host.querySelector<HTMLButtonElement>('[aria-label="Exercise options for Press"]')!
   const selectCompleted = async () =>
     click(host.querySelector('[aria-label="Edit set 1 for Press"]')!)
 
-  it('logs a set with one tap and prepares the next draft from it', async () => {
+  it('confirms the logged set on its row and labels the next set as an unlogged draft', async () => {
     await db.setEntries.clear()
     await render([])
+    const draftState = () => host.querySelector('.save-state')?.textContent ?? ''
+    const rowText = () =>
+      Array.from(host.querySelectorAll('.logged-set')).map((row) => row.textContent ?? '')
     expect(host.querySelector('.entry-caption')?.textContent).toBe('Set 1')
     await change(weight(), '102.5')
     await change(reps(), '8')
-    expect(host.querySelector('[role="status"]')?.textContent).toBe('Draft saved')
+    expect(draftState()).toBe('Draft saved')
+
     await click(button('Log set'))
-    await waitUntil(async () => (await db.setEntries.count()) === 1)
     await waitUntil(async () => host.querySelector('.entry-caption')?.textContent === 'Set 2')
     expect(weight().value).toBe('102.5')
     expect(reps().value).toBe('8')
-    expect(host.querySelector('[role="status"]')?.textContent).toBe('Set logged')
-    const rows = Array.from(host.querySelectorAll('.logged-set'))
-    expect(rows).toHaveLength(1)
-    expect(rows[0].textContent).toContain('102.5 lb × 8')
-    expect(rows[0].textContent).toContain('Logged')
-    expect(await db.setEntries.count()).toBe(1)
+    expect(draftState()).toBe('Prefilled from set 1')
+    expect(draftState().toLowerCase()).not.toContain('logged')
+    expect(rowText()).toHaveLength(1)
+    expect(rowText()[0]).toContain('102.5 lb × 8')
+    expect(rowText()[0]).toContain('Saved')
+    expect(host.querySelector('.logged-set-announcement')?.textContent).toBe('Set 1 saved')
+
+    await waitUntil(async () => button('Log set').getAttribute('aria-disabled') !== 'true')
+    await change(reps(), '7')
+    expect(draftState()).toBe('Draft saved')
+    await click(button('Log set'))
+    await waitUntil(async () => host.querySelector('.entry-caption')?.textContent === 'Set 3')
+    expect(rowText()[0]).toContain('Logged')
+    expect(rowText()[0]).not.toContain('Saved')
+    expect(rowText()[1]).toContain('102.5 lb × 7')
+    expect(rowText()[1]).toContain('Saved')
+    expect(draftState()).toBe('Prefilled from set 2')
+    expect(await db.setEntries.count()).toBe(2)
+
+    await act(async () => root!.unmount())
+    root = undefined
+    const stored = await db.setEntries.toArray()
+    await render(stored.sort((a, b) => a.index - b.index))
+    expect(host.querySelector('.entry-caption')?.textContent).toBe('Set 3')
+    expect(weight().value).toBe('102.5')
+    expect(reps().value).toBe('7')
+    expect(rowText().every((row) => row.includes('Logged') && !row.includes('Saved'))).toBe(
+      true,
+    )
+    expect(draftState()).toBe('Draft saved')
+
+    await selectCompleted()
+    expect(host.querySelector('.entry-caption')?.textContent).toBe('Editing set 1')
+    await change(reps(), '9')
+    await waitUntil(async () => draftState() === 'Correction saved')
+    expect(await db.setEntries.count()).toBe(2)
   })
 
   it('ignores a repeated tap that lands just after a set is logged', async () => {
@@ -178,32 +213,45 @@ describe('WorkoutExercise saving', () => {
     expect(previous).toContain('100 lb')
   })
 
-  it('summarizes a collapsed exercise from its logged work sets', async () => {
+  it('summarizes collapsed rows with today progress or last session, never placeholders', async () => {
     await render([], false, false)
-    expect(host.querySelector('.exercise-card__status')?.textContent).toBe('First session')
+    expect(host.querySelector('.exercise-card__summary')).toBeNull()
+    expect(host.textContent).not.toContain('First session')
+    expect(host.querySelectorAll('button')).toHaveLength(1)
     expect(host.querySelector('.quick-entry')).toBeNull()
     await act(async () => root!.unmount())
     root = undefined
     await render([], true, false)
-    expect(host.querySelector('.exercise-card__status')?.textContent).toBe(
-      'Last: 100 lb · 8 reps',
+    expect(host.querySelector('.exercise-card__last')?.textContent).toBe(
+      'Last · 100 lb · 8 reps',
     )
+    expect(host.querySelector('.exercise-card__today')).toBeNull()
     await act(async () => root!.unmount())
     root = undefined
     await render([completedSet], true, false)
-    expect(host.querySelector('.exercise-card__status')?.textContent).toBe('1 of 3 sets')
+    expect(host.querySelector('.exercise-card__today')?.textContent).toBe(
+      '1 of 3 sets today',
+    )
+    expect(host.querySelector('.exercise-card__last')).toBeNull()
   })
 
-  it('keeps guidance and management behind an accessible Exercise options disclosure', async () => {
+  it('keeps guidance and management in the exercise header menu', async () => {
     await render([], true)
     expect(host.querySelector('.exercise-card__position')).toBeNull()
     expect(host.querySelector('.suggestion')).toBeNull()
     expect(host.querySelector('textarea')).toBeNull()
     expect(host.querySelector('[aria-label="Open history for Press"]')).not.toBeNull()
-    const options = button('Exercise options')
+    expect(host.querySelector('.quick-entry [aria-controls^="options-"]')).toBeNull()
+    const options = optionsButton()
+    expect(host.querySelector('.exercise-card__head')?.contains(options)).toBe(true)
     expect(options.getAttribute('aria-expanded')).toBe('false')
     await click(options)
     expect(options.getAttribute('aria-expanded')).toBe('true')
+    const panel = host.querySelector('.exercise-options')!
+    expect(
+      panel.compareDocumentPosition(host.querySelector('.quick-entry')!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
     expect(host.querySelector('.suggestion')?.textContent).toBeTruthy()
     expect(host.querySelector('textarea')).not.toBeNull()
     expect(button('Remove from this workout')).toBeDefined()
@@ -433,7 +481,7 @@ describe('WorkoutExercise saving', () => {
   it('preserves exercise notes using the existing local storage key', async () => {
     localStorage.setItem('workout-tracker.notes.session.exercise', 'Keep the same grip')
     await render()
-    await click(button('Exercise options'))
+    await click(optionsButton())
     const notes = host.querySelector<HTMLTextAreaElement>('textarea')!
     expect(notes?.value).toBe('Keep the same grip')
     await act(async () => {

@@ -101,17 +101,17 @@ describe('RoutinesScreen behavior', () => {
     await harness.cleanup()
   })
 
-  it('shows each collapsed exercise status from real session data', async () => {
+  it('shows today progress on collapsed rows and no placeholder without history', async () => {
     const harness = await renderScreen()
     const cards = Array.from(harness.host.querySelectorAll<HTMLElement>('.exercise-card'))
-    await waitFor(
-      () => cards[1].querySelector('.exercise-card__status')?.textContent === 'First session',
-      'Collapsed exercise without history did not say First session.',
-    )
+    await flushFrame()
+    expect(cards[1].querySelector('.exercise-card__summary')).toBeNull()
+    expect(cards[1].textContent).not.toContain('First session')
+    expect(cards[1].querySelectorAll('button')).toHaveLength(1)
     await logSet(cards[0], '100', '8')
     await click(cards[1].querySelector('.exercise-card__title-btn')!)
-    expect(cards[0].querySelector('.exercise-card__status')?.textContent).toBe(
-      '1 of 3 sets',
+    expect(cards[0].querySelector('.exercise-card__today')?.textContent).toBe(
+      '1 of 3 sets today',
     )
     await harness.cleanup()
   })
@@ -132,7 +132,8 @@ describe('RoutinesScreen behavior', () => {
     )
     const original = (await readStored(() => db.setEntries.toArray()))[0]
     expect(original.weight).toBe(0)
-    expect(card.textContent).toContain('Set logged')
+    expect(card.querySelector('.logged-set--fresh')?.textContent).toContain('Saved')
+    expect(card.querySelector('.save-state')?.textContent).toBe('Prefilled from set 1')
     await click(getButtonByAriaLabelPrefix(card, 'Edit set 1 for'))
     await setInputValue(card.querySelector('input[inputmode="numeric"]')!, '9')
     await waitForAsync(
@@ -528,8 +529,8 @@ describe('RoutinesScreen behavior', () => {
     await logSet(firstCard!, '100', '6')
     await logSet(firstCard!, '100', '6')
 
-    await click(getButtonByText(firstCard!, 'Exercise options'))
-    expect(getButtonByText(firstCard!, 'Exercise options').getAttribute('aria-expanded')).toBe(
+    await click(getButtonByAriaLabelPrefix(firstCard!, 'Exercise options'))
+    expect(getButtonByAriaLabelPrefix(firstCard!, 'Exercise options').getAttribute('aria-expanded')).toBe(
       'true',
     )
     expect(firstCard!.querySelector('.suggestion')).toBeNull()
@@ -543,10 +544,10 @@ describe('RoutinesScreen behavior', () => {
     )
     const nextCard = harness.host.querySelector<HTMLElement>('.exercise-card')!
     expect(nextCard.querySelector('.suggestion')).toBeNull()
-    expect(getButtonByText(nextCard, 'Exercise options').getAttribute('aria-expanded')).toBe(
+    expect(getButtonByAriaLabelPrefix(nextCard, 'Exercise options').getAttribute('aria-expanded')).toBe(
       'false',
     )
-    await click(getButtonByText(nextCard, 'Exercise options'))
+    await click(getButtonByAriaLabelPrefix(nextCard, 'Exercise options'))
     await waitFor(
       () => Boolean(nextCard.querySelector('.suggestion')),
       'Progression suggestion did not surface for the completed workout.',
@@ -554,13 +555,13 @@ describe('RoutinesScreen behavior', () => {
 
     expect(nextCard.querySelector('.suggestion')?.textContent).toContain('Keep 100 lb')
     expect(nextCard.querySelector('.suggestion')?.textContent).toContain('7 reps')
-    await click(getButtonByText(nextCard, 'Exercise options'))
+    await click(getButtonByAriaLabelPrefix(nextCard, 'Exercise options'))
     expect(nextCard.querySelector('.suggestion')).toBeNull()
 
     await harness.cleanup()
   })
 
-  it('shows inline saved feedback on the save action after logging a set', async () => {
+  it('confirms the saved set on its row and marks the next draft as prefilled', async () => {
     const harness = await renderScreen()
     const firstCard = harness.host.querySelector('.exercise-card') as HTMLElement | null
     expect(firstCard).not.toBeNull()
@@ -574,8 +575,11 @@ describe('RoutinesScreen behavior', () => {
 
     await waitFor(
       () =>
+        (firstCard!.querySelector('.logged-set--fresh')?.textContent ?? '').includes(
+          'Saved',
+        ) &&
         (firstCard!.querySelector('.save-state')?.textContent ?? '').trim() ===
-        'Set logged',
+          'Prefilled from set 1',
       'Save action did not surface saved feedback.',
     )
 
