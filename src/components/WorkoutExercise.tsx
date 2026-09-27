@@ -470,7 +470,13 @@ export function WorkoutExercise(props: Props) {
     : -1
   const collapsedStatus =
     completed.length === 0
-      ? 'Not started'
+      ? lastSession === undefined
+        ? ''
+        : previousWork?.length
+          ? `Last: ${summary(lastSession!.sets, unit)}`
+          : lastSession
+            ? summary(lastSession.sets, unit)
+            : 'First session'
       : workTarget > 0
         ? `${work.length} of ${workTarget} sets`
         : `${work.length} ${work.length === 1 ? 'set' : 'sets'} logged`
@@ -492,7 +498,7 @@ export function WorkoutExercise(props: Props) {
             <span className="exercise-card__group">{props.groupLabel}</span>
           ) : null}
           <span className="exercise-card__name">{exercise.name}</span>
-          {props.isExpanded ? null : (
+          {props.isExpanded || !collapsedStatus ? null : (
             <span className="exercise-card__status">
               {work.length >= workTarget && workTarget > 0 ? (
                 <CheckIcon width={14} height={14} className="exercise-card__done" />

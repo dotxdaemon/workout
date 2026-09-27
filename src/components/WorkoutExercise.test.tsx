@@ -180,11 +180,17 @@ describe('WorkoutExercise saving', () => {
 
   it('summarizes a collapsed exercise from its logged work sets', async () => {
     await render([], false, false)
-    expect(host.querySelector('.exercise-card__status')?.textContent).toBe('Not started')
+    expect(host.querySelector('.exercise-card__status')?.textContent).toBe('First session')
     expect(host.querySelector('.quick-entry')).toBeNull()
     await act(async () => root!.unmount())
     root = undefined
-    await render([completedSet], false, false)
+    await render([], true, false)
+    expect(host.querySelector('.exercise-card__status')?.textContent).toBe(
+      'Last: 100 lb · 8 reps',
+    )
+    await act(async () => root!.unmount())
+    root = undefined
+    await render([completedSet], true, false)
     expect(host.querySelector('.exercise-card__status')?.textContent).toBe('1 of 3 sets')
   })
 

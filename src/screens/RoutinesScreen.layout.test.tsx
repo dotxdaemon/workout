@@ -104,8 +104,9 @@ describe('RoutinesScreen behavior', () => {
   it('shows each collapsed exercise status from real session data', async () => {
     const harness = await renderScreen()
     const cards = Array.from(harness.host.querySelectorAll<HTMLElement>('.exercise-card'))
-    expect(cards[1].querySelector('.exercise-card__status')?.textContent).toBe(
-      'Not started',
+    await waitFor(
+      () => cards[1].querySelector('.exercise-card__status')?.textContent === 'First session',
+      'Collapsed exercise without history did not say First session.',
     )
     await logSet(cards[0], '100', '8')
     await click(cards[1].querySelector('.exercise-card__title-btn')!)
