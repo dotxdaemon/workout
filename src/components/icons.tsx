@@ -162,6 +162,14 @@ export function CheckIcon(props: IconProps) {
   )
 }
 
+export function MoreIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M5.5 12h.01M12 12h.01M18.5 12h.01" strokeWidth={3} />
+    </svg>
+  )
+}
+
 export function ListIcon(props: IconProps) {
   return (
     <svg {...base(props)}>

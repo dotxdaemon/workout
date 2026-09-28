@@ -10,7 +10,7 @@ import {
 } from '../lib/db'
 import { buildProgressionSuggestion } from '../lib/progression'
 import { convertWeight, formatWeight } from '../lib/units'
-import { CheckIcon, ClockIcon, ChevronDownIcon } from './icons'
+import { CheckIcon, ClockIcon, ChevronDownIcon, MoreIcon } from './icons'
 
 // A tap this soon after a set is logged is treated as an accidental repeat.
 const REPEAT_LOG_GUARD_MS = 700
@@ -111,15 +111,20 @@ export function WorkoutExercise(props: Props) {
       ? setDraftValues(incomplete, unit)
       : { id: crypto.randomUUID(), weight: '', reps: '', unit }
     try {
+      const stored = readDraft(storageKey) ?? readDraft(unfinishedKey)
       return {
-        draft: readDraft(storageKey) ?? readDraft(unfinishedKey) ?? fallback,
+        draft: stored ?? fallback,
         note: localStorage.getItem(noteKey) ?? '',
         error: '',
+        restoredDraft: Boolean(
+          stored && !sets.some((set) => set.id === stored.id && set.completedAt),
+        ),
       }
     } catch (reason) {
       return {
         draft: fallback,
         note: '',
+        restoredDraft: false,
         error:
           reason instanceof Error
             ? reason.message
@@ -130,7 +135,9 @@ export function WorkoutExercise(props: Props) {
   const [draft, setDraft] = useState(initial.draft)
   const [note, setNote] = useState(initial.note)
   const selected = sets.find((set) => set.id === draft.id && set.completedAt)
-  const [status, setStatus] = useState('')
+  const [status, setStatus] = useState(initial.restoredDraft ? 'Draft saved' : '')
+  const [lastLoggedId, setLastLoggedId] = useState<string | null>(null)
+  const [announcement, setAnnouncement] = useState('')
   const [error, setError] = useState(initial.error)
   const [busy, setBusy] = useState(false)
   const [pendingCorrection, setPendingCorrection] = useState(
@@ -336,10 +343,12 @@ export function WorkoutExercise(props: Props) {
       if (mountedRef.current) {
         setPendingCorrection(dirtyRef.current)
         setError('')
+        setLastLoggedId(entry.id)
+        setAnnouncement(`Set ${completedPosition(entry.id)} saved`)
       }
-      if (!dirtyRef.current) markSaved('Set logged')
+      if (!dirtyRef.current) markSaved('')
     } catch {
-      report('Set not saved. Your values are still here. Try Complete set again.')
+      report('Set not saved. Your values are still here. Try Log set again.')
       if (mountedRef.current) setStatus('Not saved')
     } finally {
       lock.current = false
@@ -356,9 +365,17 @@ export function WorkoutExercise(props: Props) {
       advanceAfterLog(savedRef.current)
   }
 
+  function completedPosition(id: string): number {
+    return (
+      entriesRef.current
+        .filter((set) => set.completedAt)
+        .findIndex((set) => set.id === id) + 1
+    )
+  }
+
   function advanceAfterLog(entry: SetEntry): void {
     nextSet(entry)
-    setStatus('Set logged')
+    setStatus(`Prefilled from set ${completedPosition(entry.id)}`)
     justLoggedRef.current = true
     setJustLogged(true)
     clearTimeout(guardTimerRef.current)
@@ -468,57 +485,122 @@ export function WorkoutExercise(props: Props) {
   const selectedIndex = selected
     ? completed.findIndex((set) => set.id === selected.id)
     : -1
-  const collapsedStatus =
+  const todayProgress =
     completed.length === 0
-      ? 'Not started'
+      ? ''
       : workTarget > 0
-        ? `${work.length} of ${workTarget} sets`
-        : `${work.length} ${work.length === 1 ? 'set' : 'sets'} logged`
+        ? `${work.length} of ${workTarget} sets today`
+        : `${work.length} ${work.length === 1 ? 'set' : 'sets'} today`
+  const lastSummary =
+    !todayProgress && previousWork?.length
+      ? `Last · ${summary(lastSession!.sets, unit)}`
+      : ''
+  const optionsId = `options-${sessionId}-${exercise.id}`
+
+  if (!props.isExpanded) {
+    return (
+      <article
+        data-exercise-id={exercise.id}
+        className={`exercise-card${work.length >= workTarget ? ' exercise-card--complete' : ''}`}
+      >
+        <button
+          type="button"
+          className="exercise-card__title-btn"
+          aria-expanded={false}
+          aria-controls={`entry-${exercise.id}`}
+          onClick={props.onToggle}
+        >
+          <span className="exercise-card__text">
+            {props.groupLabel ? (
+              <span className="exercise-card__group">{props.groupLabel}</span>
+            ) : null}
+            <span className="exercise-card__name">{exercise.name}</span>
+            {todayProgress ? (
+              <span className="exercise-card__summary exercise-card__today">
+                {work.length >= workTarget && workTarget > 0 ? (
+                  <CheckIcon width={14} height={14} className="exercise-card__done" />
+                ) : null}
+                {todayProgress}
+              </span>
+            ) : lastSummary ? (
+              <span className="exercise-card__summary exercise-card__last">
+                {lastSummary}
+              </span>
+            ) : null}
+          </span>
+          <ChevronDownIcon width={18} height={18} className="exercise-card__chevron" />
+        </button>
+      </article>
+    )
+  }
 
   return (
     <article
       data-exercise-id={exercise.id}
-      className={`exercise-card${props.isExpanded ? ' exercise-card--active' : ''}${work.length >= workTarget ? ' exercise-card--complete' : ''}`}
+      className={`exercise-card exercise-card--active${work.length >= workTarget ? ' exercise-card--complete' : ''}`}
     >
       <div className="exercise-card__head">
         <button
           type="button"
           className="exercise-card__title-btn"
-          aria-expanded={props.isExpanded}
+          aria-expanded
           aria-controls={`entry-${exercise.id}`}
           onClick={props.onToggle}
         >
-          {props.groupLabel ? (
-            <span className="exercise-card__group">{props.groupLabel}</span>
-          ) : null}
-          <span className="exercise-card__name">{exercise.name}</span>
-          {props.isExpanded ? null : (
-            <span className="exercise-card__status">
-              {work.length >= workTarget && workTarget > 0 ? (
-                <CheckIcon width={14} height={14} className="exercise-card__done" />
-              ) : null}
-              {collapsedStatus}
-            </span>
-          )}
+          <span className="exercise-card__text">
+            {props.groupLabel ? (
+              <span className="exercise-card__group">{props.groupLabel}</span>
+            ) : null}
+            <span className="exercise-card__name">{exercise.name}</span>
+          </span>
         </button>
-        {props.isExpanded ? null : (
-          <ChevronDownIcon width={18} height={18} className="exercise-card__chevron" />
-        )}
         <button
           type="button"
-          className={
-            props.isExpanded
-              ? 'btn btn--quiet btn--small exercise-history-button'
-              : 'icon-btn exercise-history-button'
-          }
+          className="btn btn--quiet btn--small exercise-history-button"
           aria-label={`Open history for ${exercise.name}`}
           onClick={(event) => props.onOpenHistory(event.timeStamp)}
         >
           <ClockIcon width={18} height={18} />
-          {props.isExpanded ? <span>History</span> : null}
+          <span>History</span>
+        </button>
+        <button
+          type="button"
+          className="icon-btn exercise-menu-button"
+          aria-label={`Exercise options for ${exercise.name}`}
+          aria-expanded={manage}
+          aria-controls={optionsId}
+          onClick={() => setManage(!manage)}
+        >
+          <MoreIcon width={20} height={20} />
         </button>
       </div>
-      {props.isExpanded && lastSession !== undefined ? (
+      {manage ? (
+        <section
+          className="exercise-options"
+          id={optionsId}
+          aria-label={`Options for ${exercise.name}`}
+        >
+          {suggestion ? <p className="suggestion">{suggestion.message}</p> : null}
+          <label className="field">
+            <span className="field__label">Notes</span>
+            <textarea
+              className="notes-input"
+              rows={2}
+              value={note}
+              onChange={(event) => changeNote(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn btn--secondary"
+            disabled={busy || pendingCorrection}
+            onClick={props.onRemoveExercise}
+          >
+            Remove from this workout
+          </button>
+        </section>
+      ) : null}
+      {lastSession !== undefined ? (
         <div className="previous-line">
           {previousWork?.length ? (
             <p className="previous-performance">
@@ -542,213 +624,184 @@ export function WorkoutExercise(props: Props) {
             <button
               type="button"
               className="text-action"
-              onClick={() => nextSet(previousWork[0])}
+              onClick={() => {
+                nextSet(previousWork[0])
+                setStatus('Prefilled from last session')
+              }}
             >
               Use last
             </button>
           ) : null}
         </div>
       ) : null}
-      {props.isExpanded && completed.length ? (
+      {completed.length ? (
         <ol className="logged-sets" aria-label={`Sets logged for ${exercise.name}`}>
-          {completed.map((set, index) => (
-            <li
-              key={set.id}
-              className={`logged-set${set.id === selected?.id ? ' logged-set--selected' : ''}`}
-            >
-              <span className="logged-set__index">{set.isWarmup ? 'W' : index + 1}</span>
-              <span className="logged-set__value">
-                {formatWeight(set.weight)} {set.unit ?? unit} × {set.reps}
-              </span>
-              <span className="logged-set__state">
-                <CheckIcon width={14} height={14} />
-                <span className="logged-set__state-text">
-                  {set.id === selected?.id ? 'Editing' : 'Logged'}
+          {completed.map((set, index) => {
+            const state =
+              set.id === selected?.id
+                ? 'Editing'
+                : set.id === lastLoggedId
+                  ? 'Saved'
+                  : 'Logged'
+            return (
+              <li
+                key={set.id}
+                className={`logged-set${state === 'Editing' ? ' logged-set--selected' : ''}${state === 'Saved' ? ' logged-set--fresh' : ''}`}
+              >
+                <span className="logged-set__index">
+                  {set.isWarmup ? 'W' : index + 1}
                 </span>
-              </span>
-              {set.id === selected?.id ? null : (
-                <button
-                  type="button"
-                  className="logged-set__edit"
-                  aria-label={`Edit set ${index + 1} for ${exercise.name}`}
-                  disabled={busy || pendingCorrection}
-                  onClick={() => editSet(set)}
-                >
-                  Edit
-                </button>
-              )}
-            </li>
-          ))}
+                <span className="logged-set__value">
+                  {formatWeight(set.weight)} {set.unit ?? unit} × {set.reps}
+                </span>
+                <span className="logged-set__state">
+                  <CheckIcon width={14} height={14} />
+                  <span className="logged-set__state-text">{state}</span>
+                </span>
+                {state === 'Editing' ? null : (
+                  <button
+                    type="button"
+                    className="logged-set__edit"
+                    aria-label={`Edit set ${index + 1} for ${exercise.name}`}
+                    disabled={busy || pendingCorrection}
+                    onClick={() => editSet(set)}
+                  >
+                    Edit
+                  </button>
+                )}
+              </li>
+            )
+          })}
         </ol>
       ) : null}
-      {props.isExpanded ? (
-        <div id={`entry-${exercise.id}`} className="quick-entry">
-          <div className="entry-meta">
-            <h3 className="entry-caption">
-              {selected ? `Editing set ${selectedIndex + 1}` : `Set ${completed.length + 1}`}
-            </h3>
-            <span className="save-state" role="status">
-              {status}
-            </span>
-          </div>
-          <div className={`set-entry${error ? ' set-entry--invalid' : ''}`}>
-            <label className="set-entry__field">
-              <span className="field__label">Weight ({draft.unit})</span>
+      <span className="visually-hidden logged-set-announcement" role="status">
+        {announcement}
+      </span>
+      <div id={`entry-${exercise.id}`} className="quick-entry">
+        <div className="entry-meta">
+          <h3 className="entry-caption">
+            {selected
+              ? `Editing set ${selectedIndex + 1}`
+              : `Set ${completed.length + 1}`}
+          </h3>
+          <span className="save-state" role="status">
+            {status}
+          </span>
+        </div>
+        <div className={`set-entry${error ? ' set-entry--invalid' : ''}`}>
+          <label className="set-entry__field">
+            <span className="field__label">Weight ({draft.unit})</span>
+            <input
+              className="set-entry__input"
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              aria-label={`${exercise.name} weight`}
+              aria-invalid={Boolean(error) || undefined}
+              value={draft.weight}
+              onChange={(event) => change('weight', event.target.value.replace(',', '.'))}
+              onBlur={blur}
+            />
+          </label>
+          <div className="set-entry__field">
+            <label className="field__label" htmlFor={`reps-${sessionId}-${exercise.id}`}>
+              Reps
+            </label>
+            <div className="set-entry__reps-control">
+              <button
+                type="button"
+                className="set-entry__adjust"
+                aria-label={`Decrease reps for ${exercise.name}`}
+                disabled={!canAdjustReps || Number(draft.reps) <= 0}
+                onClick={() => adjustReps(-1)}
+              >
+                −1
+              </button>
               <input
+                id={`reps-${sessionId}-${exercise.id}`}
                 className="set-entry__input"
                 type="text"
-                inputMode="decimal"
+                inputMode="numeric"
                 autoComplete="off"
-                aria-label={`${exercise.name} weight`}
+                aria-label={`${exercise.name} reps`}
                 aria-invalid={Boolean(error) || undefined}
-                value={draft.weight}
-                onChange={(event) =>
-                  change('weight', event.target.value.replace(',', '.'))
-                }
+                value={draft.reps}
+                onChange={(event) => change('reps', event.target.value)}
                 onBlur={blur}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !selected) void complete()
+                }}
               />
-            </label>
-            <div className="set-entry__field">
-              <label
-                className="field__label"
-                htmlFor={`reps-${sessionId}-${exercise.id}`}
+              <button
+                type="button"
+                className="set-entry__adjust"
+                aria-label={`Increase reps for ${exercise.name}`}
+                disabled={!canAdjustReps || Number(draft.reps) >= Number.MAX_SAFE_INTEGER}
+                onClick={() => adjustReps(1)}
               >
-                Reps
-              </label>
-              <div className="set-entry__reps-control">
-                <button
-                  type="button"
-                  className="set-entry__adjust"
-                  aria-label={`Decrease reps for ${exercise.name}`}
-                  disabled={!canAdjustReps || Number(draft.reps) <= 0}
-                  onClick={() => adjustReps(-1)}
-                >
-                  −1
-                </button>
-                <input
-                  id={`reps-${sessionId}-${exercise.id}`}
-                  className="set-entry__input"
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="off"
-                    aria-label={`${exercise.name} reps`}
-                  aria-invalid={Boolean(error) || undefined}
-                  value={draft.reps}
-                  onChange={(event) => change('reps', event.target.value)}
-                  onBlur={blur}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !selected) void complete()
-                  }}
-                />
-                <button
-                  type="button"
-                  className="set-entry__adjust"
-                  aria-label={`Increase reps for ${exercise.name}`}
-                  disabled={
-                    !canAdjustReps || Number(draft.reps) >= Number.MAX_SAFE_INTEGER
-                  }
-                  onClick={() => adjustReps(1)}
-                >
-                  +1
-                </button>
-              </div>
+                +1
+              </button>
             </div>
           </div>
-          {error ? (
-            <p className="entry-error" role="alert">
-              {error}
-            </p>
-          ) : null}
-          {selected ? (
-            <div className="entry-actions">
-              <button
-                type="button"
-                className="btn btn--danger"
-                disabled={busy}
-                onClick={() => void remove()}
-              >
-                Delete set
-              </button>
-              <button
-                type="button"
-                className="btn btn--secondary next-set"
-                disabled={busy || pendingCorrection}
-                onClick={() => nextSet()}
-              >
-                Done editing
-              </button>
-            </div>
-          ) : (
+        </div>
+        {error ? (
+          <p className="entry-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {selected ? (
+          <div className="entry-actions">
             <button
               type="button"
-              className="btn btn--primary btn--block quick-entry__save"
-              aria-disabled={busy || justLogged || undefined}
-              onClick={() => void complete()}
+              className="btn btn--danger"
+              disabled={busy}
+              onClick={() => void remove()}
             >
-              Log set
+              Delete set
             </button>
-          )}
-          {pendingCorrection ? (
-            <div className="entry-actions">
-              {error && validDraft(draft) ? (
-                <button
-                  type="button"
-                  className="btn btn--secondary"
-                  disabled={busy}
-                  onClick={() => void persist()}
-                >
-                  Retry correction
-                </button>
-              ) : null}
+            <button
+              type="button"
+              className="btn btn--secondary next-set"
+              disabled={busy || pendingCorrection}
+              onClick={() => nextSet()}
+            >
+              Done editing
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="btn btn--primary btn--block quick-entry__save"
+            aria-disabled={busy || justLogged || undefined}
+            onClick={() => void complete()}
+          >
+            Log set
+          </button>
+        )}
+        {pendingCorrection ? (
+          <div className="entry-actions">
+            {error && validDraft(draft) ? (
               <button
                 type="button"
                 className="btn btn--secondary"
                 disabled={busy}
-                data-cancel-workout-correction={draft.id}
-                onClick={cancelCorrection}
+                onClick={() => void persist()}
               >
-                Cancel correction
+                Retry correction
               </button>
-            </div>
-          ) : null}
-          <button
-            type="button"
-            className="text-action exercise-options-toggle"
-            aria-expanded={manage}
-            aria-controls={`options-${sessionId}-${exercise.id}`}
-            onClick={() => setManage(!manage)}
-          >
-            Exercise options
-            <ChevronDownIcon width={16} height={16} className="exercise-options-toggle__icon" />
-          </button>
-          {manage ? (
-            <section
-              className="exercise-options"
-              id={`options-${sessionId}-${exercise.id}`}
-              aria-label={`Options for ${exercise.name}`}
+            ) : null}
+            <button
+              type="button"
+              className="btn btn--secondary"
+              disabled={busy}
+              data-cancel-workout-correction={draft.id}
+              onClick={cancelCorrection}
             >
-              {suggestion ? <p className="suggestion">{suggestion.message}</p> : null}
-              <label className="field">
-                <span className="field__label">Notes</span>
-                <textarea
-                  className="notes-input"
-                  rows={2}
-                  value={note}
-                  onChange={(event) => changeNote(event.target.value)}
-                />
-              </label>
-              <button
-                type="button"
-                className="btn btn--secondary"
-                disabled={busy || pendingCorrection}
-                onClick={props.onRemoveExercise}
-              >
-                Remove from this workout
-              </button>
-            </section>
-          ) : null}
-        </div>
-      ) : null}
+              Cancel correction
+            </button>
+          </div>
+        ) : null}
+      </div>
     </article>
   )
 }
